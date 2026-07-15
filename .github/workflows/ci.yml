@@ -21,7 +21,10 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          # Full history, not a shallow checkout - `turbo run --affected` (planned once we
+          # have enough packages for it to matter) needs enough git history to diff against;
+          # too-shallow a checkout makes turbo treat every package as changed.
+          fetch-depth: 0
 
       # Reads the pnpm version to install from the packageManager field in package.json.
       - uses: pnpm/action-setup@v6

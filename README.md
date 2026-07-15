@@ -7,9 +7,17 @@ typical of fully offline-first apps.
 
 ### Layout
 
-- `apps/*` - individual applications (added iteratively)
-- `packages/*` - shared config and libraries used across apps
+- `apps/client` - local-first React PWA, structured with [Feature-Sliced Design](https://feature-sliced.design/)
+- `apps/server` - Effect HTTP API on Cloudflare Workers
+- `apps/infrastructure` - Alchemy IaC that deploys the above
+- `packages/schema` - Effect Schema domain definitions - the single source of truth for DB, API, and FE validation
+- `packages/entities`, `packages/features`, `packages/widgets` - FSD slices, each its own package; a package's `package.json#exports` is its public API instead of a barrel `index.ts`, and the FSD layer-import rule (a slice may only depend on slices in strictly lower layers) is enforced through the pnpm/Turborepo package graph, not a folder-path lint rule
+- `packages/shared` - cross-cutting FE code (ui kit, api client, app-shell state, lib, config)
+- `packages/lint-config`, `packages/typescript-config` - shared tooling config
 - `repos/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code
+
+Apps and packages beyond the tooling above are added iteratively - see the note in
+`AGENTS.md`.
 
 ### Utilities
 

@@ -17,15 +17,16 @@ below.
 The tenant boundary - every tenant-scoped table carries a `hostId` column
 directly (no separate abstract "tenant" concept).
 
-| Field       | Type      | Notes                                                                                  |
-| ----------- | --------- | -------------------------------------------------------------------------------------- |
-| `id`        | uuid      | client-generated (see [Why client-generated UUID ids](#why-client-generated-uuid-ids)) |
-| `name`      | string    |                                                                                        |
-| `slug`      | string    | unique, used as subdomain/URL identifier                                               |
-| `email`     | string    |                                                                                        |
-| `timeZone`  | string    |                                                                                        |
-| `currency`  | string    |                                                                                        |
-| `createdAt` | timestamp |                                                                                        |
+| Field          | Type      | Notes                                                                                                                                                                                      |
+| -------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`           | uuid      | client-generated (see [Why client-generated UUID ids](#why-client-generated-uuid-ids))                                                                                                     |
+| `name`         | string    |                                                                                                                                                                                            |
+| `slug`         | string    | unique, used as subdomain/URL identifier                                                                                                                                                   |
+| `email`        | string    |                                                                                                                                                                                            |
+| `timeZone`     | string    |                                                                                                                                                                                            |
+| `currency`     | string    |                                                                                                                                                                                            |
+| `businessType` | string    | required - e.g. `"gym"`, `"yoga_studio"`, `"martial_arts"`, `"spa"` (extensible, same pattern as `triggerType`); drives `LeadStage` seeding, see [`LeadStageTemplate`](#leadstagetemplate) |
+| `createdAt`    | timestamp |                                                                                                                                                                                            |
 
 ### Member
 
@@ -50,16 +51,49 @@ _relationship_ between a person and a specific host, not of the person
 globally. The same `Member` can be `enrolled` at one host and a `lead` at
 another simultaneously.
 
-| Field         | Type                   | Notes                                                                                                                                                                                                                                                                                  |
-| ------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid                   | own primary key (not a composite key - see [Why client-generated UUID ids](#why-client-generated-uuid-ids))                                                                                                                                                                            |
-| `memberId`    | uuid (FK → Member)     |                                                                                                                                                                                                                                                                                        |
-| `hostId`      | uuid (FK → Host)       |                                                                                                                                                                                                                                                                                        |
-| `status`      | `"lead" \| "enrolled"` |                                                                                                                                                                                                                                                                                        |
-| `convertedAt` | timestamp \| null      | when `status` most recently transitioned to `"enrolled"`. Captures the _latest_ transition only - if a member could ever flip `enrolled → lead → enrolled` and the full transition history mattered, that would need to come from `DomainEvent` instead. Decided against that for now. |
-| `createdAt`   | timestamp              |                                                                                                                                                                                                                                                                                        |
+| Field         | Type                          | Notes                                                                                                                                                                                                                                                                                  |
+| ------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | uuid                          | own primary key (not a composite key - see [Why client-generated UUID ids](#why-client-generated-uuid-ids))                                                                                                                                                                            |
+| `memberId`    | uuid (FK → Member)            |                                                                                                                                                                                                                                                                                        |
+| `hostId`      | uuid (FK → Host)              |                                                                                                                                                                                                                                                                                        |
+| `status`      | `"lead" \| "enrolled"`        |                                                                                                                                                                                                                                                                                        |
+| `convertedAt` | timestamp \| null             | when `status` most recently transitioned to `"enrolled"`. Captures the _latest_ transition only - if a member could ever flip `enrolled → lead → enrolled` and the full transition history mattered, that would need to come from `DomainEvent` instead. Decided against that for now. |
+| `leadStageId` | uuid \| null (FK → LeadStage) | CRM pipeline position while `status` is `"lead"`. Independent of `status`: `status` is the binary "converted yet or not", `leadStageId` is "how far along the funnel" - the same split legacy makes between `CustomerLeads.stageId` and `convertedToCustomerAt`.                       |
+| `createdAt`   | timestamp                     |                                                                                                                                                                                                                                                                                        |
 
 Unique constraint on `(memberId, hostId)`.
+
+### LeadStageTemplate
+
+Platform-maintained reference data, not tenant-editable - the default set of
+CRM pipeline stages for a given `businessType`. Different business types need
+meaningfully different default funnels (a gym's lead process looks nothing
+like a spa's), so this isn't one fixed list.
+
+| Field          | Type           | Notes                       |
+| -------------- | -------------- | --------------------------- |
+| `id`           | uuid           |                             |
+| `businessType` | string         | matches `Host.businessType` |
+| `name`         | string         |                             |
+| `color`        | string \| null |                             |
+| `order`        | number         |                             |
+
+### LeadStage
+
+A host's actual, editable CRM pipeline stages - seeded (copied, not
+live-referenced) from the matching `LeadStageTemplate` rows when the host is
+created, then fully owned by the host from that point on. Renaming, reordering,
+recoloring, adding, or removing a host's stages never touches
+`LeadStageTemplate` or any other host.
+
+| Field       | Type             | Notes |
+| ----------- | ---------------- | ----- |
+| `id`        | uuid             |       |
+| `hostId`    | uuid (FK → Host) |       |
+| `name`      | string           |       |
+| `color`     | string \| null   |       |
+| `order`     | number           |       |
+| `createdAt` | timestamp        |       |
 
 ### MarketingSequence
 
@@ -228,6 +262,8 @@ erDiagram
   HOST ||--o{ SEQUENCE_ENROLLMENT : scopes
   HOST ||--o{ DOMAIN_EVENT : scopes
   HOST ||--o{ HOST_FILTER_SET : defines
+  HOST ||--o{ LEAD_STAGE : defines
+  LEAD_STAGE ||--o{ MEMBER_HOST : "positions"
   MEMBER ||--o{ SEQUENCE_ENROLLMENT : "enrolled in"
   HOST_FILTER_SET ||--o{ MARKETING_SEQUENCE : targets
   MARKETING_SEQUENCE ||--o{ SEQUENCE_ACTION : contains
@@ -289,28 +325,24 @@ Legacy reference: `work/monorepo/view/backend/db/entities/` (`Hosts`,
 `RibbonMembers`, `RibbonMembersHosts`, `CustomerLeads`,
 `HostCampaignSequence*`).
 
-| Aspect                          | Legacy                                                                                                                               | This model                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Member identity                 | 4 tables (`RibbonMembers` + `RibbonMembersHosts` + `CustomerLeads` with its own id space + `UserRegistrationRequests` capture layer) | 2 tables (`Member` + `MemberHost` with `status` directly on the junction)                         |
-| Status                          | none - inferred from row presence/absence and timestamps (`convertedToCustomerAt`, existence of a `BoughtMemberships` row)           | explicit `status: "lead" \| "enrolled"`                                                           |
-| Trigger types                   | DB lookup table with per-trigger capability flags (`enabledForEmails`, `pickSession`, ...), 48 values                                | plain extensible string, no capability-flag metadata, fewer starter values                        |
-| Action types                    | 14 values (incl. `WHATSAPP`, `HOST_TASK`, `MONEY_CREDITS_ADD`, `MEMBERSHIP_ADD`)                                                     | 5 starter values (`EMAIL`, `SMS`, `CONDITION`, `TAG_ADD`, `TAG_REMOVE`)                           |
-| Action offset                   | 3 columns (`offsetDays`/`offsetHours`/`offsetMinutes`)                                                                               | 1 column (`offsetMinutes`), same absolute-from-trigger principle                                  |
-| DAG structure                   | separate edges table (`start_action_id`/`end_action_id`/`condition_branch_type`)                                                     | adopted ~1:1 (`SequenceEdge`)                                                                     |
-| Audit/history                   | split across `HostCampaignSequenceRunLogs` (sequence-run-specific) + per-action-type polymorphic result tables                       | one generic `DomainEvent` across all aggregates, incl. per-action execution results via `payload` |
-| Sequence definition undo/revert | not found in legacy                                                                                                                  | `SequenceVersion` (net-new)                                                                       |
-| AI-agent actor tracking         | not applicable (no AI-agent concept)                                                                                                 | `actorType`/`actorId` on `DomainEvent` and `SequenceVersion` (net-new)                            |
-| Sequence targeting              | one `hostFilterSetId` FK + jsonb `counterConditions` (after refactoring away from ~15 one-off FK columns)                            | `HostFilterSet` + jsonb `rules` tree (adopted ~1:1)                                               |
-| Host entity                     | ~250-relation aggregate covering billing, scheduling, messaging, integrations, etc.                                                  | lean (6 fields); everything else added iteratively as separate concerns                           |
+| Aspect                          | Legacy                                                                                                                               | This model                                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Member identity                 | 4 tables (`RibbonMembers` + `RibbonMembersHosts` + `CustomerLeads` with its own id space + `UserRegistrationRequests` capture layer) | 2 tables (`Member` + `MemberHost` with `status` directly on the junction)                                                                                        |
+| Status                          | none - inferred from row presence/absence and timestamps (`convertedToCustomerAt`, existence of a `BoughtMemberships` row)           | explicit `status: "lead" \| "enrolled"`                                                                                                                          |
+| Trigger types                   | DB lookup table with per-trigger capability flags (`enabledForEmails`, `pickSession`, ...), 48 values                                | plain extensible string, no capability-flag metadata, fewer starter values                                                                                       |
+| Action types                    | 14 values (incl. `WHATSAPP`, `HOST_TASK`, `MONEY_CREDITS_ADD`, `MEMBERSHIP_ADD`)                                                     | 5 starter values (`EMAIL`, `SMS`, `CONDITION`, `TAG_ADD`, `TAG_REMOVE`)                                                                                          |
+| Action offset                   | 3 columns (`offsetDays`/`offsetHours`/`offsetMinutes`)                                                                               | 1 column (`offsetMinutes`), same absolute-from-trigger principle                                                                                                 |
+| DAG structure                   | separate edges table (`start_action_id`/`end_action_id`/`condition_branch_type`)                                                     | adopted ~1:1 (`SequenceEdge`)                                                                                                                                    |
+| Audit/history                   | split across `HostCampaignSequenceRunLogs` (sequence-run-specific) + per-action-type polymorphic result tables                       | one generic `DomainEvent` across all aggregates, incl. per-action execution results via `payload`                                                                |
+| Sequence definition undo/revert | not found in legacy                                                                                                                  | `SequenceVersion` (net-new)                                                                                                                                      |
+| AI-agent actor tracking         | not applicable (no AI-agent concept)                                                                                                 | `actorType`/`actorId` on `DomainEvent` and `SequenceVersion` (net-new)                                                                                           |
+| Sequence targeting              | one `hostFilterSetId` FK + jsonb `counterConditions` (after refactoring away from ~15 one-off FK columns)                            | `HostFilterSet` + jsonb `rules` tree (adopted ~1:1)                                                                                                              |
+| Lead pipeline stages            | `CustomerLeadsStages` - per-host only, freely defined from a blank slate, no business-type templating found                          | `LeadStageTemplate` (per `businessType`, platform-maintained) seeds `LeadStage` (per-host, then freely editable) - net-new templating layer, not found in legacy |
+| Host entity                     | ~250-relation aggregate covering billing, scheduling, messaging, integrations, etc.                                                  | lean (7 fields); everything else added iteratively as separate concerns                                                                                          |
 
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:
 
-- **Per-host customizable lead pipeline stages** (legacy: `CustomerLeadsStages`
-  - a per-host table of freely named/ordered/colored CRM pipeline stages,
-    e.g. "New Lead" → "Contacted" → "Trial Booked", since different business
-    types have very different funnels that don't fit one fixed enum) - we only
-    have binary `lead | enrolled`
 - **Multi-location / franchise structure** (legacy: `HostLocations`,
   `CorporateHosts`)

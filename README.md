@@ -20,6 +20,19 @@ typical of fully offline-first apps.
 Apps and packages beyond the tooling above are added iteratively - see the note in
 `AGENTS.md`.
 
+### Local development
+
+No AWS/Cloudflare account is needed to develop against Postgres or email locally:
+
+```sh
+cp .env.example .env
+pnpm run dev:infra       # starts Postgres + Mailpit (docker compose)
+pnpm run dev:infra:down  # stops them
+```
+
+- Postgres: `localhost:5432` (see `.env.example` for credentials)
+- Mailpit web UI: [localhost:8025](http://localhost:8025) - catches all outgoing email sent via SMTP on `localhost:1025`, nothing leaves your machine
+
 ### Utilities
 
 - [TypeScript](https://www.typescriptlang.org/) for static type checking

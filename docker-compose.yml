@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: effective_app
+      POSTGRES_PASSWORD: local_dev_only
+      POSTGRES_DB: effective_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U effective_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # SMTP catcher + web UI for testing outgoing email locally without a real provider.
+  mailpit:
+    image: axllent/mailpit:v1.30.4
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    ports:
+      - "8025:8025" # web UI
+      - "1025:1025" # SMTP
+    volumes:
+      - mailpit-data:/data
+
+volumes:
+  postgres-data:
+  mailpit-data:

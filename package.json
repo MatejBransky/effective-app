@@ -6,10 +6,12 @@
     "dev": "turbo run dev",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check",
-    "verify": "oxfmt --check && oxlint --disable-nested-config .",
-    "verify:fix": "oxfmt && oxlint --disable-nested-config --fix .",
+    "lint": "oxlint --disable-nested-config .",
+    "lint:fix": "oxlint --disable-nested-config --fix .",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "verify": "turbo run lint format typecheck",
+    "verify:fix": "turbo run lint:fix format:fix",
     "update:effect": "git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash"
   },
   "devDependencies": {

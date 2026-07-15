@@ -2,7 +2,7 @@
 
 Boilerplate monorepo for a local-first, multi-tenant, AI-agent-controllable
 application, built with [Effect](https://effect.website). Reads are instant from a local
-replica; mutations require an online connection, avoiding the merge-conflict problems
+replica; mutations require the app to be online, avoiding the merge-conflict problems
 typical of fully offline-first apps.
 
 ### Layout

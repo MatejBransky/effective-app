@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  build:
+    name: Build and Test
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    # To use Turborepo Remote Caching, set the following environment variables for the
+    # job (TURBO_TOKEN as a repo secret, TURBO_TEAM as a repo variable), then uncomment.
+    # env:
+    #   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    #   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # Reads the pnpm version to install from the packageManager field in package.json.
+      - uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify (lint, format, typecheck)
+        run: pnpm run verify
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Test
+        run: pnpm run test

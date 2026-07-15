@@ -66,14 +66,51 @@ Unique constraint on `(memberId, hostId)`.
 A host-defined automation: on a trigger, run a sequence of actions against
 enrolled/lead members.
 
-| Field         | Type             | Notes                                                                                                                                         |
-| ------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid             |                                                                                                                                               |
-| `hostId`      | uuid (FK → Host) |                                                                                                                                               |
-| `name`        | string           |                                                                                                                                               |
-| `triggerType` | string           | validated against a growing Schema union in code, not a native DB enum or lookup table - adding a new trigger type never requires a migration |
-| `isEnabled`   | boolean          |                                                                                                                                               |
-| `createdAt`   | timestamp        |                                                                                                                                               |
+| Field         | Type                              | Notes                                                                                                                                         |
+| ------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | uuid                              |                                                                                                                                               |
+| `hostId`      | uuid (FK → Host)                  |                                                                                                                                               |
+| `name`        | string                            |                                                                                                                                               |
+| `triggerType` | string                            | validated against a growing Schema union in code, not a native DB enum or lookup table - adding a new trigger type never requires a migration |
+| `filterSetId` | uuid \| null (FK → HostFilterSet) | who this sequence targets beyond "the trigger fired" - `null` means everyone the trigger fires for                                            |
+| `isEnabled`   | boolean                           |                                                                                                                                               |
+| `createdAt`   | timestamp                         |                                                                                                                                               |
+
+### HostFilterSet
+
+A named, reusable set of targeting rules for a host - replaces having one
+one-off nullable FK column per targeting dimension on `MarketingSequence`
+(the kind of thing legacy started with and later refactored away from - see
+[Comparison to legacy](#comparison-to-legacy-momence)).
+
+| Field       | Type             | Notes                           |
+| ----------- | ---------------- | ------------------------------- |
+| `id`        | uuid             |                                 |
+| `hostId`    | uuid (FK → Host) |                                 |
+| `name`      | string           |                                 |
+| `rules`     | jsonb            | a `FilterRule` tree - see below |
+| `createdAt` | timestamp        |                                 |
+
+`rules` is a recursive expression tree, not normalized rule rows - boolean
+`AND`/`OR`/`NOT` nesting maps awkwardly onto relational rows, and legacy
+itself stores its equivalent (`counterConditions`) as jsonb rather than a rule
+table:
+
+```
+FilterRule =
+  | { type: "condition", field: string, operator: FilterOperator, value: unknown }
+  | { type: "group", combinator: "and" | "or", rules: FilterRule[] }
+
+FilterOperator =
+  | "equals" | "not_equals" | "contains"
+  | "gt" | "gte" | "lt" | "lte"
+  | "in" | "not_in"
+```
+
+`field` is an extensible string (grows the same way as `triggerType` and
+`SequenceAction.type`, no migration needed to add a new targetable field).
+`operator` is a fixed union - comparison operators are stable enough not to
+need the same growability.
 
 ### SequenceAction
 
@@ -161,6 +198,26 @@ not per-aggregate audit tables.
 | `actorId`       | uuid \| null                            |                                                                                           |
 | `occurredAt`    | timestamp                               |                                                                                           |
 
+`payload` also covers detailed per-action execution results (legacy's
+`HostCampaignSequenceRunLogs` + a separate polymorphic result table per action
+type) - no extra tables needed, just a per-`eventType` payload shape, the same
+pattern `SequenceAction.config` already uses for `type`:
+
+```
+eventType: "SequenceActionExecuted"
+aggregateType: "SequenceEnrollment"
+aggregateId: <enrollmentId>
+payload: {
+  actionId: uuid
+  actionType: "EMAIL" | "SMS" | "CONDITION" | "TAG_ADD" | "TAG_REMOVE"
+  result:
+    // discriminated union depending on actionType
+    | { actionType: "EMAIL" | "SMS", messageId: string, sentAt: timestamp, provider: string }
+    | { actionType: "CONDITION", branchTaken: "true" | "false" }
+    | { actionType: "TAG_ADD" | "TAG_REMOVE", tagId: uuid }
+}
+```
+
 ## Relationships
 
 ```mermaid
@@ -170,7 +227,9 @@ erDiagram
   HOST ||--o{ MARKETING_SEQUENCE : defines
   HOST ||--o{ SEQUENCE_ENROLLMENT : scopes
   HOST ||--o{ DOMAIN_EVENT : scopes
+  HOST ||--o{ HOST_FILTER_SET : defines
   MEMBER ||--o{ SEQUENCE_ENROLLMENT : "enrolled in"
+  HOST_FILTER_SET ||--o{ MARKETING_SEQUENCE : targets
   MARKETING_SEQUENCE ||--o{ SEQUENCE_ACTION : contains
   MARKETING_SEQUENCE ||--o{ SEQUENCE_EDGE : contains
   MARKETING_SEQUENCE ||--o{ SEQUENCE_ENROLLMENT : runs
@@ -230,30 +289,28 @@ Legacy reference: `work/monorepo/view/backend/db/entities/` (`Hosts`,
 `RibbonMembers`, `RibbonMembersHosts`, `CustomerLeads`,
 `HostCampaignSequence*`).
 
-| Aspect                          | Legacy                                                                                                                               | This model                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| Member identity                 | 4 tables (`RibbonMembers` + `RibbonMembersHosts` + `CustomerLeads` with its own id space + `UserRegistrationRequests` capture layer) | 2 tables (`Member` + `MemberHost` with `status` directly on the junction)  |
-| Status                          | none - inferred from row presence/absence and timestamps (`convertedToCustomerAt`, existence of a `BoughtMemberships` row)           | explicit `status: "lead" \| "enrolled"`                                    |
-| Trigger types                   | DB lookup table with per-trigger capability flags (`enabledForEmails`, `pickSession`, ...), 48 values                                | plain extensible string, no capability-flag metadata, fewer starter values |
-| Action types                    | 14 values (incl. `WHATSAPP`, `HOST_TASK`, `MONEY_CREDITS_ADD`, `MEMBERSHIP_ADD`)                                                     | 5 starter values (`EMAIL`, `SMS`, `CONDITION`, `TAG_ADD`, `TAG_REMOVE`)    |
-| Action offset                   | 3 columns (`offsetDays`/`offsetHours`/`offsetMinutes`)                                                                               | 1 column (`offsetMinutes`), same absolute-from-trigger principle           |
-| DAG structure                   | separate edges table (`start_action_id`/`end_action_id`/`condition_branch_type`)                                                     | adopted ~1:1 (`SequenceEdge`)                                              |
-| Audit/history                   | split across `HostCampaignSequenceRunLogs` (sequence-run-specific) + per-action-type polymorphic result tables                       | one generic `DomainEvent` across all aggregates                            |
-| Sequence definition undo/revert | not found in legacy                                                                                                                  | `SequenceVersion` (net-new)                                                |
-| AI-agent actor tracking         | not applicable (no AI-agent concept)                                                                                                 | `actorType`/`actorId` on `DomainEvent` and `SequenceVersion` (net-new)     |
-| Host entity                     | ~250-relation aggregate covering billing, scheduling, messaging, integrations, etc.                                                  | lean (6 fields); everything else added iteratively as separate concerns    |
+| Aspect                          | Legacy                                                                                                                               | This model                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Member identity                 | 4 tables (`RibbonMembers` + `RibbonMembersHosts` + `CustomerLeads` with its own id space + `UserRegistrationRequests` capture layer) | 2 tables (`Member` + `MemberHost` with `status` directly on the junction)                         |
+| Status                          | none - inferred from row presence/absence and timestamps (`convertedToCustomerAt`, existence of a `BoughtMemberships` row)           | explicit `status: "lead" \| "enrolled"`                                                           |
+| Trigger types                   | DB lookup table with per-trigger capability flags (`enabledForEmails`, `pickSession`, ...), 48 values                                | plain extensible string, no capability-flag metadata, fewer starter values                        |
+| Action types                    | 14 values (incl. `WHATSAPP`, `HOST_TASK`, `MONEY_CREDITS_ADD`, `MEMBERSHIP_ADD`)                                                     | 5 starter values (`EMAIL`, `SMS`, `CONDITION`, `TAG_ADD`, `TAG_REMOVE`)                           |
+| Action offset                   | 3 columns (`offsetDays`/`offsetHours`/`offsetMinutes`)                                                                               | 1 column (`offsetMinutes`), same absolute-from-trigger principle                                  |
+| DAG structure                   | separate edges table (`start_action_id`/`end_action_id`/`condition_branch_type`)                                                     | adopted ~1:1 (`SequenceEdge`)                                                                     |
+| Audit/history                   | split across `HostCampaignSequenceRunLogs` (sequence-run-specific) + per-action-type polymorphic result tables                       | one generic `DomainEvent` across all aggregates, incl. per-action execution results via `payload` |
+| Sequence definition undo/revert | not found in legacy                                                                                                                  | `SequenceVersion` (net-new)                                                                       |
+| AI-agent actor tracking         | not applicable (no AI-agent concept)                                                                                                 | `actorType`/`actorId` on `DomainEvent` and `SequenceVersion` (net-new)                            |
+| Sequence targeting              | one `hostFilterSetId` FK + jsonb `counterConditions` (after refactoring away from ~15 one-off FK columns)                            | `HostFilterSet` + jsonb `rules` tree (adopted ~1:1)                                               |
+| Host entity                     | ~250-relation aggregate covering billing, scheduling, messaging, integrations, etc.                                                  | lean (6 fields); everything else added iteratively as separate concerns                           |
 
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:
 
-- **Per-host customizable lead pipeline stages** (legacy: `CustomerLeadsStages`)
-  - we only have binary `lead | enrolled`
-- **Generic sequence targeting/filtering** (legacy: `HostFilterSets` /
-  `HostFilterRules`) - our `MarketingSequence` has no concept yet of _who_
-  should or shouldn't be enrolled beyond the trigger firing
-- **Per-action execution result log** (legacy:
-  `HostCampaignSequenceRunLogs` + polymorphic per-action-type result tables) -
-  `DomainEvent` doesn't yet capture detailed per-action execution results
+- **Per-host customizable lead pipeline stages** (legacy: `CustomerLeadsStages`
+  - a per-host table of freely named/ordered/colored CRM pipeline stages,
+    e.g. "New Lead" → "Contacted" → "Trial Booked", since different business
+    types have very different funnels that don't fit one fixed enum) - we only
+    have binary `lead | enrolled`
 - **Multi-location / franchise structure** (legacy: `HostLocations`,
   `CorporateHosts`)

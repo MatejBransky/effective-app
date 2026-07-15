@@ -1,0 +1,21 @@
+{
+  "name": "effective-app",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "verify": "oxlint --disable-nested-config .",
+    "verify:fix": "oxlint --disable-nested-config --fix .",
+    "update:effect": "git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash"
+  },
+  "devDependencies": {
+    "@repo/lint-config": "workspace:*",
+    "oxlint": "^1.64.0",
+    "prettier": "^3.2.5",
+    "turbo": "^2.9.12",
+    "typescript": "^7.0.2"
+  },
+  "packageManager": "pnpm@11.6.0"
+}

@@ -1,6 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "packages/shared/*"
+  - "packages/entities/*"
+  - "packages/features/*"
+  - "packages/widgets/*"
 
 # Pin every install to an exact version (no ^ / ~ ranges) so upgrades are always explicit.
 saveExact: true
@@ -16,6 +20,9 @@ catalog:
   oxlint: 1.74.0
   oxfmt: 0.59.0
   turbo: 2.10.5
+  # Effect v4 ("effect smol") - beta, but this is what repos/effect (vendored from the
+  # Effect-TS/effect main branch) is already on, so we're tracking the same line.
+  effect: 4.0.0-beta.98
 
 # Supply-chain security: https://pnpm.io/supply-chain-security
 # pnpm 11 already defaults most of this; pinned explicitly so the posture can't silently

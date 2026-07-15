@@ -340,6 +340,19 @@ Legacy reference: `work/monorepo/view/backend/db/entities/` (`Hosts`,
 | Lead pipeline stages            | `CustomerLeadsStages` - per-host only, freely defined from a blank slate, no business-type templating found                          | `LeadStageTemplate` (per `businessType`, platform-maintained) seeds `LeadStage` (per-host, then freely editable) - net-new templating layer, not found in legacy |
 | Host entity                     | ~250-relation aggregate covering billing, scheduling, messaging, integrations, etc.                                                  | lean (7 fields); everything else added iteratively as separate concerns                                                                                          |
 
+### Effect Schema → Drizzle bridge
+
+Not built yet - there are no Postgres migrations or an `apps/server` in this repo
+yet, so there's nothing to bridge to. Decision for when that lands: hand-write
+Drizzle table definitions alongside the Effect Schema entities (in whichever
+package ends up owning the DB layer) and add a drift test that decodes each
+Drizzle table's column set against its corresponding Effect Schema's field set,
+failing if they diverge. Rejected alternative: codegen'ing Drizzle tables from
+Effect Schema (or vice versa) - no existing tool bridges Effect v4 Schema and
+Drizzle, and building one is disproportionate effort for a PoC versus a drift
+test that just needs the two to agree, not one to mechanically produce the
+other.
+
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:

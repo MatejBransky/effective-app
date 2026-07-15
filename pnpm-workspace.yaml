@@ -20,6 +20,8 @@ catalog:
   oxlint: 1.74.0
   oxfmt: 0.59.0
   turbo: 2.10.5
+  vitest: 4.1.10
+  "@effect/vitest": 4.0.0-beta.98
   # Effect v4 ("effect smol") - beta, but this is what repos/effect (vendored from the
   # Effect-TS/effect main branch) is already on, so we're tracking the same line.
   effect: 4.0.0-beta.98
@@ -43,6 +45,20 @@ minimumReleaseAgeExclude: []
 # previously installed one (e.g. a hijacked maintainer publishing without CI).
 trustPolicy: no-downgrade
 trustPolicyExclude:
+  # @effect/vitest@4.0.0-beta.98 flagged as a trust downgrade (prior versions had npm
+  # "trusted publisher", this one has SLSA provenance attestation instead) - checked
+  # npm metadata: beta.97 and beta.98 are published by the same `effect-bot` npm user,
+  # same maintainer list, same source repo (Effect-TS/effect, the same upstream we
+  # vendor into repos/effect), consistent with the Effect team switching their CI
+  # publish mechanism rather than an account takeover. User-approved 2026-07-15;
+  # revisit if pnpm flags it again elsewhere.
+  - "@effect/vitest@4.0.0-beta.98"
+  # effect@4.0.0-beta.98 - same trust-downgrade pattern as @effect/vitest@4.0.0-beta.98
+  # above (same `effect-bot` npm user, same maintainers, same Effect-TS/effect repo) -
+  # this is a whole-monorepo CI publish-mechanism change across the beta.98 release,
+  # not an isolated package. User-approved 2026-07-15; revisit if pnpm flags it again
+  # elsewhere.
+  - "effect@4.0.0-beta.98"
   # semver@6.3.1 (transitive dep of @babel/core via @tanstack/router-plugin) predates npm
   # provenance (introduced ~April 2023; 6.3.1 published 2023-07-10) and has none, while some
   # other version in its history does - a registry-side metadata touch on 2026-07-06 hit
@@ -67,4 +83,12 @@ blockExoticSubdeps: true
 # Fail the install instead of silently running an unreviewed install/postinstall script.
 # Move a package here only after reviewing what its build script does.
 strictDepBuilds: true
-onlyBuiltDependencies: []
+onlyBuiltDependencies:
+  # Transitive dep of effect@4.0.0-beta.98 -> msgpackr@2.0.4. Install script
+  # (node-gyp-build-optional-packages) only fetches a prebuilt native binary for the
+  # current platform, same pattern as better-sqlite3/sharp. Maintained by kriszyp
+  # (msgpackr's author). User-approved 2026-07-15.
+  - msgpackr-extract
+allowBuilds:
+  # See onlyBuiltDependencies comment above for the review notes.
+  msgpackr-extract: true

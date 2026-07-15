@@ -24,6 +24,10 @@ intentionally contains no business logic yet - apps and packages are added itera
 
 Effect Schema (`packages/schema`) is the single source of truth for domain shapes - DB
 schema, API contracts, and FE forms/validation all derive from it, not the other way round.
+Every entity (`Host`, `Member`, `MarketingSequence`, ...) lives together in this one package,
+not split into per-entity packages - entities reference each other's branded id types too
+densely for that split to pay off, and unlike the FSD slices below, `packages/schema` has no
+UI and is consumed by `apps/server` as much as by `apps/client`.
 
 Every app lives under `apps/<name>` and should be independently testable (vitest) via
 Effect `Layer`/`Context` dependency injection - external processes and I/O go through

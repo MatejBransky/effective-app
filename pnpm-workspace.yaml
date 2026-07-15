@@ -1,3 +1,18 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Pin every install to an exact version (no ^ / ~ ranges) so upgrades are always explicit.
+saveExact: true
+
+# Was `auto-install-peers = true` in .npmrc pre-v11; .npmrc is auth/registry only now.
+autoInstallPeers: true
+
+# Shared versions for common devDependencies, referenced from package.json via "catalog:".
+# https://pnpm.io/catalogs
+catalog:
+  typescript: 7.0.2
+  "@types/node": 24.13.3
+  oxlint: 1.74.0
+  prettier: 3.9.5
+  turbo: 2.10.5

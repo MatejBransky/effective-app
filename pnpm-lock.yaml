@@ -4,6 +4,24 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@types/node':
+      specifier: 24.13.3
+      version: 24.13.3
+    oxlint:
+      specifier: 1.74.0
+      version: 1.74.0
+    prettier:
+      specifier: 3.9.5
+      version: 3.9.5
+    turbo:
+      specifier: 2.10.5
+      version: 2.10.5
+    typescript:
+      specifier: 7.0.2
+      version: 7.0.2
+
 importers:
 
   .:
@@ -12,16 +30,16 @@ importers:
         specifier: workspace:*
         version: link:packages/lint-config
       oxlint:
-        specifier: ^1.64.0
+        specifier: 'catalog:'
         version: 1.74.0
       prettier:
-        specifier: ^3.2.5
+        specifier: 'catalog:'
         version: 3.9.5
       turbo:
-        specifier: ^2.9.12
+        specifier: 'catalog:'
         version: 2.10.5
       typescript:
-        specifier: ^7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
 
   packages/lint-config:
@@ -30,10 +48,10 @@ importers:
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
-        specifier: ^24.13.3
+        specifier: 'catalog:'
         version: 24.13.3
       typescript:
-        specifier: ^7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
 
   packages/typescript-config: {}

@@ -16,3 +16,26 @@ catalog:
   oxlint: 1.74.0
   prettier: 3.9.5
   turbo: 2.10.5
+
+# Supply-chain security: https://pnpm.io/supply-chain-security
+# pnpm 11 already defaults most of this; pinned explicitly so the posture can't silently
+# weaken if a future pnpm major changes its defaults.
+
+# Reject a package version until it has been public for a day - gives the community time
+# to flag "zero-day" malicious releases before we can install them.
+minimumReleaseAge: 1440
+# Bypass the cooldown for specific package@version entries that need a hotfix immediately.
+minimumReleaseAgeExclude: []
+
+# Refuse to install a version whose publish provenance/CI attestation is weaker than the
+# previously installed one (e.g. a hijacked maintainer publishing without CI).
+trustPolicy: no-downgrade
+trustPolicyExclude: []
+
+# Don't let a trusted dependency pull in transitive deps published under unrelated names.
+blockExoticSubdeps: true
+
+# Fail the install instead of silently running an unreviewed install/postinstall script.
+# Move a package here only after reviewing what its build script does.
+strictDepBuilds: true
+onlyBuiltDependencies: []

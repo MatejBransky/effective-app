@@ -1,0 +1,30 @@
+{
+  "name": "@effective-app/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "generate-routes": "tsr generate",
+    "typecheck": "pnpm run generate-routes && tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@tanstack/react-router-devtools": "1.167.0",
+    "@tanstack/router-cli": "1.167.19",
+    "@tanstack/router-plugin": "1.168.20",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "6.0.3",
+    "typescript": "catalog:",
+    "vite": "8.1.4",
+    "vite-plugin-pwa": "1.3.0"
+  }
+}

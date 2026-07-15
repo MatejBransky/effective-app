@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@repo/typescript-config/react-app.json",
+  "compilerOptions": {
+    "rootDir": "."
+  },
+  "include": ["src", "vite.config.ts"]
+}

@@ -3,6 +3,8 @@ node_modules
 .turbo
 *.log
 dist
+dev-dist
 *.local
 .env
 .cache
+routeTree.gen.ts

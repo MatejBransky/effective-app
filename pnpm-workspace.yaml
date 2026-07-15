@@ -23,6 +23,11 @@ catalog:
   # Effect v4 ("effect smol") - beta, but this is what repos/effect (vendored from the
   # Effect-TS/effect main branch) is already on, so we're tracking the same line.
   effect: 4.0.0-beta.98
+  react: 19.2.7
+  react-dom: 19.2.7
+  "@types/react": 19.2.17
+  "@types/react-dom": 19.2.3
+  "@tanstack/react-router": 1.170.18
 
 # Supply-chain security: https://pnpm.io/supply-chain-security
 # pnpm 11 already defaults most of this; pinned explicitly so the posture can't silently
@@ -37,7 +42,24 @@ minimumReleaseAgeExclude: []
 # Refuse to install a version whose publish provenance/CI attestation is weaker than the
 # previously installed one (e.g. a hijacked maintainer publishing without CI).
 trustPolicy: no-downgrade
-trustPolicyExclude: []
+trustPolicyExclude:
+  # semver@6.3.1 (transitive dep of @babel/core via @tanstack/router-plugin) predates npm
+  # provenance (introduced ~April 2023; 6.3.1 published 2023-07-10) and has none, while some
+  # other version in its history does - a registry-side metadata touch on 2026-07-06 hit
+  # every version of the package (6.0.0 from 2019 has the same modified timestamp), so this
+  # reads as inconsistent provenance backfill, not a hijacked release. semver is maintained
+  # by npm-cli-ops directly. Investigated 2026-07-15; revisit if pnpm flags it again elsewhere.
+  - semver@6.3.1
+  # @trickfilm400/rollup-plugin-off-main-thread@3.0.0-pre1 (transitive dep of workbox-build,
+  # via vite-plugin-pwa) is workbox-build@7.4.1's own declared, official dependency - not
+  # something injected below our tree. The original rollup-plugin-off-main-thread (by surma,
+  # a Google engineer) stopped at v1.1.1; trickfilm400 has been the actively-maintained
+  # community continuation since May 2024, and Google's own Workbox team adopted this exact
+  # scoped fork as workbox-build's upstream. Provenance is present on 2.4.3, 2.5.0, and
+  # 4.0.0-pre1, but missing on 3.0.0-pre1/3.1.0-pre2 specifically - most likely those two
+  # pre-releases were published manually rather than through the maintainer's usual CI, not
+  # a hijacked account. Investigated 2026-07-15; revisit if pnpm flags it again elsewhere.
+  - "@trickfilm400/rollup-plugin-off-main-thread@3.0.0-pre1"
 
 # Don't let a trusted dependency pull in transitive deps published under unrelated names.
 blockExoticSubdeps: true

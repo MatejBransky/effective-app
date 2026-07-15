@@ -8,11 +8,12 @@
     "typecheck": "turbo run typecheck",
     "lint": "oxlint --disable-nested-config .",
     "lint:fix": "oxlint --disable-nested-config --fix .",
-    "format": "oxfmt --check",
-    "format:fix": "oxfmt",
+    "format": "oxfmt --disable-nested-config --check .",
+    "format:fix": "oxfmt --disable-nested-config .",
     "verify": "turbo run lint format typecheck",
     "verify:fix": "turbo run lint:fix format:fix",
-    "update:effect": "git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash"
+    "update:effect": "git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash",
+    "update:alchemy-effect": "git subtree pull --prefix=repos/alchemy-effect https://github.com/alchemy-run/alchemy-effect.git main --squash"
   },
   "devDependencies": {
     "@repo/lint-config": "workspace:*",

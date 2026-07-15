@@ -15,6 +15,7 @@ typical of fully offline-first apps.
 - `packages/shared` - cross-cutting FE code (ui kit, api client, app-shell state, lib, config)
 - `packages/lint-config`, `packages/typescript-config` - shared tooling config
 - `repos/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code
+- `repos/alchemy-effect` - reference copy of [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) (git subtree), the Effect-native flavor of Alchemy - consulted before writing infrastructure (IaC) code
 
 Apps and packages beyond the tooling above are added iteratively - see the note in
 `AGENTS.md`.

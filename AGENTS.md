@@ -8,6 +8,13 @@ to write Effect properly. This repo targets Effect v4 (the "effect smol" rewrite
 beta) - `repos/effect` tracks the same `main` branch we're building against, so don't fall
 back to v3-shaped patterns from training data.
 
+Before writing any infrastructure (IaC) code - analyze
+[alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) in
+./repos/alchemy-effect/ first. This is the Effect-native flavor of Alchemy (the IaC tool
+this repo uses to deploy to Cloudflare) and is the source of truth for how resources,
+providers, and state are modeled the Effect way here - don't copy patterns from plain
+Alchemy docs/examples that aren't Effect-based without checking they still apply.
+
 This is a boilerplate monorepo for a local-first, multi-tenant, AI-agent-controllable
 application (PowerSync + Effect Schema for FE/BE sync, Drizzle + Postgres RLS for
 multi-tenancy, Cloudflare Workers for the API/agent surface). Reads are local-first -

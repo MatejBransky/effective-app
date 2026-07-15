@@ -1,9 +1,5 @@
 export interface RuleContext {
-  report: (opts: {
-    node: unknown;
-    message: string;
-    fix?: (fixer: Fixer) => Fix;
-  }) => void;
+  report: (opts: { node: unknown; message: string; fix?: (fixer: Fixer) => Fix }) => void;
   getSourceCode: () => SourceCode;
 }
 

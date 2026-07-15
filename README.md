@@ -13,5 +13,6 @@ application, built with [Effect](https://effect.website).
 
 - [TypeScript](https://www.typescriptlang.org/) for static type checking
 - [Oxlint](https://oxc.rs/docs/guide/usage/linter.html/) for code linting
+- [Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html) for code formatting
 - [Turborepo](https://turborepo.dev/) for task orchestration/caching
 - [Vitest](https://vitest.dev/) for testing

@@ -7,9 +7,23 @@ services:
       POSTGRES_PASSWORD: local_dev_only
       POSTGRES_DB: effective_app
     ports:
-      - "5432:5432"
+      # Override in .env if 5432 is already taken on your machine - also update
+      # DATABASE_URL in .env to match, since it's a separate file dotenv reads (no
+      # variable substitution between the two).
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # `postgres:18+` images want the volume mounted at the `/var/lib/postgresql`
+      # parent dir, not `.../data` (their own data-directory layout changed) - see
+      # https://github.com/docker-library/postgres/pull/1259. If you have an existing
+      # volume from before this changed (or before PowerSync was added), it has data
+      # laid out for the old path and needs to be reinitialized once:
+      # `pnpm run dev:infra:down && docker volume rm effective-app_postgres-data`.
+      - postgres-data:/var/lib/postgresql
+      # Runs only on first start (empty volume) - creates the `powersync` publication
+      # PowerSync's logical replication connection needs.
+      - ./powersync/init-scripts:/docker-entrypoint-initdb.d
+    # `wal_level=logical` is required for PowerSync's logical replication connection.
+    command: ["postgres", "-c", "wal_level=logical"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U effective_app"]
       interval: 5s
@@ -23,11 +37,74 @@ services:
     environment:
       MP_DATABASE: /data/mailpit.db
     ports:
-      - "8025:8025" # web UI
-      - "1025:1025" # SMTP
+      # Override in .env if these are already taken (e.g. by another project's
+      # mailpit/SMTP catcher) - also update SMTP_PORT in .env to match.
+      - "${MAILPIT_WEB_PORT:-8025}:8025" # web UI
+      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP
     volumes:
       - mailpit-data:/data
+
+  # PowerSync's own bucket/checkpoint metadata store - deliberately a separate Postgres
+  # instance from the `postgres` service above (which is the *replication source*, i.e.
+  # our actual app data), matching the official `powersync docker configure` scaffold.
+  pg-storage:
+    image: postgres:18.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PS_STORAGE_USER:-postgres}
+      POSTGRES_PASSWORD: ${PS_STORAGE_PASSWORD:-local_dev_only}
+      POSTGRES_DB: ${PS_STORAGE_DATABASE:-powersync_storage}
+      PGPORT: ${PS_STORAGE_PORT:-5434}
+    ports:
+      - "${PS_STORAGE_PORT:-5434}:${PS_STORAGE_PORT:-5434}"
+    volumes:
+      # Same `postgres:18+` mount-path requirement as the `postgres` service above.
+      - powersync-storage-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${PS_STORAGE_USER:-postgres} -d ${PS_STORAGE_DATABASE:-powersync_storage}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Self-hosted PowerSync sync service - see docs/data-model.md's "PowerSync sync
+  # streams" section and powersync/sync-config.yaml for what actually gets synced.
+  powersync:
+    image: journeyapps/powersync-service:latest
+    restart: unless-stopped
+    command: ["start", "-r", "unified"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pg-storage:
+        condition: service_healthy
+    environment:
+      POWERSYNC_CONFIG_PATH: /config/service.yaml
+      PS_DATA_SOURCE_URI: postgres://effective_app:local_dev_only@postgres:5432/effective_app
+      PS_STORAGE_SOURCE_URI: postgres://${PS_STORAGE_USER:-postgres}:${PS_STORAGE_PASSWORD:-local_dev_only}@pg-storage:${PS_STORAGE_PORT:-5434}/${PS_STORAGE_DATABASE:-powersync_storage}
+      PS_API_TOKEN: ${PS_API_TOKEN:-local_dev_only_change_me}
+      PS_CLIENT_AUTH_KEY: ${PS_CLIENT_AUTH_KEY:?set PS_CLIENT_AUTH_KEY in .env, see .env.example}
+    volumes:
+      - ./powersync/service.yaml:/config/service.yaml
+      - ./powersync/sync-config.yaml:/config/sync-config.yaml
+    ports:
+      - "${PS_PORT:-8080}:${PS_PORT:-8080}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:${PS_PORT:-8080}/probes/liveness').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 15
 
 volumes:
   postgres-data:
   mailpit-data:
+  powersync-storage-data:

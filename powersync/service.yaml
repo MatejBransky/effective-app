@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://unpkg.com/@powersync/cli-schemas@latest/json-schema/service-config.json
+#
+# Self-hosted PowerSync service config for local dev. See docs/data-model.md's
+# "PowerSync sync streams" section and docker-compose.yml's `powersync`/`pg-storage`
+# services for how this gets run.
+_type: self-hosted
+
+replication:
+  connections:
+    - type: postgresql
+      uri: !env PS_DATA_SOURCE_URI
+      # Default is verify-full (production); our local Postgres containers don't have
+      # TLS certs configured, so the client's SSL negotiation was failing the
+      # connection outright (surfaced as a generic "postgres query failed" at the
+      # wire-protocol level, not a SQL error) until this was set explicitly.
+      sslmode: disable
+
+storage:
+  type: postgresql
+  uri: !env PS_STORAGE_SOURCE_URI
+  sslmode: disable
+
+sync_config:
+  path: sync-config.yaml
+
+api:
+  tokens:
+    - !env PS_API_TOKEN
+
+# Local-dev-only: HS256 shared secret, used with `npx powersync generate token` to mint
+# dev JWTs without a real auth provider. Once auth (Keycloak) and apps/server exist,
+# this should be replaced with `jwks_uri` pointing at Keycloak's JWKS endpoint instead -
+# see docs/data-model.md's "PowerSync sync streams" section.
+client_auth:
+  jwks:
+    keys:
+      - kty: oct
+        alg: HS256
+        kid: local-dev
+        k: !env PS_CLIENT_AUTH_KEY
+  audience:
+    - powersync-dev

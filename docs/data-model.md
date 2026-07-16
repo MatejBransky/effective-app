@@ -381,6 +381,127 @@ policies against a session variable nothing sets, which is worse than not
 having RLS at all. Deferred until auth (`AuthService` `Layer`) and `apps/server`
 exist and can set that session context per request.
 
+### PowerSync sync streams
+
+Self-hosted PowerSync (not PowerSync Cloud - consistent with this repo's "no
+cloud account needed for local dev" approach) runs via `docker-compose.yml`'s
+`powersync`/`pg-storage` services, config in `powersync/service.yaml` and
+`powersync/sync-config.yaml`. Scaffolded with the official `powersync` CLI
+(`npx powersync init self-hosted` + `powersync docker configure --database
+postgres --storage postgres`) rather than hand-assembled, to match the
+tool's own tested defaults - notably, PowerSync's bucket/checkpoint metadata
+store (`pg-storage`) is a **separate** Postgres instance from the replication
+source (the existing `postgres` service, i.e. our actual app data), not a
+schema on the same one.
+
+Sync rules are written as **Sync Streams** (`config: { edition: 3 }` in
+`sync-config.yaml`), not the legacy `bucket_definitions` format - Streams are
+PowerSync's current recommended approach for new projects, and their expanded
+SQL support (real `JOIN`s) is what lets `host_data`'s queries reach `members`
+(via `member_hosts`) and `sequence_actions`/`sequence_edges` (via
+`marketing_sequences`) without denormalizing `hostId` onto those tables just
+for sync purposes.
+
+Two things explicitly deferred, both same shape as the RLS gap above - no
+auth/`apps/server` yet to set real values:
+
+- **Auth**: `host_data`'s queries filter on `auth.parameter('host_id')`, a
+  custom JWT claim. `powersync/service.yaml`'s `client_auth` uses a local-dev
+  HS256 shared secret (`PS_CLIENT_AUTH_KEY`) standing in for Keycloak until
+  `apps/server` exists to issue real tokens - but the PowerSync CLI's
+  `generate token` only accepts `--subject` (no custom-claims flag, checked
+  via `--help`), so testing `host_data` specifically means hand-signing a JWT
+  with that same secret (see "Verifying this works" below) rather than using
+  the CLI directly.
+- **Replication role**: the `postgres` service's `powersync` publication
+  (`powersync/init-scripts/01-powersync-publication.sql`) is `FOR ALL TABLES`,
+  and PowerSync connects as the app's own `effective_app` superuser rather
+  than a scoped-down, replication-only role - fine for a PoC, not for
+  production.
+
+**Verified working** (2026-07-16, against a real local Docker stack - the
+sandbox this was originally built in had Docker Hub pulls blocked, but the
+setup was later confirmed on a real machine): `pnpm run dev:infra` brings up
+all four services healthy, the `powersync` publication is created, an
+`INSERT INTO hosts` shows up in `docker logs` within milliseconds as
+`Replicating "public"."hosts" ...` / `Flushed 1 + 0 + 1 updates`. Two real
+bugs were caught and fixed in the process, both worth knowing about since
+they'll resurface on a fresh machine otherwise:
+
+- **`postgres:18+`'s data directory layout changed** - the image now expects
+  its volume mounted at `/var/lib/postgresql` (a parent directory it manages
+  itself), not `/var/lib/postgresql/data` directly (the old convention);
+  mounting at the old path made `postgres` fail its healthcheck outright on
+  a fresh init. Fixed in `docker-compose.yml`'s `postgres` and `pg-storage`
+  volume mounts. An existing volume created before this fix has data laid
+  out for the old path and needs to be reinitialized once: `pnpm run
+dev:infra:down && docker volume rm effective-app_postgres-data
+effective-app_powersync-storage-data`.
+- **`sslmode` defaults to `verify-full`** on PowerSync's Postgres connections
+  (both `replication.connections` and `storage`) - our local Postgres
+  containers have no TLS configured, so the client's SSL negotiation was
+  failing the connection outright. Surfaced as a generic, unhelpful `"Fatal
+startup error ... postgres query failed"` at the wire-protocol level (not a
+  SQL error - confirmed by extracting and running the exact failing query,
+  `CREATE TABLE IF NOT EXISTS locks (...)`, directly via `psql`, which
+  succeeded fine). Fixed by adding `sslmode: disable` to both connections in
+  `powersync/service.yaml` - local/private-network only, per PowerSync's own
+  docs on that setting.
+
+#### Verifying this works
+
+1. **Apply the Drizzle migration first.** `sync-config.yaml` references real
+   table names (`hosts`, `member_hosts`, ...) - they need to exist in Postgres
+   before PowerSync can replicate them, so run `packages/db`'s
+   `db:generate`/`db:migrate` (see "Effect Schema → Drizzle bridge" above)
+   before starting PowerSync for the first time.
+2. **Start the stack and check health.**
+   ```sh
+   pnpm run dev:infra
+   docker compose ps                    # postgres, pg-storage, powersync all healthy
+   docker compose logs powersync        # look for replication/connection errors
+   docker exec -it effective-app-postgres-1 \
+     psql -U effective_app -c "select * from pg_publication;"  # expect a `powersync` row
+   ```
+3. **Insert a row and watch it replicate** - the fastest concrete proof,
+   no client SDK needed:
+   ```sh
+   docker exec -it effective-app-postgres-1 psql -U effective_app -d effective_app -c "
+     INSERT INTO hosts (id, name, slug, email, time_zone, currency, business_type, created_at)
+     VALUES ('11111111-1111-4111-8111-111111111111', 'Test', 'test', 'a@b.test', 'UTC', 'USD', 'gym', now());
+   "
+   docker compose logs powersync --tail 10  # expect "Replicating \"public\".\"hosts\" ..."
+   ```
+4. **Generate a subject-only dev token** (covers the `lead_stage_templates`
+   stream, which has no custom claims) and confirm the service accepts it -
+   run from the repo root, not from inside `powersync/` (the CLI's
+   `--directory` default is already `powersync`, relative to cwd):
+   ```sh
+   npx powersync generate token --subject=test-user
+   ```
+5. **Hand-sign a JWT with a `host_id` claim** to exercise `host_data` (the CLI
+   can't do this - see the "Auth" bullet above):
+   ```ts
+   // scratch script - run with e.g. `npx tsx sign-dev-token.ts`
+   import * as jose from "jose";
+
+   const secret = "<value of PS_CLIENT_AUTH_KEY from your .env>";
+   const token = await new jose.SignJWT({ host_id: "<a real hosts.id from your DB>" })
+     .setProtectedHeader({ alg: "HS256", kid: "local-dev" })
+     .setSubject("test-user")
+     .setIssuedAt()
+     .setAudience("powersync-dev")
+     .setExpirationTime("1h")
+     .sign(Buffer.from(secret.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
+   console.log(token);
+   ```
+   Then use that token to open a sync stream connection (e.g. via `curl` against
+   `/sync/stream` with an `Authorization: Bearer <token>` header, or a minimal
+   PowerSync client SDK script) and confirm only that host's rows come back.
+6. **The full end-to-end proof** - a real client syncing to local SQLite and
+   seeing row changes - needs the client SDK wired into `apps/client`, which is
+   intentionally out of scope here (see the task's original scoping notes).
+
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:

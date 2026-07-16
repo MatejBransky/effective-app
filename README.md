@@ -23,16 +23,17 @@ Apps and packages beyond the tooling above are added iteratively - see the note 
 
 ### Local development
 
-No AWS/Cloudflare account is needed to develop against Postgres or email locally:
+No AWS/Cloudflare account is needed to develop against Postgres, email, or PowerSync locally:
 
 ```sh
 cp .env.example .env
-pnpm run dev:infra       # starts Postgres + Mailpit (docker compose)
+pnpm run dev:infra       # starts Postgres + Mailpit + PowerSync (docker compose)
 pnpm run dev:infra:down  # stops them
 ```
 
 - Postgres: `localhost:5432` (see `.env.example` for credentials)
 - Mailpit web UI: [localhost:8025](http://localhost:8025) - catches all outgoing email sent via SMTP on `localhost:1025`, nothing leaves your machine
+- PowerSync (self-hosted): `localhost:8080` - see `powersync/sync-config.yaml` for what syncs, and docs/data-model.md's "PowerSync sync streams" section for the setup and what's still deferred (real auth, a scoped replication role)
 
 ### Utilities
 

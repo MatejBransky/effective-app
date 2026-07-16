@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-sync-rules@latest/schema/sync_rules.json
+#
+# Sync Streams (not the legacy bucket_definitions format - Streams are PowerSync's
+# current recommended approach for new projects, and support real JOINs via
+# `edition: 3`, which `by_host` below needs for `members`/`sequence_actions`/
+# `sequence_edges`). See docs/data-model.md's "PowerSync sync streams" section.
+config:
+  edition: 3
+
+streams:
+  # Everything scoped to the host the authenticated session is for.
+  # `auth.parameter('host_id')` reads a custom claim from the client's PowerSync JWT -
+  # there's no auth/apps/server yet to actually issue that claim, and the PowerSync
+  # CLI's `generate token` only sets `--subject` (no custom-claims flag, checked via
+  # `--help`), so exercising this stream for now means hand-signing a JWT with
+  # `PS_CLIENT_AUTH_KEY` (see docs/data-model.md's "PowerSync sync streams" section for
+  # a script). Once Keycloak + apps/server exist, the claim should come from there
+  # instead.
+  host_data:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM hosts WHERE id = auth.parameter('host_id')
+      - SELECT * FROM member_hosts WHERE host_id = auth.parameter('host_id')
+      # `members` has no `host_id` column directly (a Member's identity is host-independent,
+      # see docs/data-model.md's "Why status lives on MemberHost, not Member") - join
+      # through `member_hosts` to find the ones relevant to this host.
+      - |
+        SELECT members.* FROM members
+        JOIN member_hosts ON member_hosts.member_id = members.id
+        WHERE member_hosts.host_id = auth.parameter('host_id')
+      - SELECT * FROM lead_stages WHERE host_id = auth.parameter('host_id')
+      - SELECT * FROM host_filter_sets WHERE host_id = auth.parameter('host_id')
+      - SELECT * FROM marketing_sequences WHERE host_id = auth.parameter('host_id')
+      # `sequence_actions`/`sequence_edges` reach `host_id` via `marketing_sequences`,
+      # same reasoning as `members` above.
+      - |
+        SELECT sequence_actions.* FROM sequence_actions
+        JOIN marketing_sequences ON marketing_sequences.id = sequence_actions.sequence_id
+        WHERE marketing_sequences.host_id = auth.parameter('host_id')
+      - |
+        SELECT sequence_edges.* FROM sequence_edges
+        JOIN marketing_sequences ON marketing_sequences.id = sequence_edges.sequence_id
+        WHERE marketing_sequences.host_id = auth.parameter('host_id')
+      - SELECT * FROM sequence_enrollments WHERE host_id = auth.parameter('host_id')
+      - SELECT * FROM sequence_versions WHERE host_id = auth.parameter('host_id')
+      - SELECT * FROM domain_events WHERE host_id = auth.parameter('host_id')
+
+  # Platform-maintained reference data, not tenant-editable - every authenticated
+  # client gets the full set, see docs/data-model.md's "LeadStageTemplate" description.
+  lead_stage_templates:
+    auto_subscribe: true
+    query: SELECT * FROM lead_stage_templates

@@ -25,6 +25,12 @@ catalog:
   # Effect v4 ("effect smol") - beta, but this is what repos/effect (vendored from the
   # Effect-TS/effect main branch) is already on, so we're tracking the same line.
   effect: 4.0.0-beta.98
+  drizzle-orm: 0.45.2
+  drizzle-kit: 0.31.10
+  # node-postgres, not postgres.js - matches the driver @effect/sql-pg wraps, so a later
+  # Effect-based query layer shares the same driver/connection-pool conventions.
+  pg: 8.22.0
+  "@types/pg": 8.20.0
   react: 19.2.7
   react-dom: 19.2.7
   "@types/react": 19.2.17
@@ -89,6 +95,12 @@ onlyBuiltDependencies:
   # current platform, same pattern as better-sqlite3/sharp. Maintained by kriszyp
   # (msgpackr's author). User-approved 2026-07-15.
   - msgpackr-extract
+  # Pulled in by drizzle-kit (and transitively by vite/vitest already). Postinstall
+  # script (node install.js) only fetches esbuild's own prebuilt native binary for the
+  # current platform - same low-risk pattern as msgpackr-extract above. User-approved
+  # 2026-07-16.
+  - esbuild
 allowBuilds:
-  # See onlyBuiltDependencies comment above for the review notes.
+  # See onlyBuiltDependencies comments above for the review notes.
+  esbuild: true
   msgpackr-extract: true

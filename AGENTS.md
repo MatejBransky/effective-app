@@ -29,6 +29,13 @@ not split into per-entity packages - entities reference each other's branded id 
 densely for that split to pay off, and unlike the FSD slices below, `packages/schema` has no
 UI and is consumed by `apps/server` as much as by `apps/client`.
 
+`packages/db` holds the Drizzle (Postgres) side of that source of truth: hand-written
+table definitions mirroring `packages/schema`, kept honest by a drift test
+(`packages/db/src/drift.test.ts`) rather than codegen - see "Effect Schema → Drizzle
+bridge" in `docs/data-model.md` for why. Postgres RLS for multi-tenancy (mentioned
+above) isn't enabled yet - it needs a session-level `hostId` to filter on, and nothing
+sets that until auth and `apps/server` exist.
+
 Every app lives under `apps/<name>` and should be independently testable (vitest) via
 Effect `Layer`/`Context` dependency injection - external processes and I/O go through
 swappable services, never called directly, so unit tests never touch the real filesystem,

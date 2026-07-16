@@ -342,16 +342,34 @@ Legacy reference: `work/monorepo/view/backend/db/entities/` (`Hosts`,
 
 ### Effect Schema → Drizzle bridge
 
-Not built yet - there are no Postgres migrations or an `apps/server` in this repo
-yet, so there's nothing to bridge to. Decision for when that lands: hand-write
-Drizzle table definitions alongside the Effect Schema entities (in whichever
-package ends up owning the DB layer) and add a drift test that decodes each
-Drizzle table's column set against its corresponding Effect Schema's field set,
-failing if they diverge. Rejected alternative: codegen'ing Drizzle tables from
-Effect Schema (or vice versa) - no existing tool bridges Effect v4 Schema and
-Drizzle, and building one is disproportionate effort for a PoC versus a drift
-test that just needs the two to agree, not one to mechanically produce the
-other.
+Built as `packages/db`: hand-written Drizzle table definitions (Postgres, via
+`drizzle-orm`/`drizzle-kit`) alongside the Effect Schema entities in
+`packages/schema`, plus a drift test (`packages/db/src/drift.test.ts`) that
+compares each Drizzle table's column-name set against its corresponding Effect
+Schema's field-name set, failing if they diverge. Rejected alternative:
+codegen'ing Drizzle tables from Effect Schema (or vice versa) - no existing
+tool bridges Effect v4 Schema and Drizzle, and building one is disproportionate
+effort for a PoC versus a drift test that just needs the two to agree, not one
+to mechanically produce the other.
+
+`id`/foreign-key columns are `text`, not Postgres's native `uuid` type - same
+PowerSync requirement as the `id` column itself (see "Why client-generated UUID
+ids" above). `SequenceAction` is one flat table in Postgres even though
+`packages/schema` models it as a discriminated union in TypeScript - `config`'s
+shape depends on `type` at the application layer, not the DB layer, so the
+drift test reads its field set from any one of the union's cases (they all
+share the same top-level keys).
+
+### Postgres RLS for multi-tenancy - not enabled yet
+
+`AGENTS.md` names "Drizzle + Postgres RLS for multi-tenancy" as the intended
+mechanism, but RLS policies need a session-level value (e.g. the current
+request's `hostId`) to filter rows against, and nothing in this repo sets that
+yet - there's no `apps/server`, no auth, no request/session context. Enabling
+RLS now would mean either policies that can't actually filter anything yet or
+policies against a session variable nothing sets, which is worse than not
+having RLS at all. Deferred until auth (`AuthService` `Layer`) and `apps/server`
+exist and can set that session context per request.
 
 ## Deferred / out of scope for this PoC
 

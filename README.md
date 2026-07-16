@@ -11,6 +11,7 @@ typical of fully offline-first apps.
 - `apps/server` - Effect HTTP API on Cloudflare Workers
 - `apps/infrastructure` - Alchemy IaC that deploys the above
 - `packages/schema` - Effect Schema domain definitions - the single source of truth for DB, API, and FE validation. Not an FSD slice itself (it has no UI and is consumed by `apps/server` too, not just `apps/client`) - it sits below the FSD layers and they import entity/id types from it
+- `packages/db` - hand-written Drizzle (Postgres) table definitions mirroring `packages/schema`, plus a drift test that fails if the two disagree - see "Effect Schema → Drizzle bridge" in `docs/data-model.md`
 - `packages/entities`, `packages/features`, `packages/widgets` - FSD slices, each its own package; a package's `package.json#exports` is its public API instead of a barrel `index.ts`, and the FSD layer-import rule (a slice may only depend on slices in strictly lower layers) is enforced through the pnpm/Turborepo package graph, not a folder-path lint rule
 - `packages/shared` - cross-cutting FE code (ui kit, api client, app-shell state, lib, config)
 - `packages/lint-config`, `packages/typescript-config` - shared tooling config

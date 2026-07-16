@@ -370,17 +370,56 @@ shape depends on `type` at the application layer, not the DB layer, so the
 drift test reads its field set from any one of the union's cases (they all
 share the same top-level keys).
 
-### Postgres RLS for multi-tenancy - not enabled yet
+### Postgres RLS for multi-tenancy
 
-`AGENTS.md` names "Drizzle + Postgres RLS for multi-tenancy" as the intended
-mechanism, but RLS policies need a session-level value (e.g. the current
-request's `hostId`) to filter rows against, and nothing in this repo sets that
-yet. `apps/server` and its `AuthService` now exist (see "Auth: Keycloak +
-apps/server" below) and every request has a verified `hostId` available, but
-nothing sets that value into a Postgres session variable per request yet -
-enabling RLS before that wiring exists would mean policies against a session
-variable nothing sets, which is worse than not having RLS at all. Deferred
-until `apps/server`'s request handling sets that session context per request.
+Every host-scoped table in `packages/db`'s schema has `.enableRLS()` plus a
+`pgPolicy` (see `packages/db/src/rls.ts` for the two shared policy builders):
+
+- **Direct `host_id` column** (`hosts` itself via `id`, `host_filter_sets`,
+  `lead_stages`, `marketing_sequences`, `member_hosts`, `sequence_enrollments`,
+  `sequence_versions`, `domain_events`) - `hostIsolationPolicy(column)`, a
+  simple `column = current_setting('app.host_id', true)` check.
+- **Scoped only via a join** (`members` via `member_hosts`,
+  `sequence_actions`/`sequence_edges` via `marketing_sequences`) -
+  `hostIsolationViaJoinPolicy(...)`, an `exists (select 1 from <join table>
+where ...)` check. References the other table by literal SQL name rather
+  than importing its Drizzle table object, to avoid circular imports between
+  schema files (e.g. `MemberHost.ts` already imports `members`).
+- **`lead_stage_templates` deliberately has no RLS** - it's platform-maintained
+  reference data, not scoped to any host.
+
+Every policy uses `for: "all"` with the same expression in both `using` and
+`withCheck`, so it applies uniformly to reads and writes.
+
+**The session variable a policy checks must actually get set, and the
+connecting role must actually be subject to RLS** - two gaps that would make
+enabling RLS pure theater if left unaddressed:
+
+- Postgres lets the table **owner** bypass RLS by default (`FORCE ROW LEVEL
+SECURITY` would override this, but this repo takes the other approach:
+  `postgres/init-scripts/02-app-user-role.sql` creates a separate non-owner,
+  non-superuser `app_user` role with `SELECT`/`INSERT`/`UPDATE`/`DELETE`
+  grants only. `effective_app` (the `DATABASE_URL` role) still owns every
+  table via drizzle-kit migrations and bypasses RLS entirely - it must never
+  be used for request-time queries. `apps/server` connects via a separate
+  `APP_DATABASE_URL`, as `app_user`.
+- `apps/server/src/HostScopedDb.ts` is the only way `apps/server`'s handlers
+  touch the database: `query(fn)` opens a Drizzle transaction, runs
+  `select set_config('app.host_id', $1, true)` (parameterized, transaction-
+  local) using the current request's verified `CurrentHost.hostId`, then runs
+  `fn` inside that same transaction. There's no other entry point to
+  `Db` exposed to handlers, so a handler can't accidentally issue a
+  host-scoped query without that context set.
+
+**Verified end-to-end** (2026-07-16): as the `app_user` role directly via
+`psql`, with two seeded hosts, `set_config('app.host_id', '<host A>', true)`
+returns only host A's row (and only host A's `members`, via the join policy),
+switching to host B's id returns only host B's, and with no `app.host_id` set
+at all the query returns zero rows (fail-closed, not fail-open). The same
+proof was repeated one level up, through `apps/server`'s real `GET /hosts/me`
+endpoint (see "Auth: Keycloak + apps/server" below) - a password-grant token
+for the seeded test user returns exactly that user's own host row, with no
+`WHERE` clause needed in the handler at all; RLS is what's actually filtering.
 
 ### Auth: Keycloak + apps/server
 
@@ -417,8 +456,10 @@ what lets the exact same Keycloak-issued token satisfy both `apps/server`'s
 `AuthService` and PowerSync's `client_auth` (see below), rather than needing
 two different tokens for the two consumers.
 
-`apps/server` (`effect/unstable/httpapi`) has a public `/health` endpoint and
-a protected `/me` endpoint behind an `Auth` `HttpApiMiddleware.Service` using
+`apps/server` (`effect/unstable/httpapi`) has a public `/health` endpoint, a
+protected `/me` endpoint, and a protected `/hosts/me` endpoint (which actually
+queries Postgres through `HostScopedDb` - see "Postgres RLS for
+multi-tenancy" above) - all behind an `Auth` `HttpApiMiddleware.Service` using
 `HttpApiSecurity.bearer` - which only extracts the raw credential, the actual
 verification is `JwtVerifier`, backed by `jose`'s `createRemoteJWKSet` against
 Keycloak's realm JWKS endpoint. `JwtVerifier` is itself swappable (`layer` for
@@ -435,6 +476,18 @@ returned checkpoint's `host_data` bucket correctly scoped to that same
 `host_id` - confirming the audience mapper and `client_auth.jwks_uri` wiring
 in `powersync/service.yaml` (see below) actually works against a real token,
 not just against the hand-signed HS256 dev tokens used before Keycloak existed.
+
+A non-obvious Effect `HttpApi` gotcha hit while wiring `/hosts/me`'s
+`HostScopedDb` dependency, worth knowing before adding another per-handler
+service dependency: a handler's own service requirements (as opposed to ones
+a group's `.middleware(...)` already provides, like `CurrentHost`) surface on
+`HttpApiBuilder.group(...)`'s layer as a specially-branded
+`HttpRouter.Request<"Requires", _>` type, not the plain service tag. Providing
+a normal `Layer.provide(HostScopedDbLayer)` _before_ `HttpRouter.serve` in
+`main.ts`'s pipe silently fails to satisfy it (they're structurally different
+types, so it just stays unresolved) - it only collapses to the plain tag
+_after_ `HttpRouter.serve` runs, which is where `HostScopedDbLayer` actually
+needs to be provided (see `main.ts`).
 
 ### PowerSync sync streams
 
@@ -457,13 +510,18 @@ SQL support (real `JOIN`s) is what lets `host_data`'s queries reach `members`
 `marketing_sequences`) without denormalizing `hostId` onto those tables just
 for sync purposes.
 
-One thing still explicitly deferred, same shape as the RLS gap above:
-
-- **Replication role**: the `postgres` service's `powersync` publication
-  (`powersync/init-scripts/01-powersync-publication.sql`) is `FOR ALL TABLES`,
-  and PowerSync connects as the app's own `effective_app` superuser rather
-  than a scoped-down, replication-only role - fine for a PoC, not for
-  production.
+The `postgres` service's `powersync` publication
+(`postgres/init-scripts/01-powersync-publication.sql`) is `FOR ALL TABLES`,
+created by `effective_app` (table ownership is required for `CREATE
+PUBLICATION`). The **replication connection** itself, though, uses a separate
+least-privilege `powersync_replication` role
+(`postgres/init-scripts/03-powersync-replication-role.sql`) - `REPLICATION` +
+read-only grants, never the `effective_app` superuser. Verified end-to-end
+(2026-07-16): after switching `PS_DATA_SOURCE_URI` to this role and
+recreating the `powersync` container, it reattached to the existing
+replication slot ("Initial replication already done") and a subsequent
+`INSERT INTO hosts` still replicated within seconds, confirming `SELECT`-only
+access is sufficient for ongoing logical replication.
 
 **Verified working** (2026-07-16, against a real local Docker stack - the
 sandbox this was originally built in had Docker Hub pulls blocked, but the

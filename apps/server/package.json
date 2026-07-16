@@ -11,14 +11,18 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
+    "@effective-app/db": "workspace:*",
     "@effective-app/schema": "workspace:*",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
-    "jose": "catalog:"
+    "jose": "catalog:",
+    "pg": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

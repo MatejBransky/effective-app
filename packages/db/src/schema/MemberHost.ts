@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 
+import { hostIsolationPolicy } from "../rls.ts";
 import { hosts } from "./Host.ts";
 import { leadStages } from "./LeadStage.ts";
 import { members } from "./Member.ts";
@@ -19,5 +20,5 @@ export const memberHosts = pgTable(
     leadStageId: text("lead_stage_id").references(() => leadStages.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
-  (t) => [unique().on(t.memberId, t.hostId)],
-);
+  (t) => [unique().on(t.memberId, t.hostId), hostIsolationPolicy(t.hostId)],
+).enableRLS();

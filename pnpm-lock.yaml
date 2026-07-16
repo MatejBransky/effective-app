@@ -132,15 +132,24 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-beta.98(effect@4.0.0-beta.98)(ioredis@5.11.1)
+      '@effective-app/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@effective-app/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.98
       jose:
         specifier: 'catalog:'
         version: 6.2.3
+      pg:
+        specifier: 'catalog:'
+        version: 8.22.0
     devDependencies:
       '@effect/vitest':
         specifier: 'catalog:'
@@ -151,6 +160,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.20.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

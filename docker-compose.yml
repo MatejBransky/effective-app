@@ -19,9 +19,12 @@ services:
       # laid out for the old path and needs to be reinitialized once:
       # `pnpm run dev:infra:down && docker volume rm effective-app_postgres-data`.
       - postgres-data:/var/lib/postgresql
-      # Runs only on first start (empty volume) - creates the `powersync` publication
-      # PowerSync's logical replication connection needs.
-      - ./powersync/init-scripts:/docker-entrypoint-initdb.d
+      # Runs only on first start (empty volume) - creates the `powersync` publication,
+      # the non-owner `app_user` role apps/server connects as (RLS applies to it, unlike
+      # `effective_app` which owns the tables and bypasses RLS by default), and the
+      # least-privilege `powersync_replication` role PowerSync's replication connection
+      # uses instead of the `effective_app` superuser.
+      - ./postgres/init-scripts:/docker-entrypoint-initdb.d
     # `wal_level=logical` is required for PowerSync's logical replication connection.
     command: ["postgres", "-c", "wal_level=logical"]
     healthcheck:
@@ -126,7 +129,9 @@ services:
         condition: service_healthy
     environment:
       POWERSYNC_CONFIG_PATH: /config/service.yaml
-      PS_DATA_SOURCE_URI: postgres://effective_app:local_dev_only@postgres:5432/effective_app
+      # `powersync_replication` (postgres/init-scripts/03-powersync-replication-role.sql)
+      # - REPLICATION + read-only, not the `effective_app` superuser that owns the tables.
+      PS_DATA_SOURCE_URI: postgres://powersync_replication:${PS_REPLICATION_PASSWORD:-local_dev_only}@postgres:5432/effective_app
       PS_STORAGE_SOURCE_URI: postgres://${PS_STORAGE_USER:-postgres}:${PS_STORAGE_PASSWORD:-local_dev_only}@pg-storage:${PS_STORAGE_PORT:-5434}/${PS_STORAGE_DATABASE:-powersync_storage}
       PS_API_TOKEN: ${PS_API_TOKEN:-local_dev_only_change_me}
     volumes:

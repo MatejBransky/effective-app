@@ -27,6 +27,12 @@ catalog:
   effect: 4.0.0-beta.98
   drizzle-orm: 0.45.2
   drizzle-kit: 0.31.10
+  # Node runtime adapter for effect/unstable/httpapi - a separate package from `effect`
+  # itself in this v4 line. Pinned to the exact same beta as `effect` above.
+  "@effect/platform-node": 4.0.0-beta.98
+  # JWT/JWKS verification for apps/server's AuthService - vendored Effect v4 has no
+  # built-in JWT support (HttpApiSecurity only extracts the raw credential string).
+  jose: 6.2.3
   # node-postgres, not postgres.js - matches the driver @effect/sql-pg wraps, so a later
   # Effect-based query layer shares the same driver/connection-pool conventions.
   pg: 8.22.0
@@ -65,6 +71,15 @@ trustPolicyExclude:
   # not an isolated package. User-approved 2026-07-15; revisit if pnpm flags it again
   # elsewhere.
   - "effect@4.0.0-beta.98"
+  # @effect/platform-node@4.0.0-beta.98 - same trust-downgrade pattern as effect@4.0.0-beta.98
+  # and @effect/vitest@4.0.0-beta.98 above (checked npm metadata: same `effect-bot` npm user,
+  # same maintainers, same Effect-TS/effect-smol repo). User-approved 2026-07-16.
+  - "@effect/platform-node@4.0.0-beta.98"
+  # @effect/platform-node-shared@4.0.0-beta.98 - transitive dep of @effect/platform-node
+  # above, same publish-mechanism trust-downgrade pattern (same `effect-bot` npm user,
+  # same Effect-TS/effect-smol repo). No further Effect-TS deps beneath this one (checked
+  # npm metadata). User-approved 2026-07-16.
+  - "@effect/platform-node-shared@4.0.0-beta.98"
   # semver@6.3.1 (transitive dep of @babel/core via @tanstack/router-plugin) predates npm
   # provenance (introduced ~April 2023; 6.3.1 published 2023-07-10) and has none, while some
   # other version in its history does - a registry-side metadata touch on 2026-07-06 hit

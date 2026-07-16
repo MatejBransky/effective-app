@@ -23,17 +23,20 @@ Apps and packages beyond the tooling above are added iteratively - see the note 
 
 ### Local development
 
-No AWS/Cloudflare account is needed to develop against Postgres, email, or PowerSync locally:
+No AWS/Cloudflare account is needed to develop against Postgres, email, auth, or
+PowerSync locally:
 
 ```sh
 cp .env.example .env
-pnpm run dev:infra       # starts Postgres + Mailpit + PowerSync (docker compose)
+pnpm run dev:infra       # starts Postgres + Mailpit + Keycloak + PowerSync (docker compose)
 pnpm run dev:infra:down  # stops them
+pnpm --filter @effective-app/server run dev  # apps/server, once dev:infra is up
 ```
 
 - Postgres: `localhost:5432` (see `.env.example` for credentials)
 - Mailpit web UI: [localhost:8025](http://localhost:8025) - catches all outgoing email sent via SMTP on `localhost:1025`, nothing leaves your machine
-- PowerSync (self-hosted): `localhost:8080` - see `powersync/sync-config.yaml` for what syncs, and docs/data-model.md's "PowerSync sync streams" section for the setup and what's still deferred (real auth, a scoped replication role)
+- Keycloak (self-hosted): `localhost:8180` - realm/client/test-user seeded from `keycloak/realm-export.json` on first start; see docs/data-model.md's "Auth: Keycloak + apps/server" section for how tokens carry the `host_id` claim `apps/server` and PowerSync both rely on
+- PowerSync (self-hosted): `localhost:8080` - see `powersync/sync-config.yaml` for what syncs, and docs/data-model.md's "PowerSync sync streams" section for the setup and what's still deferred (a scoped replication role)
 
 ### Utilities
 

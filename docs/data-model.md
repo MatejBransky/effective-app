@@ -375,11 +375,66 @@ share the same top-level keys).
 `AGENTS.md` names "Drizzle + Postgres RLS for multi-tenancy" as the intended
 mechanism, but RLS policies need a session-level value (e.g. the current
 request's `hostId`) to filter rows against, and nothing in this repo sets that
-yet - there's no `apps/server`, no auth, no request/session context. Enabling
-RLS now would mean either policies that can't actually filter anything yet or
-policies against a session variable nothing sets, which is worse than not
-having RLS at all. Deferred until auth (`AuthService` `Layer`) and `apps/server`
-exist and can set that session context per request.
+yet. `apps/server` and its `AuthService` now exist (see "Auth: Keycloak +
+apps/server" below) and every request has a verified `hostId` available, but
+nothing sets that value into a Postgres session variable per request yet -
+enabling RLS before that wiring exists would mean policies against a session
+variable nothing sets, which is worse than not having RLS at all. Deferred
+until `apps/server`'s request handling sets that session context per request.
+
+### Auth: Keycloak + apps/server
+
+Self-hosted Keycloak (`docker-compose.yml`'s `keycloak` service, dev-mode
+`start-dev --import-realm`) is the identity provider; `apps/server` never
+talks to it directly - business logic depends only on `AuthService`
+(`apps/server/src/JwtVerifier.ts`/`Auth.ts`), a swappable `Layer` per
+`AGENTS.md`'s auth rule, so Keycloak could be swapped for another OIDC
+provider without touching domain code. Realm/client/test-user config lives in
+`keycloak/realm-export.json`, imported automatically on first start - no
+manual admin-console clicking needed to reproduce this setup.
+
+`host_id` reaches the JWT via a Keycloak user-attribute protocol mapper
+(`oidc-usermodel-attribute-mapper`) mapping the user's `host_id` attribute to
+a `host_id` claim. Two gotchas hit while wiring this up, both easy to hit
+again if this config is hand-edited later:
+
+- **Keycloak 24+ ignores custom user attributes by default** ("unmanaged
+  attributes" are disabled unless the realm's declarative user profile
+  explicitly declares them) - `host_id` had to be added to the realm's user
+  profile config (`components` → `org.keycloak.userprofile.UserProfileProvider`
+  in `keycloak/realm-export.json`) before the attribute would even persist on
+  import, let alone reach a token.
+- **The mapper's config key is `user.attribute`, not `userAttribute`** -
+  the latter is what the analogous OID4VC mapper uses, easy to confuse, and
+  Keycloak silently accepts the wrong key (no validation error) while just
+  never populating the claim. Confirmed the correct key via the running
+  instance's own `/admin/serverinfo` endpoint, which lists every protocol
+  mapper's real config property names.
+
+A second mapper (`oidc-audience-mapper`, `included.custom.audience:
+powersync-dev`) adds `powersync-dev` to the token's `aud` claim - this is
+what lets the exact same Keycloak-issued token satisfy both `apps/server`'s
+`AuthService` and PowerSync's `client_auth` (see below), rather than needing
+two different tokens for the two consumers.
+
+`apps/server` (`effect/unstable/httpapi`) has a public `/health` endpoint and
+a protected `/me` endpoint behind an `Auth` `HttpApiMiddleware.Service` using
+`HttpApiSecurity.bearer` - which only extracts the raw credential, the actual
+verification is `JwtVerifier`, backed by `jose`'s `createRemoteJWKSet` against
+Keycloak's realm JWKS endpoint. `JwtVerifier` is itself swappable (`layer` for
+the real remote JWKS, `layerWithJwks` for tests using an in-memory JWK set),
+so `AuthService.test.ts`-style unit tests never make a real network call, per
+`AGENTS.md`'s "external I/O goes through swappable services" rule.
+
+**Verified end-to-end** (2026-07-16): a password-grant token from Keycloak's
+test user (`test-host-owner`, `host_id` attribute set to a fixed test UUID)
+correctly returns `401` from `/me` with no token, and with the token returns
+`200` with the exact `hostId`/`subject` from the JWT claims. The identical
+token was then POSTed to PowerSync's `/sync/stream` and accepted, with the
+returned checkpoint's `host_data` bucket correctly scoped to that same
+`host_id` - confirming the audience mapper and `client_auth.jwks_uri` wiring
+in `powersync/service.yaml` (see below) actually works against a real token,
+not just against the hand-signed HS256 dev tokens used before Keycloak existed.
 
 ### PowerSync sync streams
 
@@ -402,17 +457,8 @@ SQL support (real `JOIN`s) is what lets `host_data`'s queries reach `members`
 `marketing_sequences`) without denormalizing `hostId` onto those tables just
 for sync purposes.
 
-Two things explicitly deferred, both same shape as the RLS gap above - no
-auth/`apps/server` yet to set real values:
+One thing still explicitly deferred, same shape as the RLS gap above:
 
-- **Auth**: `host_data`'s queries filter on `auth.parameter('host_id')`, a
-  custom JWT claim. `powersync/service.yaml`'s `client_auth` uses a local-dev
-  HS256 shared secret (`PS_CLIENT_AUTH_KEY`) standing in for Keycloak until
-  `apps/server` exists to issue real tokens - but the PowerSync CLI's
-  `generate token` only accepts `--subject` (no custom-claims flag, checked
-  via `--help`), so testing `host_data` specifically means hand-signing a JWT
-  with that same secret (see "Verifying this works" below) rather than using
-  the CLI directly.
 - **Replication role**: the `postgres` service's `powersync` publication
   (`powersync/init-scripts/01-powersync-publication.sql`) is `FOR ALL TABLES`,
   and PowerSync connects as the app's own `effective_app` superuser rather
@@ -472,33 +518,31 @@ startup error ... postgres query failed"` at the wire-protocol level (not a
    "
    docker compose logs powersync --tail 10  # expect "Replicating \"public\".\"hosts\" ..."
    ```
-4. **Generate a subject-only dev token** (covers the `lead_stage_templates`
-   stream, which has no custom claims) and confirm the service accepts it -
-   run from the repo root, not from inside `powersync/` (the CLI's
-   `--directory` default is already `powersync`, relative to cwd):
+4. **Get a real token from Keycloak** for the seeded test user (see "Auth:
+   Keycloak + apps/server" above) via the password grant:
    ```sh
-   npx powersync generate token --subject=test-user
+   curl -X POST http://localhost:${KEYCLOAK_PORT:-8180}/realms/effective-app/protocol/openid-connect/token \
+     -d "grant_type=password" -d "client_id=effective-app-client" \
+     -d "username=test-host-owner" -d "password=local_dev_only"
    ```
-5. **Hand-sign a JWT with a `host_id` claim** to exercise `host_data` (the CLI
-   can't do this - see the "Auth" bullet above):
-   ```ts
-   // scratch script - run with e.g. `npx tsx sign-dev-token.ts`
-   import * as jose from "jose";
-
-   const secret = "<value of PS_CLIENT_AUTH_KEY from your .env>";
-   const token = await new jose.SignJWT({ host_id: "<a real hosts.id from your DB>" })
-     .setProtectedHeader({ alg: "HS256", kid: "local-dev" })
-     .setSubject("test-user")
-     .setIssuedAt()
-     .setAudience("powersync-dev")
-     .setExpirationTime("1h")
-     .sign(Buffer.from(secret.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
-   console.log(token);
+   The `access_token` in the response carries both the `host_id` claim and the
+   `powersync-dev` audience - the same token works against both `apps/server`
+   and PowerSync below.
+5. **Confirm `apps/server` accepts it**:
+   ```sh
+   curl http://localhost:3000/me                                   # 401, no token
+   curl -H "Authorization: Bearer <access_token>" http://localhost:3000/me
+   # 200 {"hostId":"<the test user's host_id attribute>","subject":"<sub>"}
    ```
-   Then use that token to open a sync stream connection (e.g. via `curl` against
-   `/sync/stream` with an `Authorization: Bearer <token>` header, or a minimal
-   PowerSync client SDK script) and confirm only that host's rows come back.
-6. **The full end-to-end proof** - a real client syncing to local SQLite and
+6. **Confirm PowerSync accepts the same token**, scoped to that `host_id`:
+   ```sh
+   curl -X POST http://localhost:8080/sync/stream \
+     -H "Authorization: Bearer <access_token>" -H "Content-Type: application/json" \
+     -d '{"include_checksum": true}'
+   # the host_data bucket's key includes the token's host_id, e.g.:
+   # "bucket":"1#host_data|0[\"<host_id>\"]"
+   ```
+7. **The full end-to-end proof** - a real client syncing to local SQLite and
    seeing row changes - needs the client SDK wired into `apps/client`, which is
    intentionally out of scope here (see the task's original scoping notes).
 

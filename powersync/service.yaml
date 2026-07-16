@@ -27,16 +27,19 @@ api:
   tokens:
     - !env PS_API_TOKEN
 
-# Local-dev-only: HS256 shared secret, used with `npx powersync generate token` to mint
-# dev JWTs without a real auth provider. Once auth (Keycloak) and apps/server exist,
-# this should be replaced with `jwks_uri` pointing at Keycloak's JWKS endpoint instead -
-# see docs/data-model.md's "PowerSync sync streams" section.
+# Verifies JWTs against Keycloak's realm keys (RS256, asymmetric - preferred over the
+# HS256 shared-secret option this replaced). No `issuer` field set here on purpose:
+# apps/server and human/browser callers reach Keycloak via `localhost:$KEYCLOAK_PORT`,
+# but PowerSync (inside the compose network) must fetch JWKS via the `keycloak` service
+# name - those are different hostnames, so pinning an issuer here would reject every
+# token. The "powersync-audience" mapper in keycloak/realm-export.json is what actually
+# scopes which tokens this accepts, via the audience check below.
 client_auth:
-  jwks:
-    keys:
-      - kty: oct
-        alg: HS256
-        kid: local-dev
-        k: !env PS_CLIENT_AUTH_KEY
+  jwks_uri: http://keycloak:8080/realms/effective-app/protocol/openid-connect/certs
+  # keycloak resolves to a container-private IP inside the compose network, which
+  # PowerSync's SSRF guard blocks by default - `false` disables that guard, safe only
+  # because this is a local-dev-only, non-internet-routable Docker network. Never
+  # disable this in production.
+  block_local_jwks: false
   audience:
     - powersync-dev

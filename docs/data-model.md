@@ -346,11 +346,21 @@ Built as `packages/db`: hand-written Drizzle table definitions (Postgres, via
 `drizzle-orm`/`drizzle-kit`) alongside the Effect Schema entities in
 `packages/schema`, plus a drift test (`packages/db/src/drift.test.ts`) that
 compares each Drizzle table's column-name set against its corresponding Effect
-Schema's field-name set, failing if they diverge. Rejected alternative:
-codegen'ing Drizzle tables from Effect Schema (or vice versa) - no existing
-tool bridges Effect v4 Schema and Drizzle, and building one is disproportionate
-effort for a PoC versus a drift test that just needs the two to agree, not one
-to mechanically produce the other.
+Schema's field-name set, failing if they diverge.
+
+Rejected alternative: codegen instead of a drift test. Drizzle does ship an
+Effect Schema bridge (`drizzle-orm/effect-schema`'s `createInsertSchema`/
+`createUpdateSchema`/`createSelectSchema`, generating Effect Schema validators
+from a Drizzle table - genuinely targets Effect v4, not a stale v3 tool), but
+two things rule it out here: it only exists on Drizzle's `1.0.0-rc.*` line, not
+the `0.45.x` stable release this repo pins, and it generates in the opposite
+direction from what we need - DB table to per-operation validator, not our
+domain-model-is-the-source-of-truth direction. It also wouldn't replace
+`packages/schema`'s branded ids or discriminated unions (`SequenceAction`,
+`FilterRule`), only auto-derive raw CRUD-shaped validators from the DB row
+shape. Worth revisiting once Drizzle v1 is stable, as a way to generate
+`apps/server`'s raw insert/update/select validators - not as a replacement for
+this drift test or for `packages/schema` itself.
 
 `id`/foreign-key columns are `text`, not Postgres's native `uuid` type - same
 PowerSync requirement as the `id` column itself (see "Why client-generated UUID

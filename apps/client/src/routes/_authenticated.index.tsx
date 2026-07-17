@@ -2,7 +2,7 @@ import { toCompilableQuery } from "@powersync/drizzle-driver";
 import { useQuery } from "@powersync/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { eq } from "drizzle-orm";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { drizzleDb } from "../lib/powersync/database.ts";
 import { hosts, members } from "../lib/powersync/schema.ts";
 
@@ -33,19 +33,44 @@ function HomePage() {
   // uncontrolled), so a plain ref is enough; no reducer or extra state required.
   const pendingRename = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(pendingRename.current), []);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // A local, page-scoped error - distinct from the app-shell's global sync-stuck banner
+  // (see `_authenticated.tsx`). This is "the local SQLite write itself failed" (rare, and
+  // unrelated to whether the change ever reaches the server), so it's shown right next to
+  // the field the user was editing rather than in the app-shell.
+  const [writeError, setWriteError] = useState<string | null>(null);
+
+  const host = hostRows[0];
+
+  // Keeps the (uncontrolled) input in sync with the watched query without ever
+  // remounting it: remounting via a changing `key` (the previous approach) steals focus
+  // the moment our *own* debounced write round-trips back through the query, since a
+  // freshly-mounted DOM node is never automatically focused. Only touch `.value`
+  // imperatively, and only while the user isn't actively focused on the field - otherwise
+  // a value confirmed while the user is mid-edit would overwrite what they're typing. Runs
+  // unconditionally (before the loading/no-host early returns below) - hooks can't be
+  // called conditionally.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (input && host && document.activeElement !== input) {
+      input.value = host.name;
+    }
+  }, [host?.name]);
 
   if (hostLoading || membersLoading) return <p>Loading...</p>;
-  const host = hostRows[0];
   if (!host) return <p>No host synced yet.</p>;
 
   const renameHost = async (name: string) => {
     try {
       await drizzleDb.update(hosts).set({ name }).where(eq(hosts.id, host.id));
+      setWriteError(null);
     } catch (error) {
       // The local SQLite write itself failed (rare - distinct from a sync/upload failure,
-      // which never throws here). Nothing to revert: the input below is uncontrolled, so
-      // it just keeps showing what the user typed - logged for visibility in this PoC.
+      // which never throws here). Nothing to revert: the input stays uncontrolled and
+      // keeps showing what the user typed.
       console.error("Failed to write host name locally:", error);
+      setWriteError("Failed to save the name locally. Please try again.");
     }
   };
 
@@ -65,19 +90,18 @@ function HomePage() {
   return (
     <>
       <h1>
-        {/* Uncontrolled on purpose (`key`+`defaultValue`, not `value`) - the DOM owns the
-            displayed text until `key` changes, which only happens once the watched query
-            confirms a (new) name, whether from our own write or someone else's. No local
-            "draft" state or effect is needed to avoid showing a stale value mid-write: an
-            uncontrolled input never fights the query's own reactivity for control of what
-            renders, so there's nothing to race in the first place. */}
+        {/* Uncontrolled on purpose (`ref`+`defaultValue`, not `value`) - the DOM owns the
+            displayed text; the effect above only pushes a confirmed `host.name` back in
+            imperatively, and only while unfocused, so the query's own reactivity never
+            fights the user for control of what renders mid-edit. */}
         <input
-          key={host.name}
+          ref={inputRef}
           defaultValue={host.name}
           onChange={(e) => scheduleRename(e.target.value)}
           onBlur={(e) => flushRename(e.target.value)}
         />
       </h1>
+      {writeError && <p role="alert">{writeError}</p>}
       <h2>Members</h2>
       <ul>
         {memberRows.map((member) => (

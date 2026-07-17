@@ -6,7 +6,7 @@
   "scripts": {
     "deploy": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; alchemy deploy --yes \"$@\"'",
     "dev": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; alchemy dev --yes \"$@\"'",
-    "destroy": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; alchemy destroy \"$@\"'",
+    "destroy": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; alchemy destroy --yes \"$@\"'",
     "bootstrap-github": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; unset CLOUDFLARE_API_TOKEN; alchemy deploy stacks/github.ts --yes'",
     "typecheck": "tsc --noEmit"
   },

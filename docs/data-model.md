@@ -931,6 +931,90 @@ only a genuinely fresh server instance plus a fresh navigation (not just
 `window.location.reload()` on the same tab) cleared it, confirming the error
 was already fixed and the tool's console buffer, not the app, was stale.
 
+### Sync errors surfacing too eagerly on page load
+
+Reported: refreshing `localhost:5173` briefly showed "Sync error: Not
+authenticated - upload will retry" in the status bar, which then disappeared
+on its own after about a second. Root cause: on a fresh page load,
+`db.connect(connector)` (module-scoped, per PowerSync's React Strict Mode
+requirement) races `restoreSession()`'s silent-renew iframe - if a write was
+already queued in `ps_crud` from before the reload, PowerSync tries to
+upload it immediately, `Connector.uploadData`'s `getAccessToken()` briefly
+returns nothing (the in-memory token store starts empty on every reload by
+design - see `auth.ts`), and it throws "Not authenticated" exactly as its own
+comment says it should ("makes PowerSync retry rather than upload
+unauthenticated"). This is the _same_ self-resolving-blip category the
+30-second `stuckAtom` grace window already exists for (see the "apps/client:
+Keycloak login + PowerSync client" section above) - the bug was that
+`syncSnapshotAtom`'s `uploadError`/`downloadError` got surfaced in the status
+bar the instant they appeared, with no equivalent grace period, so a normal
+~1-second startup race read as a real error.
+
+Fixed with a `syncErrorAtom` in `syncAtoms.ts` using the same
+rebuild-on-change + `setTimeout` + finalizer-clears-the-timer pattern as
+`stuckAtom`, but keyed on the error _message string_ (via an intermediate
+`Atom.map`), not the `Error` object itself - PowerSync constructs a fresh
+`Error` instance on every retry attempt even when the underlying problem is
+identical, and the registry only skips re-notifying dependents on `Object.is`
+equality (confirmed in `effect`'s own `AtomRegistry.js`), so depending on the
+raw snapshot object (or the `Error` instance) would reset the grace-window
+timer on every retry tick and a real, persistent error might never surface.
+Depending on the message string instead means repeated identical retries
+compare equal and leave the timer running uninterrupted toward the full
+10-second grace window.
+
+### React Compiler
+
+Adopted so `useCallback`/`useMemo`/`React.memo` are no longer needed to
+avoid unnecessary re-renders - the compiler inserts the equivalent
+memoization automatically. `babel-plugin-react-compiler` is stable (`1.0.0`,
+no longer beta) as of this addition.
+
+**Wiring: `vite-plugin-babel`, not `@rolldown/plugin-babel`.** React
+Compiler's own install docs branch on `@vitejs/plugin-react` version:
+6.0.0+ (this app is on `6.0.3`) points at a newer `reactCompilerPreset` +
+`@rolldown/plugin-babel` combo - but `@rolldown/plugin-babel` requires the
+`rolldown` package itself as a peer dependency (confirmed via `npm view
+@rolldown/plugin-babel peerDependencies`), and this app uses plain Vite
+(rollup-based), not the Rolldown-powered variant. `@vitejs/plugin-react`'s
+own `babel` option only extends its built-in JSX/fast-refresh transform, it
+doesn't accept arbitrary additional plugins - so a separate `vite-plugin-babel`
+pass (framework-agnostic, no Rolldown dependency, supports `vite ^8.0.0`)
+runs `babel-plugin-react-compiler` (plus `@babel/preset-typescript`, since
+this second Babel pass needs to parse TS/TSX syntax itself before the
+compiler can analyze it) ahead of Vite's own transform pipeline.
+
+**A real footgun caught before it shipped silently:** `vite-plugin-babel`
+defaults `include` to `/\.jsx?$/`, which does not match `.tsx`/`.ts` at all.
+The initial config only set the (now-deprecated) `filter` option, which is
+combined with `include` as an AND - since the default `include` already
+excludes every `.tsx` file in this app, the intersection would have been
+empty and React Compiler would have silently compiled nothing. Caught via
+`vite-plugin-babel`'s own deprecation warning during `pnpm run test`, not
+by any failure - nothing would have errored, it just wouldn't have worked.
+Fixed by setting `include: /\.[jt]sx?$/` explicitly instead of `filter`.
+Verified by fetching a served component module in the dev server and
+confirming it contains the compiler's injected memoization-cache import
+(`react_compilerRuntime["c"]`) - present after the fix, and a production
+`pnpm run build` (which runs Babel too, not just dev) still succeeds.
+
+**Lint safety net: oxlint's native `react` plugin, not a separate ESLint
+plugin.** The React team's own docs pair the compiler with
+`eslint-plugin-react-hooks` (v6+ bundles the relevant rules directly) - this
+repo uses oxlint exclusively, and oxlint reimplements `eslint-plugin-react`
+(including `react-hooks`) as a native Rust plugin rather than needing the JS
+package at all. It wasn't enabled before (`.oxlintrc.json`'s `plugins` key
+was previously absent, defaulting to `unicorn`/`typescript`/`oxc` only).
+Adding `"react"` to that list surfaced one real, pre-existing
+`exhaustive-deps` finding in `_authenticated.index.tsx`'s focus-preserving
+effect (used `host` in the body but only depended on `host?.name`) - fixed by
+depending on the extracted `hostName` value directly instead. One
+config-shape footgun of its own: explicitly setting `"plugins"` in
+`.oxlintrc.json` _replaces_ oxlint's default plugin set rather than adding
+to it (confirmed via `oxlint --print-config`) - the fix lists
+`unicorn`/`typescript`/`oxc` alongside `react` explicitly, so no existing
+lint coverage was silently dropped.
+
 ### Cloudflare deployment (`apps/infrastructure`)
 
 `README.md`'s Layout section already named this package ("Alchemy IaC that

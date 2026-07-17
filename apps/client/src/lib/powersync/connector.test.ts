@@ -5,6 +5,10 @@ vi.mock("../auth.ts", () => ({ getAccessToken: getAccessTokenMock }));
 
 const { Connector } = await import("./connector.ts");
 
+// Explicit, not import.meta.env - CI has no .env (gitignored), and this class's logic
+// shouldn't need real app config just to construct one for a test.
+const TEST_URLS = { powersyncUrl: "http://localhost:8080", serverUrl: "http://localhost:4000" };
+
 const fakeTransaction = (crud: ReadonlyArray<Record<string, unknown>>) => ({
   crud,
   complete: vi.fn().mockResolvedValue(undefined),
@@ -25,17 +29,17 @@ beforeEach(() => {
 describe("Connector.fetchCredentials", () => {
   it("returns the current access token and the PowerSync endpoint", async () => {
     getAccessTokenMock.mockResolvedValue("fresh-token");
-    const connector = new Connector();
+    const connector = new Connector(TEST_URLS);
 
     const credentials = await connector.fetchCredentials();
 
     expect(credentials.token).toBe("fresh-token");
-    expect(credentials.endpoint).toBe(import.meta.env["VITE_POWERSYNC_URL"]);
+    expect(credentials.endpoint).toBe(TEST_URLS.powersyncUrl);
   });
 
   it("throws when there is no authenticated session, so PowerSync retries", async () => {
     getAccessTokenMock.mockResolvedValue(null);
-    const connector = new Connector();
+    const connector = new Connector(TEST_URLS);
 
     await expect(connector.fetchCredentials()).rejects.toThrow();
   });
@@ -46,7 +50,7 @@ describe("Connector.uploadData", () => {
     getAccessTokenMock.mockResolvedValue("token");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const connector = new Connector();
+    const connector = new Connector(TEST_URLS);
 
     await connector.uploadData(fakeDatabase(null));
 
@@ -65,7 +69,7 @@ describe("Connector.uploadData", () => {
         json: () => Promise.resolve({ errors: [{ id: "1", reason: "validation failed" }] }),
       }),
     );
-    const connector = new Connector();
+    const connector = new Connector(TEST_URLS);
 
     await connector.uploadData(fakeDatabase(transaction));
 
@@ -78,7 +82,7 @@ describe("Connector.uploadData", () => {
       { id: "1", op: "PUT", table: "hosts", opData: { name: "Test" } },
     ]);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
-    const connector = new Connector();
+    const connector = new Connector(TEST_URLS);
 
     await expect(connector.uploadData(fakeDatabase(transaction))).rejects.toThrow();
     expect(transaction.complete).not.toHaveBeenCalled();
@@ -91,7 +95,7 @@ describe("Connector.uploadData", () => {
     ]);
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const connector = new Connector();
+    const connector = new Connector(TEST_URLS);
 
     await expect(connector.uploadData(fakeDatabase(transaction))).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();

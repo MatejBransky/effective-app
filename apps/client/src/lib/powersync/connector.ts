@@ -5,21 +5,39 @@ import type {
 } from "@powersync/web";
 import { getAccessToken } from "../auth.ts";
 
-const POWERSYNC_URL = import.meta.env["VITE_POWERSYNC_URL"];
-const SERVER_URL = import.meta.env["VITE_SERVER_URL"];
-if (!POWERSYNC_URL || !SERVER_URL) {
-  throw new Error("VITE_POWERSYNC_URL/VITE_SERVER_URL must be set - see .env.example");
-}
-
 interface SyncUploadResponse {
   readonly errors: ReadonlyArray<{ readonly id: string; readonly reason: string }>;
+}
+
+export interface ConnectorOptions {
+  readonly powersyncUrl?: string;
+  readonly serverUrl?: string;
 }
 
 /**
  * Implements PowerSync's client-side connector against apps/server's custom (non-Supabase)
  * backend - see the powersync skill's references/custom-backend.md.
+ *
+ * `powersyncUrl`/`serverUrl` default to the `VITE_*` env vars (real app usage - see
+ * `database.ts`'s `new Connector()`) but can be passed explicitly, so tests don't need
+ * `import.meta.env` populated just to construct one - the CI environment has no `.env`
+ * (gitignored, per docs/data-model.md), and a unit test for this class's logic shouldn't
+ * require real app config to even run.
  */
 export class Connector implements PowerSyncBackendConnector {
+  private readonly powersyncUrl: string;
+  private readonly serverUrl: string;
+
+  constructor(options: ConnectorOptions = {}) {
+    const powersyncUrl = options.powersyncUrl ?? import.meta.env["VITE_POWERSYNC_URL"];
+    const serverUrl = options.serverUrl ?? import.meta.env["VITE_SERVER_URL"];
+    if (!powersyncUrl || !serverUrl) {
+      throw new Error("VITE_POWERSYNC_URL/VITE_SERVER_URL must be set - see .env.example");
+    }
+    this.powersyncUrl = powersyncUrl;
+    this.serverUrl = serverUrl;
+  }
+
   /** Called automatically every few minutes when the sync stream reconnects - must
    * always return a fresh token, never a cached one (per the PowerSync SDK's contract).
    * Throwing here (no session) makes PowerSync retry rather than connect anonymously. */
@@ -28,7 +46,7 @@ export class Connector implements PowerSyncBackendConnector {
     if (!token) {
       throw new Error("Not authenticated - PowerSync will retry fetchCredentials");
     }
-    return { endpoint: POWERSYNC_URL, token };
+    return { endpoint: this.powersyncUrl, token };
   }
 
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
@@ -49,7 +67,7 @@ export class Connector implements PowerSyncBackendConnector {
       opData: op.opData,
     }));
 
-    const response = await fetch(`${SERVER_URL}/sync/upload`, {
+    const response = await fetch(`${this.serverUrl}/sync/upload`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ operations }),

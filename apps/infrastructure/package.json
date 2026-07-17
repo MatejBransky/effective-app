@@ -7,7 +7,7 @@
     "deploy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy deploy --yes \"$@\"' --",
     "dev": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy dev --yes \"$@\"' --",
     "destroy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy destroy \"$@\"' --",
-    "bootstrap-github": "sh -c 'set -a; . ../../.env; CI=1; ALCHEMY_PROFILE=admin; set +a; alchemy deploy stacks/github.ts --yes'",
+    "bootstrap-github": "sh -c 'set -a; . ../../.env; CI=1; set +a; unset CLOUDFLARE_API_TOKEN; alchemy deploy stacks/github.ts --yes'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -115,7 +115,21 @@ onlyBuiltDependencies:
   # current platform - same low-risk pattern as msgpackr-extract above. User-approved
   # 2026-07-16.
   - esbuild
+  # apps/client's PowerSync peer dep (@powersync/web -> @journeyapps/wa-sqlite).
+  # Postinstall (scripts/download-dynamic-core.js) only downloads PowerSync's own
+  # prebuilt libpowersync[-async].wasm release assets into dist/ - same low-risk
+  # "fetch a prebuilt binary" pattern as esbuild/msgpackr-extract above, from the same
+  # org (JourneyApps/PowerSync) already trusted elsewhere in this task's dependency
+  # additions. User-approved 2026-07-17.
+  - "@journeyapps/wa-sqlite"
+  # Transitive dep of vitest (apps/client's new "test" script). Postinstall
+  # (postinstall.js) only validates its native binary loads and falls back to
+  # @swc/wasm via npm if not - same low-risk "prebuilt binary, verified at install
+  # time" pattern as esbuild/msgpackr-extract above. User-approved 2026-07-17.
+  - "@swc/core"
 allowBuilds:
   # See onlyBuiltDependencies comments above for the review notes.
+  "@journeyapps/wa-sqlite": true
+  "@swc/core": true
   esbuild: true
   msgpackr-extract: true

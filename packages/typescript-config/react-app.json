@@ -8,6 +8,11 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
+    // This repo writes explicit `.ts` extensions on relative imports everywhere (see
+    // apps/server, packages/schema, packages/db) - needed here too now that apps/client
+    // imports @effective-app/schema directly. Requires `noEmit` (set above), which
+    // react-app projects (Vite-bundled, not tsc-emitted) already need regardless.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

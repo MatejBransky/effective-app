@@ -4,6 +4,7 @@ import {
   pendingWritesCountAtom,
   retry,
   stuckAtom,
+  syncErrorAtom,
   syncSnapshotAtom,
 } from "../lib/powersync/syncAtoms.ts";
 
@@ -17,10 +18,9 @@ export function StatusBar() {
   const sync = useAtomValue(syncSnapshotAtom);
   const pendingCount = useAtomValue(pendingWritesCountAtom);
   const stuck = useAtomValue(stuckAtom);
-
-  // Offline reads should never gate the UI - this bar is informational only, except for
-  // the "stuck" banner below, which is the one case worth interrupting the user for.
-  const syncError = sync.uploadError ?? sync.downloadError;
+  // Debounced via syncErrorAtom's grace window - see its comment for why a raw
+  // uploadError/downloadError can't be shown the instant it appears.
+  const syncError = useAtomValue(syncErrorAtom);
 
   return (
     <div>
@@ -31,7 +31,7 @@ export function StatusBar() {
         {(sync.uploading || sync.downloading) && " · Syncing…"}
         {pendingCount > 0 && ` · ${pendingCount} pending change${pendingCount === 1 ? "" : "s"}`}
       </p>
-      {syncError && <p role="alert">Sync error: {syncError.message}</p>}
+      {syncError && <p role="alert">Sync error: {syncError}</p>}
       {stuck && (
         <p role="alert">
           Failed to save changes to the server.{" "}

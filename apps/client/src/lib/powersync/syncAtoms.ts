@@ -7,6 +7,15 @@ import { db, reconnect } from "./database.ts";
  * the UI treats it as "stuck" and offers a retry. */
 const STUCK_AFTER_MS = 30_000;
 
+/** How long `uploadError`/`downloadError` must persist before the UI shows it. PowerSync
+ * clears and re-sets these on every reconnect attempt (including ones seconds apart), and
+ * a fresh page load races the very first attempt against `restoreSession()`'s silent-renew
+ * iframe - `fetchCredentials`/`uploadData` briefly see no token yet and throw "Not
+ * authenticated", which resolves itself within about a second once the session restores.
+ * Surfacing that instantly reads as a real error for something that was never one - the
+ * same "don't alarm the user over a self-resolving blip" reasoning as `STUCK_AFTER_MS`. */
+const SYNC_ERROR_GRACE_MS = 10_000;
+
 /**
  * Number of rows in `ps_crud`, PowerSync's own internal SQLite table backing the upload
  * queue (not part of this app's domain schema) - counting it is the documented way to
@@ -85,6 +94,26 @@ export const syncSnapshotAtom: Atom.Atom<SyncSnapshot> = Atom.make((get) => {
   });
   get.addFinalizer(dispose);
   return toSnapshot(db.currentStatus);
+});
+
+/** The current error message, if any - a plain string (not the `Error` object) so
+ * repeated retries hitting the exact same failure compare equal and don't reset
+ * `syncErrorAtom`'s grace-window timer below (PowerSync recreates a fresh `Error`
+ * instance on every attempt, even when the underlying problem hasn't changed). */
+const syncErrorMessageAtom: Atom.Atom<string | undefined> = Atom.map(
+  syncSnapshotAtom,
+  (snapshot) => snapshot.uploadError?.message ?? snapshot.downloadError?.message,
+);
+
+/** Only reflects `uploadError`/`downloadError` once the *same* error has persisted for
+ * `SYNC_ERROR_GRACE_MS` - see that constant's comment for why. Same rebuild-on-dependency-
+ * change + finalizer-clears-the-previous-timer pattern as `stuckAtom`. */
+export const syncErrorAtom: Atom.Atom<string | undefined> = Atom.make((get) => {
+  const message = get(syncErrorMessageAtom);
+  if (!message) return undefined;
+  const timeout = setTimeout(() => get.setSelf(message), SYNC_ERROR_GRACE_MS);
+  get.addFinalizer(() => clearTimeout(timeout));
+  return undefined;
 });
 
 /** Browser-level connectivity (`navigator.onLine` + `online`/`offline` events) - distinct

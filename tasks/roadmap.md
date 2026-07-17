@@ -33,11 +33,26 @@ run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
   `hello world` (HTTP 200) on the first request. Proves the whole toolchain
   (credentials, state-store bootstrap, a real deploy) before `apps/server`
   itself depends on it.
+  `apps/client` now also deploys as static assets
+  (`Cloudflare.Website.StaticSite`, reusing its own `pnpm run build` -
+  see `docs/data-model.md`'s "GitHub CI/CD" section), with GitHub Actions
+  CI/CD wired up: `.github/workflows/ci.yml` runs tests, a security check
+  (`pnpm audit` + `gitleaks`), and deploys to a `pr-{number}`-staged preview
+  per PR (auto-destroyed on close) or `prod` on merge to `main`, gated on
+  tests/security passing first. **Known limitation, not yet fixed:** PR
+  previews render the UI shell only - login/data sync don't work until
+  `apps/server`/Keycloak/PowerSync are internet-reachable (see below).
+  **Blocked on the user providing a one-time Cloudflare Global API Key**
+  (`.env`'s `CLOUDFLARE_EMAIL`/`CLOUDFLARE_API_KEY`) to run
+  `apps/infrastructure/stacks/github.ts` once, which mints CI's actual
+  scoped deploy token - until that runs, `ci.yml`'s `deploy`/`cleanup` jobs
+  will fail for lack of `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`
+  secrets in the repo.
   Remaining phases (per `docs/data-model.md`): `apps/server`'s HTTP
   transport swap (`NodeHttpServer` → Worker `fetch` handler), Hyperdrive +
-  Cloudflare Tunnel wiring for Postgres, then `apps/client` as static
-  assets, then Cron Triggers/Queues examples and the GitHub Actions deploy
-  workflow.
+  Cloudflare Tunnel wiring for Postgres (this is what unblocks a fully
+  functional PR preview, not just the UI shell), then Cron Triggers/Queues
+  examples.
 
 ## Documented as planned, not built yet
 

@@ -1117,6 +1117,62 @@ Both are now part of `deploy`/`dev`'s scripts in `package.json` (`sh -c 'set
 added to `destroy`, which should keep requiring explicit confirmation since
 it's the one genuinely destructive command here.
 
+### GitHub CI/CD
+
+`.github/workflows/ci.yml` runs on every push to `main` and every PR
+(`opened`/`synchronize`/`reopened`/`closed`): `test` (the pre-existing
+lint/format/typecheck/build/test), `security` (new - `pnpm audit
+--audit-level=high` for known dependency CVEs, `gitleaks/gitleaks-action`
+for accidentally-committed secrets; both free, no new account needed -
+GitHub's own secret/code scanning requires GitHub Advanced Security on
+private repos, which this doesn't assume), `deploy` (`needs: [test,
+security]` - never ships broken or flagged code), and `cleanup` (PR-closed
+only).
+
+**Stage per PR, isolated Cloudflare resources.** `STAGE` is computed once at
+the workflow level: `pr-{number}` for PRs, `prod` for pushes to `main`,
+otherwise the branch name - the same pattern Alchemy's own CI docs
+recommend. Each stage gets its own independent copy of every resource
+(`alchemy.run.ts`'s stage isolation, not something this repo built), so a
+PR's preview can never collide with `prod` or another PR's preview.
+`deploy`/`destroy`'s `package.json` scripts now forward a `--stage` argument
+through their existing `sh -c '...' --` wrapper (`"$@"` picks up whatever
+follows `pnpm run deploy --`) to support this - previously hardcoded to the
+implicit default stage.
+
+**`apps/infrastructure/stacks/github.ts`** is a separate, one-time,
+_locally_-run bootstrap - not part of the CI workflow itself. It mints a
+Cloudflare API token scoped to exactly what `alchemy.run.ts` uses today
+(`Workers Scripts Write`, `Secrets Store Write` - `Cloudflare.state()`'s own
+requirement, confirmed via Alchemy's docs: binding a Secrets Store secret to
+even a short-lived edge-preview worker needs `Write`, not just `Read` -
+`Account Settings Write`, `Workers Tail Read`; deliberately no
+KV/R2/D1/Queues/Pages permissions since this app doesn't use those yet), and
+writes the token plus the account id into this repo as `GitHub.Secret`s -
+so CI's `deploy`/`cleanup` jobs read `${{ secrets.CLOUDFLARE_API_TOKEN }}`
+without a human ever pasting a credential into the GitHub UI.
+
+Minting API tokens itself needs `API Tokens > Write`, which the resulting
+scoped token deliberately does **not** grant (so a compromised CI secret
+can't mint further tokens) - per Alchemy's own docs, the practical way to
+get that one-time-use privilege is the account's Global API Key
+(`CLOUDFLARE_EMAIL`/`CLOUDFLARE_API_KEY` in `.env`, real credentials like
+the existing `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` entries - never
+committed, never used anywhere else, never used by CI). Run via `pnpm
+--filter @effective-app/infrastructure run bootstrap-github`; only needs
+re-running to rotate the token or change its permissions.
+
+**Known, accepted limitation of the PR preview (not yet fixed):** the
+deployed `apps/client` preview renders the UI shell, routing, and PWA
+correctly, but **login and data sync don't work** - `apps/client` still
+points at `apps/server`/Keycloak/PowerSync on `localhost`, which only exist
+via local `docker-compose` today, not anywhere internet-reachable. The PR
+comment (`GitHub.Comment` in `alchemy.run.ts`) says this explicitly so it's
+not a surprise. Full functional previews need the backend migration already
+sequenced in `tasks/roadmap.md` (`apps/server` → Worker, Hyperdrive +
+Cloudflare Tunnel for Postgres) - deliberately out of scope for this task,
+which is about the CI/CD mechanism, not that migration.
+
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:

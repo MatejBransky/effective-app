@@ -19,6 +19,7 @@
     "@powersync/web": "1.39.0",
     "@tanstack/react-router": "catalog:",
     "drizzle-orm": "catalog:",
+    "effect": "catalog:",
     "oidc-client-ts": "3.5.0",
     "react": "catalog:",
     "react-dom": "catalog:"

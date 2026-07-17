@@ -51,12 +51,13 @@ function HomePage() {
   // a value confirmed while the user is mid-edit would overwrite what they're typing. Runs
   // unconditionally (before the loading/no-host early returns below) - hooks can't be
   // called conditionally.
+  const hostName = host?.name;
   useEffect(() => {
     const input = inputRef.current;
-    if (input && host && document.activeElement !== input) {
-      input.value = host.name;
+    if (input && hostName !== undefined && document.activeElement !== input) {
+      input.value = hostName;
     }
-  }, [host?.name]);
+  }, [hostName]);
 
   if (hostLoading || membersLoading) return <p>Loading...</p>;
   if (!host) return <p>No host synced yet.</p>;

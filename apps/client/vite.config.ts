@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import babel from "vite-plugin-babel";
 import { VitePWA } from "vite-plugin-pwa";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
@@ -18,6 +19,23 @@ export default defineConfig({
       autoCodeSplitting: true,
     }),
     react(),
+    // React Compiler - auto-memoizes components/hooks so useCallback/useMemo/React.memo
+    // are no longer needed to avoid unnecessary re-renders (see docs/data-model.md's
+    // "React Compiler" section). `@vitejs/plugin-react`'s own `babel` option only covers
+    // JSX/fast-refresh transforms, not arbitrary Babel plugins, so this repo's plain
+    // (non-Rolldown) Vite needs a separate `vite-plugin-babel` pass - `@rolldown/plugin-babel`
+    // (the newer option react.dev now documents for `@vitejs/plugin-react` 6+) requires the
+    // `rolldown` bundler itself as a peer dependency, which this repo doesn't use.
+    // `include` (not the deprecated `filter`) - `vite-plugin-babel`'s own default `include`
+    // (`/\.jsx?$/`) doesn't match `.tsx`/`.ts` at all, which would have silently skipped
+    // every component in this app if left on its default.
+    babel({
+      include: /\.[jt]sx?$/,
+      babelConfig: {
+        presets: ["@babel/preset-typescript"],
+        plugins: ["babel-plugin-react-compiler"],
+      },
+    }),
     // Required for PowerSync's WASM SQLite engine (@powersync/web) - see the powersync
     // skill's references/sdks/powersync-js-react.md "Vite Setup".
     wasm(),

@@ -52,12 +52,81 @@ run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
   without `--yes` in a non-interactive shell while still reporting success -
   see `docs/data-model.md`'s "GitHub CI/CD" section for both.
   GitHub also flagged 20 Dependabot vulnerabilities (7 high, 9 moderate, 4
-  low) on the dependency tree during this - not yet triaged, separate task.
+  low) on the dependency tree during this - **partially triaged 2026-07-17**:
+  `pnpm audit` (CI's actual security check) only surfaces 2 of these
+  (moderate, both dev-only transitive deps - esbuild via drizzle-kit's
+  deprecated `@esbuild-kit/esm-loader`, uuid via vite-plugin-top-level-await),
+  fixed via `pnpm-workspace.yaml` version overrides, verified back to 0 via
+  `pnpm audit`, committed and pushed. The other 18 (7 high) are only visible
+  through GitHub's own Dependabot alerts UI/API, which needs a `security_events`
+  OAuth scope `gh` CLI's device-flow login can't obtain (tried 4 times, always
+  silently dropped - a `gh` OAuth App limitation, not an account issue) - still
+  untriaged, needs a human to check
+  github.com/MatejBransky/effective-app/security/dependabot directly.
   Remaining phases (per `docs/data-model.md`): `apps/server`'s HTTP
   transport swap (`NodeHttpServer` → Worker `fetch` handler), Hyperdrive +
   Cloudflare Tunnel wiring for Postgres (this is what unblocks a fully
   functional PR preview, not just the UI shell), then Cron Triggers/Queues
   examples.
+
+### Keycloak + PowerSync production deployment - blocked on account/domain setup (2026-07-17)
+
+Explored deploying Keycloak + PowerSync to Cloudflare for real (closing the
+"PR previews render the UI shell only" gap above), since `alchemy-effect`
+already supports `Cloudflare.Containers.ContainerApplication`. Findings, in
+order of how they narrowed the approach:
+
+- **Cloudflare Containers needs the Workers Paid plan** - confirmed by
+  calling the account's `/containers/applications` endpoint directly (401:
+  "Deploying containers requires the Workers Paid plan"). This account
+  (`Matej.bransky@gmail.com's Account`) is on Free. Declined to upgrade for
+  now, so Containers is off the table until that changes.
+- **Chosen approach instead: a Cloudflare Tunnel exposing the existing
+  self-hosted docker-compose Keycloak + PowerSync services**, not a
+  Cloudflare Containers rewrite - extends this doc's existing "self-hosted
+  Postgres stays private via a Cloudflare Tunnel" plan (see
+  `docs/data-model.md`'s "Cloudflare deployment" section) to Keycloak/
+  PowerSync too, rather than introducing a second deployment model.
+- **Postgres hosting: an always-on free VPS, not Neon/Supabase.** Compared
+  free tiers - both Neon and Supabase auto-suspend/pause idle projects
+  (Neon: computes scale to zero; Supabase: free projects pause after ~1 week
+  idle), which conflicts with PowerSync holding a continuous logical-
+  replication connection open - PowerSync's own team has flagged excessive
+  WAL growth specifically on idle Supabase instances. Decided against both in
+  favor of an always-on free-tier VM (Oracle Cloud Free Tier or Fly.io's free
+  allowance), matching what `docs/data-model.md` already assumed rather than
+  introducing a serverless Postgres dependency.
+
+**Blocked on** (both require the account holder's own action - can't be
+scripted via API/CLI):
+
+- **No domain registered/added to this Cloudflare account** (zero zones
+  today) - needed for a stable Cloudflare Tunnel hostname and Keycloak's
+  issuer URL, which shouldn't change once apps depend on it. A real ~$10-15/yr
+  purchase, not something to do unilaterally.
+- **No VPS account provisioned** (Oracle Cloud/Fly.io/other) - these require
+  the account holder's own identity/card verification even for the free
+  tier.
+
+**Next steps once unblocked**:
+
+1. Register/point a domain at Cloudflare (adds the first zone to this
+   account).
+2. Provision an always-on VM on the chosen free-tier provider, install
+   Docker.
+3. Move a production variant of `docker-compose.yml`'s `keycloak`/
+   `postgres`/`powersync`/`pg-storage` services to that VM, with real
+   secrets (not `keycloak/realm-export.json`'s `local_dev_only` test
+   credentials).
+4. Install `cloudflared` on the VM, create a Tunnel + DNS route through the
+   new zone.
+5. Update `keycloak/realm-export.json`'s issuer, `powersync/service.yaml`'s
+   `client_auth.jwks_uri`, `apps/server`'s `JwtVerifier` JWKS URL, and
+   `apps/client`'s `oidc-client-ts` redirect URIs to the new public
+   hostnames.
+6. Re-verify end-to-end (same proof steps as "Verifying this works" in
+   `docs/data-model.md`) against the new public endpoints instead of
+   `localhost`.
 
 ## Documented as planned, not built yet
 

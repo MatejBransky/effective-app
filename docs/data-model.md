@@ -1173,6 +1173,46 @@ sequenced in `tasks/roadmap.md` (`apps/server` → Worker, Hyperdrive +
 Cloudflare Tunnel for Postgres) - deliberately out of scope for this task,
 which is about the CI/CD mechanism, not that migration.
 
+**Verified end-to-end** (2026-07-17): opened a real (throwaway) PR against
+this repo. `test` and `security` jobs passed; the `deploy` job produced an
+isolated `pr-1` stage (`effective-worker-pr-1-...`/
+`effective-helloworker-pr-1-...`), the bot comment appeared with both live
+URLs and the limitation note, and both URLs returned HTTP 200 with the
+correct content. Closing the PR triggered `cleanup`, which destroyed the
+`pr-1` stage - confirmed via the Cloudflare API that those two Workers were
+actually gone afterward, not just that the job reported success. A push to
+`main` separately confirmed the `prod` stage deploys the same way outside
+a PR.
+
+Two real bugs surfaced by this (not caught by local review, only by
+actually running the workflow) - both fixed and re-verified:
+
+- **`deploy`/`destroy` unconditionally tried to `. ../../.env`** - fine
+  locally, but `.env` is (correctly) gitignored and doesn't exist in CI,
+  where credentials come from the workflow's real environment variables
+  instead. The very first `main` push after adding CI failed immediately
+  with `cannot open ../../.env: No such file`. Fixed by guarding the source
+  with `[ -f ../../.env ] &&` so it's skipped, not fatal, when absent.
+- **`destroy` silently no-op'd in CI without `--yes`.** The cleanup job
+  reported success on every run, but the `pr-1` Workers were never actually
+  deleted - `alchemy destroy` printed the deletion plan, hit "Non-interactive
+  terminal detected. Pass `--yes` to approve," and **exited 0 anyway**
+  rather than failing, so a green checkmark meant nothing had happened.
+  Same category of gotcha as `deploy`'s state-store bootstrap needing
+  `--yes` (see above) - just missed here since `destroy` had only ever been
+  run interactively before. `--yes` was deliberately left off `destroy`
+  originally on the theory that destroying resources should keep requiring
+  confirmation; the workflow's own "Safety check" step (hard-fails if
+  `STAGE == 'prod'`, checked separately from `alchemy` itself) is what
+  actually guards against destroying production, not an interactive prompt
+  a CI job can never answer - confirmed the fix by manually destroying the
+  stale `pr-1` stage this bug had left behind and checking the Cloudflare
+  API directly (not just the job's exit status) that the Workers were gone.
+
+Also, while pushing this work: GitHub flagged 20 Dependabot vulnerabilities
+(7 high, 9 moderate, 4 low) on this repo's dependency tree - not yet
+triaged, tracked separately from this task.
+
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:

@@ -42,12 +42,17 @@ run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
   tests/security passing first. **Known limitation, not yet fixed:** PR
   previews render the UI shell only - login/data sync don't work until
   `apps/server`/Keycloak/PowerSync are internet-reachable (see below).
-  **Blocked on the user providing a one-time Cloudflare Global API Key**
-  (`.env`'s `CLOUDFLARE_EMAIL`/`CLOUDFLARE_API_KEY`) to run
-  `apps/infrastructure/stacks/github.ts` once, which mints CI's actual
-  scoped deploy token - until that runs, `ci.yml`'s `deploy`/`cleanup` jobs
-  will fail for lack of `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`
-  secrets in the repo.
+  **Verified end-to-end** (2026-07-17): a real throwaway PR exercised the
+  whole pipeline - test/security/deploy all green, an isolated `pr-1` stage
+  live at a real URL, the bot comment posted correctly, and closing the PR
+  destroyed `pr-1` for real (confirmed via the Cloudflare API, not just the
+  job's exit status). Two real CI-only bugs found and fixed in the process:
+  `deploy`/`destroy` unconditionally tried to source the (correctly
+  gitignored, CI-absent) `.env` file, and `destroy` silently no-op'd
+  without `--yes` in a non-interactive shell while still reporting success -
+  see `docs/data-model.md`'s "GitHub CI/CD" section for both.
+  GitHub also flagged 20 Dependabot vulnerabilities (7 high, 9 moderate, 4
+  low) on the dependency tree during this - not yet triaged, separate task.
   Remaining phases (per `docs/data-model.md`): `apps/server`'s HTTP
   transport swap (`NodeHttpServer` → Worker `fetch` handler), Hyperdrive +
   Cloudflare Tunnel wiring for Postgres (this is what unblocks a fully

@@ -649,6 +649,64 @@ passed to `sqliteTable`, not the JS export name) match `packages/db`'s
 Postgres table names exactly (snake_case), so a `CrudEntry.table` lines up
 1:1 with the server-side write allowlist below.
 
+**Known limitations: `useQuery` + Drizzle (`@powersync/drizzle-driver`).**
+Researched from the driver's own README, its installed source (v0.7.4), and
+the `powersync-js` GitHub issue tracker, rather than assumed - see the linked
+sources for each point (all checked to resolve with a real HTTP 200 as of
+2026-07-17, not just remembered/guessed URLs).
+
+- **The package is Beta.** Stated directly in its own README - API surface
+  may still change. ([`packages/drizzle-driver/README.md`](https://github.com/powersync-ja/powersync-js/blob/main/packages/drizzle-driver/README.md))
+- **Nested transactions (savepoints) aren't supported** - the driver's own
+  "Known limitations" section states this is the one thing it doesn't yet
+  do, and the installed source throws `Error('Nested transactions are not
+supported')` if attempted. **Not currently used by this app** - every
+  client-side write here is a single-statement `drizzleDb.update(...)`, no
+  `drizzleDb.transaction()` calls anywhere in `apps/client`.
+  ([README - Known limitations](https://github.com/powersync-ja/powersync-js/blob/main/packages/drizzle-driver/README.md#known-limitations))
+- **No FK/UNIQUE/CHECK constraints or cascading deletes in the local SQLite
+  copy** - confirmed by a PowerSync maintainer as a limitation of PowerSync
+  itself, not Drizzle: client tables are backed by views, not real SQLite
+  tables with constraints. **Not a gap for this app** - referential/data
+  integrity is enforced server-side (Postgres RLS + the `@effective-app/schema`
+  decode step in `SyncHandlers.ts`); the local copy is a replica, not the
+  source of truth. A "raw tables" escape hatch exists if real SQLite
+  constraints are ever needed locally, at the cost of losing some automatic
+  PowerSync schema management.
+  ([issue #692](https://github.com/powersync-ja/powersync-js/issues/692),
+  [raw tables docs](https://docs.powersync.com/usage/use-case-examples/raw-tables))
+- **Drizzle's relational query API (`db.query.<table>.findMany({ with: {...} })`)
+  was historically the most fragile part of the driver** - reported bugs
+  included relations coming back as JSON strings instead of objects and
+  wrong values on left-joined columns, both fixed via a dedicated `.watch()`
+  function added in `0.2.0`+. **Not used here** - `schema.ts` defines no
+  `relations()`, every query in this app is a plain `select().from(...)`. If
+  `with()`-relations are ever added, prototype and verify them carefully
+  first given this history.
+  ([issue #426](https://github.com/powersync-ja/powersync-js/issues/426),
+  [issue #473](https://github.com/powersync-ja/powersync-js/issues/473))
+- **An unresolved report of Drizzle queries (including plain `SELECT`s)
+  taking a `writeLock()` instead of a `readLock()`**, unlike raw PowerSync
+  queries - closed without a documented fix in the thread, so its current
+  status in 0.7.4 is unconfirmed. Could serialize reads behind writes under
+  heavy concurrent load. **Low risk here** - single local SQLite writer, low
+  write frequency, not a high-concurrency multi-writer scenario.
+  ([issue #763](https://github.com/powersync-ja/powersync-js/issues/763))
+- **`useQuery`'s watched-table detection is not naive SQL string parsing** -
+  worth calling out as a non-limitation, since it's a reasonable thing to
+  suspect: `resolveTables` runs `EXPLAIN <query>` against SQLite itself and
+  reads the real `OpenRead` opcodes, so it reflects the actual query plan
+  (joins included) rather than a text-matching heuristic. Confirmed directly
+  in the SDK's own source.
+  ([`BasePowerSyncDatabase.ts#L727-L734`](https://github.com/powersync-ja/powersync-js/blob/6aef3ac7d1ba08232e85e3340629c89ac2366e04/packages/shared-internals/src/client/BasePowerSyncDatabase.ts#L727-L734))
+
+Overall: low risk for this app specifically. The one officially documented
+limitation (savepoints) and the historically fragile area (relational
+queries) are both things this codebase doesn't use; the constraint gap is
+already handled at the right layer (server-side). Worth re-checking before
+any future upgrade past 0.7.4, and worth avoiding `with()`-relations or
+multi-statement `drizzleDb.transaction()` calls without testing them first.
+
 **Upload endpoint** (`POST /sync/upload`, `apps/server/src/SyncHandlers.ts` +
 `SyncEntities.ts`): the first `apps/server` endpoint that writes, not just
 reads. A table allowlist (deliberately excluding `lead_stage_templates` -

@@ -45,3 +45,5 @@ pnpm --filter @effective-app/server run dev  # apps/server, once dev:infra is up
 - [Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html) for code formatting
 - [Turborepo](https://turborepo.dev/) for task orchestration/caching
 - [Vitest](https://vitest.dev/) for testing
+
+<!-- CI/CD pipeline verification - throwaway PR, will be closed without merging. -->

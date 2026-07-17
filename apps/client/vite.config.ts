@@ -25,6 +25,14 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "apple-touch-icon.png"],
+      workbox: {
+        // PowerSync's WASM SQLite engine ships multi-megabyte .wasm assets (the async
+        // build is ~2.5 MB) - well past workbox's default 2 MiB precache limit, which
+        // fails the build outright rather than just warning. This app is local-first by
+        // design, so precaching the engine (not just app-shell JS/CSS) is the point, not
+        // an accident to exclude.
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+      },
       manifest: {
         name: "Effective App",
         short_name: "Effective",
@@ -48,6 +56,13 @@ export default defineConfig({
     plugins: () => [wasm(), topLevelAwait()],
   },
   build: {
+    // vite-plugin-top-level-await's injected helper uses top-level await itself, an
+    // ES2022 feature - Vite's default `build.target` (a browser baseline that predates
+    // ES2022) makes esbuild try and fail to downlevel it ("Transforming destructuring to
+    // the configured target environment ... is not supported yet"). This app already
+    // requires WASM SQLite/IndexedDB/Web Workers (PowerSync), so there's no realistic
+    // older-browser target to support anyway.
+    target: "esnext",
     rollupOptions: {
       // silent-renew.html (src/lib/auth.ts's silent-renew iframe target) is a second
       // page, not a route under index.html's SPA - Vite only bundles index.html by

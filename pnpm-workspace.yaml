@@ -43,6 +43,20 @@ catalog:
   "@types/react-dom": 19.2.3
   "@tanstack/react-router": 1.170.18
 
+# Force patched versions for transitive dev-only vulnerabilities that the direct
+# dependency hasn't bumped past yet (flagged by `pnpm audit`, part of CI's security
+# check - see docs/data-model.md's "GitHub CI/CD" section).
+overrides:
+  # drizzle-kit@0.31.10 (latest 0.3x line) still pulls the deprecated
+  # `@esbuild-kit/esm-loader` -> `@esbuild-kit/core-utils` -> esbuild@0.18.20,
+  # vulnerable to GHSA-67mh-4wv8-2f99 (dev server accepts any-origin requests,
+  # CWE-346). Dev-only; the patched esbuild line is API-compatible.
+  esbuild: ">=0.24.3"
+  # vite-plugin-top-level-await@1.6.0 (latest) pins uuid@10.0.0 exactly, vulnerable to
+  # GHSA-w5hq-g745-h8pq (missing buffer bounds check, CWE-787/1285). Same v3/v4/v5
+  # public API, safe bump.
+  uuid: ">=11.1.1"
+
 # Supply-chain security: https://pnpm.io/supply-chain-security
 # pnpm 11 already defaults most of this; pinned explicitly so the posture can't silently
 # weaken if a future pnpm major changes its defaults.

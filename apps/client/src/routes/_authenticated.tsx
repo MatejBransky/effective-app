@@ -1,6 +1,6 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { StatusBar } from "../components/StatusBar.tsx";
 import { db } from "../lib/powersync/database.ts";
-import { useSyncStatus } from "../lib/powersync/useSyncStatus.ts";
 import { logout, restoreSession } from "../lib/auth";
 
 /**
@@ -22,9 +22,6 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { user } = Route.useRouteContext();
-  // Mounted once here, not per-page - see useSyncStatus.ts's comment for why this is an
-  // app-shell concern rather than something every page re-implements.
-  const { stuck, retry } = useSyncStatus();
 
   const handleLogout = async () => {
     // Clears the local SQLite replica before the redirect - without this, a different
@@ -42,14 +39,11 @@ function AuthenticatedLayout() {
           Log out
         </button>
       </p>
-      {stuck && (
-        <p role="status">
-          Failed to save changes to the server.{" "}
-          <button type="button" onClick={retry}>
-            Try again
-          </button>
-        </p>
-      )}
+      {/* Persists across every child route below - only <Outlet /> changes on navigation. */}
+      <nav>
+        <Link to="/">Home</Link> <Link to="/about">About</Link>
+      </nav>
+      <StatusBar />
       <Outlet />
     </>
   );

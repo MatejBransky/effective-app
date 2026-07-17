@@ -7,10 +7,11 @@ services:
       POSTGRES_PASSWORD: local_dev_only
       POSTGRES_DB: effective_app
     ports:
-      # Override in .env if 5432 is already taken on your machine - also update
+      # Defaults off the standard 5432 to avoid colliding with other local Postgres
+      # instances - override in .env if 5442 is also taken on your machine, and update
       # DATABASE_URL in .env to match, since it's a separate file dotenv reads (no
       # variable substitution between the two).
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5442}:5432"
     volumes:
       # `postgres:18+` images want the volume mounted at the `/var/lib/postgresql`
       # parent dir, not `.../data` (their own data-directory layout changed) - see
@@ -43,7 +44,7 @@ services:
       # Override in .env if these are already taken (e.g. by another project's
       # mailpit/SMTP catcher) - also update SMTP_PORT in .env to match.
       - "${MAILPIT_WEB_PORT:-8025}:8025" # web UI
-      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP
+      - "${MAILPIT_SMTP_PORT:-11025}:1025" # SMTP
     volumes:
       - mailpit-data:/data
 

@@ -588,8 +588,8 @@ startup error ... postgres query failed"` at the wire-protocol level (not a
    and PowerSync below.
 5. **Confirm `apps/server` accepts it**:
    ```sh
-   curl http://localhost:3000/me                                   # 401, no token
-   curl -H "Authorization: Bearer <access_token>" http://localhost:3000/me
+   curl http://localhost:4000/me                                   # 401, no token
+   curl -H "Authorization: Bearer <access_token>" http://localhost:4000/me
    # 200 {"hostId":"<the test user's host_id attribute>","subject":"<sub>"}
    ```
 6. **Confirm PowerSync accepts the same token**, scoped to that `host_id`:

@@ -33,8 +33,8 @@ pnpm run dev:infra:down  # stops them
 pnpm --filter @effective-app/server run dev  # apps/server, once dev:infra is up
 ```
 
-- Postgres: `localhost:5432` (see `.env.example` for credentials)
-- Mailpit web UI: [localhost:8025](http://localhost:8025) - catches all outgoing email sent via SMTP on `localhost:1025`, nothing leaves your machine
+- Postgres: `localhost:5442` (off the standard 5432 to avoid colliding with other local Postgres instances - see `.env.example` for credentials)
+- Mailpit web UI: [localhost:18025](http://localhost:18025) - catches all outgoing email sent via SMTP on `localhost:11025`, nothing leaves your machine
 - Keycloak (self-hosted): `localhost:8180` - realm/client/test-user seeded from `keycloak/realm-export.json` on first start; see docs/data-model.md's "Auth: Keycloak + apps/server" section for how tokens carry the `host_id` claim `apps/server` and PowerSync both rely on
 - PowerSync (self-hosted): `localhost:8080` - see `powersync/sync-config.yaml` for what syncs, and docs/data-model.md's "PowerSync sync streams" section for the setup and what's still deferred (a scoped replication role)
 

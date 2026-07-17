@@ -11,7 +11,8 @@ import * as HostScopedDb from "./HostScopedDb.ts";
 import * as JwtVerifier from "./JwtVerifier.ts";
 import { SyncGroupLive } from "./SyncHandlers.ts";
 
-const PORT = Number(process.env["PORT"] ?? 3000);
+// Default off the standard 3000 to avoid colliding with other local dev servers.
+const PORT = Number(process.env["PORT"] ?? 4000);
 // Fail fast on missing config rather than starting a server that would 500 on every
 // protected request - see .env.example for where these come from.
 const ISSUER = process.env["KEYCLOAK_ISSUER"];
@@ -34,7 +35,7 @@ const AuthLayer = AuthLive.pipe(
 
 const HostScopedDbLayer = HostScopedDb.layer.pipe(Layer.provide(Db.layer(APP_DATABASE_URL)));
 
-// `apps/client` calls this API cross-origin (localhost:5173 -> localhost:3000). Bearer
+// `apps/client` calls this API cross-origin (localhost:5173 -> localhost:4000). Bearer
 // tokens go in the Authorization header, not cookies, so `credentials: true` isn't
 // actually needed for auth to work - kept off (the safer default) since nothing here
 // relies on cookies.

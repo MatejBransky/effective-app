@@ -1,23 +1,14 @@
 import { useQuery } from "@powersync/react";
+import { toCompilableQuery } from "@powersync/drizzle-driver";
 import { createFileRoute } from "@tanstack/react-router";
+import { eq } from "drizzle-orm";
 import { useEffect, useState } from "react";
-import { db, reconnect } from "../lib/powersync/database.ts";
+import { drizzleDb, reconnect } from "../lib/powersync/database.ts";
+import { hosts, members } from "../lib/powersync/schema.ts";
 
 export const Route = createFileRoute("/_authenticated/")({
   component: HomePage,
 });
-
-interface HostRow {
-  id: string;
-  name: string;
-}
-
-interface MemberRow {
-  id: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-}
 
 /** How long an unsynced local write is allowed to sit in PowerSync's upload queue before
  * the UI treats it as "stuck" and offers a retry - see `pendingCount`'s comment below for
@@ -27,36 +18,27 @@ const STUCK_AFTER_MS = 30_000;
 function HomePage() {
   // The sync stream (see powersync/sync-config.yaml's `host_data`) only ever sends the
   // authenticated host's own row - RLS-scoped the same way apps/server's queries are, so
-  // there's no `WHERE` clause to write here either.
-  const { data: hostRows, isLoading: hostLoading } = useQuery<HostRow>(
-    "SELECT id, name FROM hosts LIMIT 1",
+  // there's no `WHERE` clause to write here either. Drizzle queries implement
+  // `CompilableQuery`, so `useQuery` accepts them directly - `hostRows`/`memberRows` are
+  // typed from `hosts`/`members` (schema.ts) with no separate hand-written row interface
+  // to keep in sync by hand.
+  const { data: hostRows, isLoading: hostLoading } = useQuery(
+    toCompilableQuery(drizzleDb.select().from(hosts).limit(1)),
   );
-  const { data: members, isLoading: membersLoading } = useQuery<MemberRow>(
-    "SELECT id, email, firstName, lastName FROM members ORDER BY createdAt",
+  const { data: memberRows, isLoading: membersLoading } = useQuery(
+    toCompilableQuery(drizzleDb.select().from(members).orderBy(members.createdAt)),
   );
-  // `ps_crud` is PowerSync's own internal SQLite table backing the upload queue - counting
-  // it is the documented way to track pending-write state reactively (see PowerSync's
-  // "Production Readiness Guide" - `SELECT COUNT(*) AS row_count FROM ps_crud`), and unlike
-  // `useStatus()` it reflects *this app's* actual unsynced-write state rather than the
-  // PowerSync service's download-stream connection health (see below for why that
-  // distinction matters).
+  // `ps_crud` is PowerSync's own internal SQLite table backing the upload queue, not part
+  // of this app's domain schema - counting it is the documented way to track
+  // pending-write state reactively (see PowerSync's "Production Readiness Guide" -
+  // `SELECT COUNT(*) AS row_count FROM ps_crud`), and unlike `useStatus()` it reflects
+  // *this app's* actual unsynced-write state rather than the PowerSync service's
+  // download-stream connection health (see below for why that distinction matters).
   const { data: pendingRows } = useQuery<{ n: number }>("SELECT COUNT(*) as n FROM ps_crud");
   const pendingCount = pendingRows[0]?.n ?? 0;
 
-  const host = hostRows[0];
-  const [draftName, setDraftName] = useState<string | null>(null);
   const [stuck, setStuck] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
-
-  // Clears the optimistic draft once the *watched* query confirms the write, not when
-  // `db.execute()`'s promise resolves - see `renameHost`'s comment for why those two
-  // moments aren't the same instant, and why resetting on the promise instead caused the
-  // old-value flicker.
-  useEffect(() => {
-    if (draftName !== null && host?.name === draftName) {
-      setDraftName(null);
-    }
-  }, [host?.name, draftName]);
 
   // Only escalates to a visible error after STUCK_AFTER_MS of a *non-empty* queue - a
   // brief offline blip or a slow-but-working retry shouldn't alarm the user. Resets
@@ -72,24 +54,16 @@ function HomePage() {
   }, [pendingCount, retryAttempt]);
 
   if (hostLoading || membersLoading) return <p>Loading...</p>;
+  const host = hostRows[0];
   if (!host) return <p>No host synced yet.</p>;
 
   const renameHost = async (name: string) => {
-    // Set optimistically and *stay* optimistic through the write - PowerSync applies
-    // `db.execute()` to local SQLite synchronously from the caller's perspective, but the
-    // `useQuery` watching `hosts` only re-runs after its own throttle window (30ms by
-    // default - `DEFAULT_WATCH_THROTTLE_MS` in @powersync/common's WatchedQuery module,
-    // same value `useQuery`'s `throttleMs` option defaults to). Clearing `draftName` here
-    // instead of in the effect above would show `host.name`'s stale pre-write value for
-    // that ~30ms gap before the watched query catches up - the flicker this replaced.
-    setDraftName(name);
     try {
-      await db.execute("UPDATE hosts SET name = ? WHERE id = ?", [name, host.id]);
+      await drizzleDb.update(hosts).set({ name }).where(eq(hosts.id, host.id));
     } catch (error) {
-      // The local SQLite write itself failed (rare - distinct from a sync/upload
-      // failure, which never throws here) - nothing for the effect above to confirm, so
-      // revert immediately instead of leaving a draft that can never clear.
-      setDraftName(null);
+      // The local SQLite write itself failed (rare - distinct from a sync/upload failure,
+      // which never throws here). Nothing to revert: the input below is uncontrolled, so
+      // it just keeps showing what the user typed - logged for visibility in this PoC.
       console.error("Failed to write host name locally:", error);
     }
   };
@@ -103,9 +77,15 @@ function HomePage() {
   return (
     <>
       <h1>
+        {/* Uncontrolled on purpose (`key`+`defaultValue`, not `value`) - the DOM owns the
+            displayed text until `key` changes, which only happens once the watched query
+            confirms a (new) name, whether from our own write or someone else's. No local
+            "draft" state or effect is needed to avoid showing a stale value mid-write: an
+            uncontrolled input never fights the query's own reactivity for control of what
+            renders, so there's nothing to race in the first place. */}
         <input
-          value={draftName ?? host.name}
-          onChange={(e) => setDraftName(e.target.value)}
+          key={host.name}
+          defaultValue={host.name}
           onBlur={(e) => void renameHost(e.target.value)}
         />
       </h1>
@@ -119,7 +99,7 @@ function HomePage() {
       )}
       <h2>Members</h2>
       <ul>
-        {members.map((member) => (
+        {memberRows.map((member) => (
           <li key={member.id}>
             {[member.firstName, member.lastName].filter(Boolean).join(" ") || member.email}
           </li>

@@ -14,9 +14,11 @@
   "dependencies": {
     "@effective-app/schema": "workspace:*",
     "@journeyapps/wa-sqlite": "1.7.2",
+    "@powersync/drizzle-driver": "0.7.4",
     "@powersync/react": "1.10.0",
     "@powersync/web": "1.39.0",
     "@tanstack/react-router": "catalog:",
+    "drizzle-orm": "catalog:",
     "oidc-client-ts": "3.5.0",
     "react": "catalog:",
     "react-dom": "catalog:"

@@ -1,142 +1,157 @@
-import { Schema, Table, column } from "@powersync/web";
+import { DrizzleAppSchema } from "@powersync/drizzle-driver";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * PowerSync's client-side SQLite schema - hand-written, mirroring `packages/db`'s
- * Effect-Schema-is-source-of-truth pattern (see `schema.check.test.ts` alongside this
- * file for the drift guard) rather than generated, for the same reasoning
- * `docs/data-model.md`'s "Effect Schema -> Drizzle bridge" section gives for Drizzle.
+ * PowerSync's client-side SQLite schema, expressed as a Drizzle schema (not PowerSync's
+ * own `Schema`/`Table` API) - `DrizzleAppSchema` below generates the actual PowerSync
+ * schema *from* this, so there's only one client-side schema to hand-maintain, and every
+ * query written against it (see `database.ts`'s `drizzleDb`) is type-checked instead of
+ * being a raw SQL string paired with a hand-typed, unchecked row interface. See the
+ * powersync skill's `references/sdks/powersync-js-orm.md`.
  *
- * Table names match `packages/db`'s Postgres table names exactly, so a PowerSync
- * `CrudEntry.table` lines up 1:1 with `apps/server/src/SyncEntities.ts`'s write
- * allowlist. Column types are limited to `column.text`/`column.integer` (no boolean,
- * date, or JSON native type in SQLite) - booleans as 0/1, dates as ISO strings, and the
- * four jsonb-backed fields (`rules`/`config`/`snapshot`/`payload`) as JSON-stringified
- * text, matching what `apps/server`'s upload endpoint expects on the wire (see its
- * `preprocessOpData`). Never define an `id` column - PowerSync adds it automatically as
- * `TEXT PRIMARY KEY`.
+ * Table names (the string passed to `sqliteTable`, not the JS export name) match
+ * `packages/db`'s Postgres table names exactly, so a `CrudEntry.table` lines up 1:1 with
+ * `apps/server/src/SyncEntities.ts`'s write allowlist. Column keys are camelCase, matching
+ * `@effective-app/schema`'s field names (and thus `apps/server`'s decode logic) - same
+ * convention the previous hand-written PowerSync `Table` version used. Column types are
+ * limited to `text`/`integer` (SQLite has no boolean/date/JSON type) - booleans as 0/1,
+ * dates as ISO strings, and the four jsonb-backed fields (`rules`/`config`/`snapshot`/
+ * `payload`) as JSON-stringified text. Never define an `id` column with a value - `id` is
+ * declared here (Drizzle needs it for the local SQLite table) but `DrizzleAppSchema`
+ * strips it back out when generating the PowerSync schema, since PowerSync always adds
+ * its own `id TEXT PRIMARY KEY`.
  */
-const hosts = new Table({
-  name: column.text,
-  slug: column.text,
-  email: column.text,
-  timeZone: column.text,
-  currency: column.text,
-  businessType: column.text,
-  createdAt: column.text,
+export const hosts = sqliteTable("hosts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  email: text("email").notNull(),
+  timeZone: text("timeZone").notNull(),
+  currency: text("currency").notNull(),
+  businessType: text("businessType").notNull(),
+  createdAt: text("createdAt").notNull(),
 });
 
-const members = new Table({
-  email: column.text,
-  firstName: column.text,
-  lastName: column.text,
-  phoneNumber: column.text,
-  createdAt: column.text,
+export const members = sqliteTable("members", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  firstName: text("firstName"),
+  lastName: text("lastName"),
+  phoneNumber: text("phoneNumber"),
+  createdAt: text("createdAt").notNull(),
 });
 
-const memberHosts = new Table({
-  memberId: column.text,
-  hostId: column.text,
-  status: column.text,
-  convertedAt: column.text,
-  leadStageId: column.text,
-  createdAt: column.text,
+export const memberHosts = sqliteTable("member_hosts", {
+  id: text("id").primaryKey(),
+  memberId: text("memberId").notNull(),
+  hostId: text("hostId").notNull(),
+  status: text("status").notNull(),
+  convertedAt: text("convertedAt"),
+  leadStageId: text("leadStageId"),
+  createdAt: text("createdAt").notNull(),
 });
 
-const leadStages = new Table({
-  hostId: column.text,
-  name: column.text,
-  color: column.text,
-  order: column.integer,
-  createdAt: column.text,
+export const leadStages = sqliteTable("lead_stages", {
+  id: text("id").primaryKey(),
+  hostId: text("hostId").notNull(),
+  name: text("name").notNull(),
+  color: text("color"),
+  order: integer("order").notNull(),
+  createdAt: text("createdAt").notNull(),
 });
 
 // Platform-maintained reference data (see docs/data-model.md's "LeadStageTemplate") -
 // synced (read) but never written by client code; `apps/server`'s upload allowlist
 // deliberately excludes it too, as the actual enforcement backstop.
-const leadStageTemplates = new Table({
-  businessType: column.text,
-  name: column.text,
-  color: column.text,
-  order: column.integer,
+export const leadStageTemplates = sqliteTable("lead_stage_templates", {
+  id: text("id").primaryKey(),
+  businessType: text("businessType").notNull(),
+  name: text("name").notNull(),
+  color: text("color"),
+  order: integer("order").notNull(),
 });
 
-const hostFilterSets = new Table({
-  hostId: column.text,
-  name: column.text,
-  rules: column.text,
-  createdAt: column.text,
+export const hostFilterSets = sqliteTable("host_filter_sets", {
+  id: text("id").primaryKey(),
+  hostId: text("hostId").notNull(),
+  name: text("name").notNull(),
+  rules: text("rules").notNull(),
+  createdAt: text("createdAt").notNull(),
 });
 
-const marketingSequences = new Table({
-  hostId: column.text,
-  name: column.text,
-  triggerType: column.text,
-  filterSetId: column.text,
-  isEnabled: column.integer,
-  createdAt: column.text,
+export const marketingSequences = sqliteTable("marketing_sequences", {
+  id: text("id").primaryKey(),
+  hostId: text("hostId").notNull(),
+  name: text("name").notNull(),
+  triggerType: text("triggerType").notNull(),
+  filterSetId: text("filterSetId"),
+  isEnabled: integer("isEnabled").notNull(),
+  createdAt: text("createdAt").notNull(),
 });
 
-const sequenceActions = new Table({
-  sequenceId: column.text,
-  type: column.text,
-  offsetMinutes: column.integer,
-  config: column.text,
+export const sequenceActions = sqliteTable("sequence_actions", {
+  id: text("id").primaryKey(),
+  sequenceId: text("sequenceId").notNull(),
+  type: text("type").notNull(),
+  offsetMinutes: integer("offsetMinutes").notNull(),
+  config: text("config").notNull(),
 });
 
-const sequenceEdges = new Table({
-  sequenceId: column.text,
-  fromActionId: column.text,
-  toActionId: column.text,
-  conditionBranch: column.text,
+export const sequenceEdges = sqliteTable("sequence_edges", {
+  id: text("id").primaryKey(),
+  sequenceId: text("sequenceId").notNull(),
+  fromActionId: text("fromActionId").notNull(),
+  toActionId: text("toActionId").notNull(),
+  conditionBranch: text("conditionBranch"),
 });
 
-const sequenceEnrollments = new Table({
-  hostId: column.text,
-  sequenceId: column.text,
-  memberId: column.text,
-  triggeredAt: column.text,
-  finishedAt: column.text,
-  cancelledAt: column.text,
+export const sequenceEnrollments = sqliteTable("sequence_enrollments", {
+  id: text("id").primaryKey(),
+  hostId: text("hostId").notNull(),
+  sequenceId: text("sequenceId").notNull(),
+  memberId: text("memberId").notNull(),
+  triggeredAt: text("triggeredAt").notNull(),
+  finishedAt: text("finishedAt"),
+  cancelledAt: text("cancelledAt"),
 });
 
-const sequenceVersions = new Table({
-  sequenceId: column.text,
-  hostId: column.text,
-  snapshot: column.text,
-  revertedFromVersionId: column.text,
-  actorType: column.text,
-  actorId: column.text,
-  createdAt: column.text,
+export const sequenceVersions = sqliteTable("sequence_versions", {
+  id: text("id").primaryKey(),
+  sequenceId: text("sequenceId").notNull(),
+  hostId: text("hostId").notNull(),
+  snapshot: text("snapshot").notNull(),
+  revertedFromVersionId: text("revertedFromVersionId"),
+  actorType: text("actorType").notNull(),
+  actorId: text("actorId"),
+  createdAt: text("createdAt").notNull(),
 });
 
-const domainEvents = new Table({
-  hostId: column.text,
-  aggregateType: column.text,
-  aggregateId: column.text,
-  eventType: column.text,
-  payload: column.text,
-  actorType: column.text,
-  actorId: column.text,
-  occurredAt: column.text,
+export const domainEvents = sqliteTable("domain_events", {
+  id: text("id").primaryKey(),
+  hostId: text("hostId").notNull(),
+  aggregateType: text("aggregateType").notNull(),
+  aggregateId: text("aggregateId").notNull(),
+  eventType: text("eventType").notNull(),
+  payload: text("payload").notNull(),
+  actorType: text("actorType").notNull(),
+  actorId: text("actorId"),
+  occurredAt: text("occurredAt").notNull(),
 });
 
-// Object keys (not the local const names above) are the actual PowerSync/SQLite table
-// names - kept snake_case here to match `packages/db`'s Postgres table names exactly, so
-// a `CrudEntry.table` lines up 1:1 with `apps/server/src/SyncEntities.ts`'s allowlist
-// keys without any name-mapping step.
-export const AppSchema = new Schema({
+export const drizzleSchema = {
   hosts,
   members,
-  member_hosts: memberHosts,
-  lead_stages: leadStages,
-  lead_stage_templates: leadStageTemplates,
-  host_filter_sets: hostFilterSets,
-  marketing_sequences: marketingSequences,
-  sequence_actions: sequenceActions,
-  sequence_edges: sequenceEdges,
-  sequence_enrollments: sequenceEnrollments,
-  sequence_versions: sequenceVersions,
-  domain_events: domainEvents,
-});
+  memberHosts,
+  leadStages,
+  leadStageTemplates,
+  hostFilterSets,
+  marketingSequences,
+  sequenceActions,
+  sequenceEdges,
+  sequenceEnrollments,
+  sequenceVersions,
+  domainEvents,
+};
 
+export const AppSchema = new DrizzleAppSchema(drizzleSchema);
 export type Database = (typeof AppSchema)["types"];

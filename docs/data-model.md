@@ -628,11 +628,24 @@ redirecting to `/login` only if both the in-memory user and the silent
 sign-in come back empty.
 
 **PowerSync client schema** (`apps/client/src/lib/powersync/schema.ts`):
-hand-written, mirroring this doc's "Effect Schema -> Drizzle bridge" pattern
-rather than generated - 12 tables (the 11 write-capable entities plus
-read-only `lead_stage_templates`), a compile-time drift check
-(`schema.drift.test.ts`) against `@effective-app/schema`'s field names, same
-spirit as `packages/db/src/drift.test.ts`. Table names match `packages/db`'s
+hand-written as a **Drizzle SQLite schema** (`drizzle-orm/sqlite-core`'s
+`sqliteTable`), not PowerSync's own `Schema`/`Table` API - `@powersync/drizzle-driver`'s
+`DrizzleAppSchema` generates the actual PowerSync schema _from_ this Drizzle
+schema, so there's exactly one client-side schema to hand-maintain instead of
+two. This replaced an earlier version hand-written directly against
+PowerSync's `Table` API (with its own drift test against it): querying that
+version required a raw SQL string plus a separately hand-typed, unchecked row
+interface per query - `useQuery` had no way to verify the string or the
+interface matched the schema. With the Drizzle schema, every query
+(`drizzleDb.select().from(hosts)...`, wrapped via
+`@powersync/drizzle-driver`'s `toCompilableQuery` for `useQuery`) and every
+write (`drizzleDb.update(hosts).set(...)`) is type-checked against the same
+table definitions the drift test below checks against `@effective-app/schema`.
+12 tables (the 11 write-capable entities plus read-only `lead_stage_templates`),
+a compile-time-ish drift check (`schema.drift.test.ts`, using `drizzle-orm`'s
+`getTableColumns` - the same mechanism `packages/db/src/drift.test.ts` already
+uses) against `@effective-app/schema`'s field names. Table names (the string
+passed to `sqliteTable`, not the JS export name) match `packages/db`'s
 Postgres table names exactly (snake_case), so a `CrudEntry.table` lines up
 1:1 with the server-side write allowlist below.
 
@@ -681,28 +694,41 @@ ps_crud` - the documented pattern in PowerSync's Production Readiness
   shouldn't alarm the user. "Retry" forces a fresh `disconnect()`/`connect()`
   cycle since `AbstractPowerSyncDatabase` has no public "upload now" API to
   call instead (checked its surface directly).
-- _Old-value flicker on blur._ The first version reset the optimistic
-  `draftName` input state as soon as `db.execute()`'s promise resolved, then
-  relied on the `hosts` query to already reflect the new value. It doesn't:
+- _Old-value flicker on blur._ The first version kept the input **controlled**
+  (`value={draftName ?? host.name}`) and reset the optimistic `draftName`
+  state as soon as `db.execute()`'s promise resolved, assuming the `hosts`
+  query already reflected the new value. It doesn't yet at that point:
   `useQuery`'s watched-query re-run is throttled (`DEFAULT_WATCH_THROTTLE_MS
-= 30`, in `@powersync/common`'s `WatchedQuery` module - confirmed directly
-  in the installed package source, since neither the PowerSync docs nor the
+= 30`, in `@powersync/common`'s `WatchedQuery` module - confirmed directly in
+  the installed package source, since neither the PowerSync docs nor the
   skill state the exact default), so there's a real gap between the local
   write completing and the query reflecting it, during which the old value
-  flashed. Fixed by only clearing `draftName` once the watched query's value
-  actually equals what was written, so the input always shows either the
-  optimistic value or the confirmed one - never a stale one in between.
+  flashed. A first fix kept it controlled but only cleared `draftName` once
+  the watched query's value actually matched what was written - correct, but
+  added a `useState`/`useEffect` pair whose only job was reconciling a
+  controlled value against a query that's reactive on its own timeline.
+  Replaced with an **uncontrolled** input (`key={host.name}` +
+  `defaultValue={host.name}`, no `value`/`onChange`): the DOM owns the
+  displayed text until `key` changes, which only happens once the watched
+  query confirms a (new) name - so there's no controlled-vs-reactive-query
+  race to produce a flicker, and no local draft state to manage at all.
+  `renameHost` just calls `drizzleDb.update(...)` on blur; nothing else reacts
+  to it.
 
 **Verified end-to-end** (2026-07-17): logged in through the real browser
 flow (Authorization Code + PKCE redirect to Keycloak, back to
 `localhost:5173`) as the seeded `test-host-owner` user; the host's real name
 rendered, synced from Postgres through PowerSync into local SQLite with no
-manual query. Renaming the host in the UI queued a local write, uploaded
-through `POST /sync/upload`, and landed in Postgres - confirmed via `psql`
-directly, with RLS still scoping the write (no `WHERE` clause in the
-handler), and with no old-value flicker on blur (sampled the input's DOM
-value every 5-10ms across two separate real writes - a single stable value
-throughout, per the fix above). A direct `UPDATE hosts ...` via `psql`
+manual query. Renaming the host through a real click-driven interaction
+(focus, type, blur to a different element - not a scripted `.blur()` call,
+which turned out to be unreliable in the headless browser used for this
+verification and produced misleading negative results before this was
+caught) queued a local write via `drizzleDb.update(...)`, uploaded through
+`POST /sync/upload`, and landed in Postgres - confirmed via `psql` directly,
+with RLS still scoping the write (no `WHERE` clause in the handler), and with
+no old-value flicker on blur (sampled the input's DOM value every 5-10ms
+across several real writes - a single stable value throughout, per the
+uncontrolled-input fix above). A direct `UPDATE hosts ...` via `psql`
 appeared in the browser without a page reload (PowerSync stream push).
 Reloading the page restored the session silently via `signinSilent()`
 (in-memory token survives a reload without ever being persisted). Stopping

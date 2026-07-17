@@ -92,6 +92,9 @@ importers:
       '@journeyapps/wa-sqlite':
         specifier: 1.7.2
         version: 1.7.2
+      '@powersync/drizzle-driver':
+        specifier: 0.7.4
+        version: 0.7.4(@powersync/common@1.57.2)(drizzle-orm@0.45.2(@types/pg@8.20.0)(pg@8.22.0))
       '@powersync/react':
         specifier: 1.10.0
         version: 1.10.0(@powersync/common@1.57.2)(react@19.2.7)
@@ -101,6 +104,9 @@ importers:
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
       oidc-client-ts:
         specifier: 3.5.0
         version: 3.5.0
@@ -1567,6 +1573,12 @@ packages:
 
   '@powersync/common@1.57.2':
     resolution: {integrity: sha512-cOsmvBFBK0yvpwjaI46Lm3xCMRaTaydQQ4RolED3Upj6/kawGZHhkh4Guve3nmOSQ/0sGCuiFOcl4Gv9Mp6dOA==}
+
+  '@powersync/drizzle-driver@0.7.4':
+    resolution: {integrity: sha512-dyT2PxedrCRGp/0ahHFxVs65MVrGhomV0rU79NPA3OD/P89j7LNWGv3PLMaogP2r+yVcGLv81gfCqeR/WmSpMw==}
+    peerDependencies:
+      '@powersync/common': ^1.56.0
+      drizzle-orm: <1.0.0
 
   '@powersync/react@1.10.0':
     resolution: {integrity: sha512-orM29qocbF8zYTBM27j9nPNztyplpbNVaw8djpqxl8N2wESqHTbHOKpatg+Fa5aofgjzmrkiGwevJvCbiWYYWQ==}
@@ -5036,6 +5048,12 @@ snapshots:
     dependencies:
       js-logger: 1.6.1
 
+  '@powersync/drizzle-driver@0.7.4(@powersync/common@1.57.2)(drizzle-orm@0.45.2(@types/pg@8.20.0)(pg@8.22.0))':
+    dependencies:
+      '@powersync/common': 1.57.2
+      drizzle-orm: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
+      tslib: 2.8.1
+
   '@powersync/react@1.10.0(@powersync/common@1.57.2)(react@19.2.7)':
     dependencies:
       '@powersync/common': 1.57.2
@@ -6903,8 +6921,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  tslib@2.8.1:
-    optional: true
+  tslib@2.8.1: {}
 
   tsx@4.23.1:
     dependencies:

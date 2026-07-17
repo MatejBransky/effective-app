@@ -1,6 +1,7 @@
+import { wrapPowerSyncWithDrizzle } from "@powersync/drizzle-driver";
 import { PowerSyncDatabase } from "@powersync/web";
 import { Connector } from "./connector.ts";
-import { AppSchema } from "./schema.ts";
+import { AppSchema, drizzleSchema } from "./schema.ts";
 
 /**
  * Created once at module scope, not inside a React effect - React Strict Mode's dev-mode
@@ -12,6 +13,15 @@ export const db = new PowerSyncDatabase({
   schema: AppSchema,
   database: { dbFilename: "effective-app.db" },
 });
+
+/**
+ * Type-safe query/write layer over `db` - `wrapPowerSyncWithDrizzle` returns a distinct
+ * object (a `PowerSyncSQLiteDatabase`, not the same instance as `db`) that only exposes
+ * Drizzle's query builder, not `db`'s connection-management methods (`connect`/
+ * `disconnect`/`currentStatus`/raw `execute`) - those still go through `db` directly (see
+ * `reconnect` below and `_authenticated.tsx`'s `disconnectAndClear()` call).
+ */
+export const drizzleDb = wrapPowerSyncWithDrizzle(db, { schema: drizzleSchema });
 
 const connector = new Connector();
 

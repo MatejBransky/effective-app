@@ -8,3 +8,6 @@ dev-dist
 .env
 .cache
 routeTree.gen.ts
+# apps/infrastructure's alchemy-effect build bundles + local state (Cloudflare.state()
+# is the real state backend - see docs/data-model.md - this is just local scratch space).
+.alchemy

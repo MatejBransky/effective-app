@@ -1010,11 +1010,28 @@ low-risk pattern as the existing esbuild/msgpackr-extract/wa-sqlite/@swc/core
 entries, but flagged for the user's own sign-off since the existing entries
 in that file were each explicitly user-approved before being added.
 
-**Not yet verified end-to-end** - blocked on a real Cloudflare account/API
-token, which needs to come from the user (never pasted into chat; set only
-in `.env`). Once available: `pnpm --filter @effective-app/infrastructure run
-deploy`, then a request against the deployed Worker's URL should return
-`hello world`.
+**Verified end-to-end** (2026-07-17): `pnpm --filter @effective-app/infrastructure
+run deploy` against a real Cloudflare account - bootstrapped the state store
+(`Cloudflare.state()`'s one-time `alchemy-state-store` Worker + Secrets
+Store) on the first run, then deployed `HelloWorker`. A request against the
+deployed `*.workers.dev` URL returned `hello world` (HTTP 200) on the first
+try - no edge-propagation retry even needed. Two things the docs didn't make
+obvious up front, now baked into the `deploy`/`dev` scripts:
+
+- Setting `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` as env vars is not
+  enough by itself - the CLI defaults to an interactive `alchemy login`
+  profile flow and only reads credentials from the environment when `CI=1`
+  is also set (its own error message says so directly: "this process is
+  non-interactive so it can't be configured interactively... set CI=1 to
+  use environment-variable credentials").
+- The state store's first-time bootstrap needs an explicit `--yes` (or a
+  separate `alchemy bootstrap cloudflare` command first) to proceed
+  non-interactively.
+
+Both are now part of `deploy`/`dev`'s scripts in `package.json` (`sh -c 'set
+-a; . ../../.env; CI=1; set +a; alchemy deploy --yes'`) - deliberately not
+added to `destroy`, which should keep requiring explicit confirmation since
+it's the one genuinely destructive command here.
 
 ## Deferred / out of scope for this PoC
 

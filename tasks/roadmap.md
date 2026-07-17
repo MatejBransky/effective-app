@@ -25,14 +25,14 @@ See `docs/data-model.md` for the full writeup of each.
   flavor this repo vendors for this - see `docs/data-model.md`'s "Cloudflare
   deployment (apps/infrastructure)" section for the full architecture
   writeup, including how Postgres/Hyperdrive, zero-downtime, and local dev
-  parity were resolved). First deployable unit built: a trivial
-  `HelloWorker` (`alchemy.run.ts` + `src/HelloWorker.ts`), deliberately
-  minimal to prove the toolchain (credentials, state-store bootstrap, a real
-  `alchemy deploy`) before `apps/server` itself depends on it. **Blocked on
-  a real Cloudflare account/API token** to actually run `pnpm --filter
-@effective-app/infrastructure run deploy` and verify - the account is
-  needed even for local `alchemy dev` (no credential-free local mode
-  exists), so this is the very next unblocking step, not deferrable.
+  parity were resolved). First deployable unit built and **verified live**:
+  a trivial `HelloWorker` (`alchemy.run.ts` + `src/HelloWorker.ts`) deployed
+  to a real Cloudflare account - `pnpm --filter @effective-app/infrastructure
+run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
+  deployed `HelloWorker`, and the live `*.workers.dev` URL returned
+  `hello world` (HTTP 200) on the first request. Proves the whole toolchain
+  (credentials, state-store bootstrap, a real deploy) before `apps/server`
+  itself depends on it.
   Remaining phases (per `docs/data-model.md`): `apps/server`'s HTTP
   transport swap (`NodeHttpServer` → Worker `fetch` handler), Hyperdrive +
   Cloudflare Tunnel wiring for Postgres, then `apps/client` as static

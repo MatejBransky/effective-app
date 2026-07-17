@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "jsPlugins": ["@repo/lint-config"],
-  "ignorePatterns": ["repos/**"],
+  "ignorePatterns": ["repos/**", "**/.alchemy/**"],
   "rules": {
     "repo/no-type-assertion": "error"
   }

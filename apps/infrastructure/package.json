@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "alchemy deploy",
-    "dev": "alchemy dev",
-    "destroy": "alchemy destroy",
+    "deploy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy deploy --yes'",
+    "dev": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy dev --yes'",
+    "destroy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy destroy'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

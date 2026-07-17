@@ -744,6 +744,88 @@ reactivity actually behaves rather than assumptions:
   component state (same reasoning as the uncontrolled input above), so
   there's nothing to coordinate beyond the one timer.
 
+**Global state: effect v4's native `Atom` reactivity, not `@effect-atom/atom-react`.**
+The status bar below needs state that isn't page-local (PowerSync connection
+health, pending-write count, browser online/offline) - a natural fit for
+`@effect-atom/atom-react`, and this was the intended choice. It turned out to
+require `effect: ^3.19` as a peer dependency (checked `npm view
+@effect-atom/atom-react peerDependencies`), which conflicts with this repo's
+`effect: 4.0.0-beta.98` pin (`pnpm-workspace.yaml` deliberately tracks that
+exact v4 beta line everywhere else). Rather than bundling a second,
+incompatible major version of `effect` into the client, `apps/client` uses
+`effect/unstable/reactivity` directly - the `Atom`/`AtomRegistry` module v4
+ships **natively inside `effect` itself** (confirmed via
+github.com/tim-smart/effect-atom issue #413, the library author's own reply:
+"In v4 Atom is part of the library `import { Atom } from
+'effect/unstable/reactivity'`" - `@effect-atom/atom`/`@effect-atom/atom-react`
+were folded into effect core for v4, just not published as a matching v4
+release yet). `apps/client/src/lib/atom/react.ts` is a small hand-rolled
+`useAtomValue`/`useAtomSet` pair over `useSyncExternalStore`, since no
+official React bindings package exists yet for v4's native module - the
+Atom/Registry API itself is otherwise the same design as `@effect-atom/atom`.
+`apps/client/src/lib/powersync/syncAtoms.ts` bridges PowerSync's imperative,
+callback-based APIs into Atoms the same way any external event listener is
+wrapped (`get.setSelf`/`get.addFinalizer` - see effect's `Atom.make` docs):
+`db.watch("SELECT COUNT(*) as n FROM ps_crud", ...)` for the pending-write
+count, `db.registerListener({ statusChanged })` for PowerSync's own
+`SyncStatus` (connected/connecting, last sync time, upload/download activity
+and errors), and `window.addEventListener("online"/"offline")` for browser
+connectivity. `stuckAtom` (the 30s-unsynced-write grace window) is a derived
+Atom whose read function schedules a `setTimeout` and calls `get.setSelf(true)`
+if it fires - since `AtomContext` finalizers run on rebuild as well as
+disposal, every dependency change (`pendingWritesCountAtom` or a
+`retryGenerationAtom` bump from clicking "Try again") cleanly cancels the
+previous timer and starts a fresh one, with no manual cleanup bookkeeping.
+
+**Status bar (`apps/client/src/components/StatusBar.tsx`)** - mounted once in
+the app shell, shows: browser online/offline, PowerSync connection state
+(connecting/connected/disconnected), last successful sync time, an active
+upload/download indicator, the pending-write count, and (distinct from the
+30s "stuck" banner) an immediate `uploadError`/`downloadError` message if
+PowerSync's sync stream itself reports a failure. Further info that would fit
+the same pattern if needed later: per-priority sync progress
+(`SyncStatus.downloadProgress`, for large initial syncs), a manual "sync now"
+action (there's no such API today - see `database.ts`'s `reconnect` comment),
+or a list of the specific unsynced rows rather than just a count.
+
+**Error scope: page-local vs. app-shell-global.** Two error sources exist,
+deliberately surfaced at different scopes: a **local SQLite write failure**
+(rare - the write never reaching PowerSync's queue at all) is page-specific
+and shown inline next to the field the user was editing
+(`_authenticated.index.tsx`'s `writeError` state) since it's only meaningful
+in that page's context. A **sync-stream failure** (`uploadError`/
+`downloadError`) or a **write stuck unsynced for 30s** affects the whole app's
+data layer, not one page, so both surface once in the shared `StatusBar` -
+consistent with the existing "stuck write is an app-shell concern" reasoning
+below, just now covering sync errors too, not only the timeout case.
+
+**Second route + shell persistence (`_authenticated.about.tsx`)** - a static
+page added purely to make the app-shell/page split observable: navigating
+between `/` and `/about` re-renders only `<Outlet />`, while the username,
+nav, and status bar (all defined once in `_authenticated.tsx`) stay mounted
+and untouched. Also removed a leftover `<nav>`/`<hr>` in the Vite scaffold's
+`__root.tsx` (a placeholder "Home" link predating any real navigation) now
+that the authenticated app-shell owns real nav.
+
+**Input focus-loss bug.** The uncontrolled `key={host.name}` input (see the
+old-value-flicker fix above) combined with debounce-on-`onChange` (rather
+than only on blur) introduced a regression: once the debounced write
+completed and the watched query updated `host.name`, React remounted the
+input (because its `key` changed) mid-keystroke, and a freshly-mounted DOM
+node is never automatically focused - the user's cursor and focus dropped out
+of the field while still typing. Fixed by dropping `key` entirely and using a
+stable `ref` instead: a `useEffect` keyed on `host.name` only ever sets
+`inputRef.current.value` imperatively, and only when
+`document.activeElement !== inputRef.current` - so a value confirmed by the
+query while the user isn't focused on the field still updates the display
+(e.g. someone else renamed the host), but a value arriving while the user
+_is_ mid-edit never overwrites what they're typing, and the input is never
+remounted at all. (This effect has to run unconditionally, before the
+route's loading/no-host early returns - an earlier draft placed it after
+those returns, which varies the hook count across renders and violates the
+Rules of Hooks; React's own "Rendered more hooks than during the previous
+render" error caught this immediately.)
+
 **Verified end-to-end** (2026-07-17): logged in through the real browser
 flow (Authorization Code + PKCE redirect to Keycloak, back to
 `localhost:5173`) as the seeded `test-host-owner` user; the host's real name
@@ -771,6 +853,25 @@ need connectivity" end-to-end, not just the connector wiring. The layout
 correctly showed "Logged in as test-host-owner", and a normal single-tab
 logout still redirected to Keycloak's real login page after the app-shell
 changes above.
+
+**Verified end-to-end, continued** (2026-07-17): rechecked after the status
+bar/second-route/focus-fix changes above. Typing into the host-name field via
+a real click + fill and waiting past the debounce window confirmed the input
+kept both focus and cursor position (`document.activeElement` still the same
+node, `selectionStart` unchanged) once the write round-tripped back through
+the watched query - the regression this section's focus-loss fix targets.
+The write itself landed in Postgres (`psql`-confirmed). The status bar showed
+live "Online · Connected · Last synced HH:MM:SS" sourced from the new Atoms,
+with no page reload involved. Clicking "About" swapped only the `<Outlet />`
+content while the username, nav, and status bar (including its live "last
+synced" value) stayed identically mounted, confirming the app-shell/page
+split. One false alarm during this pass, worth recording: a stale browser
+console buffer (from before the focus-loss fix landed) kept surfacing an old
+"Rendered more hooks than during the previous render" error on every
+`preview_console_logs` call, even after fully restarting the dev server -
+only a genuinely fresh server instance plus a fresh navigation (not just
+`window.location.reload()` on the same tab) cleared it, confirming the error
+was already fixed and the tool's console buffer, not the app, was stale.
 
 ## Deferred / out of scope for this PoC
 

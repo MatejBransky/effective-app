@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy deploy --yes'",
-    "dev": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy dev --yes'",
-    "destroy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy destroy'",
+    "deploy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy deploy --yes \"$@\"' --",
+    "dev": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy dev --yes \"$@\"' --",
+    "destroy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy destroy \"$@\"' --",
+    "bootstrap-github": "sh -c 'set -a; . ../../.env; CI=1; ALCHEMY_PROFILE=admin; set +a; alchemy deploy stacks/github.ts --yes'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

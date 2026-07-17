@@ -13,9 +13,23 @@ export const db = new PowerSyncDatabase({
   database: { dbFilename: "effective-app.db" },
 });
 
+const connector = new Connector();
+
 // `connect()` is fire-and-forget - it starts the sync stream and uploadData loop in the
 // background, and retries `fetchCredentials`/`uploadData` automatically (with backoff)
 // until a session exists - see Connector.fetchCredentials/uploadData. Not gated on login
 // here: a `logout()` redirects to Keycloak, so the whole page (and this module) reloads
 // on return anyway - there's no in-SPA "reconnect after logout" case to handle.
-db.connect(new Connector());
+db.connect(connector);
+
+/**
+ * Forces a fresh connection attempt outside PowerSync's own automatic retry/backoff
+ * schedule - there's no public "retry this upload now" API (checked
+ * `AbstractPowerSyncDatabase`'s surface), so a full disconnect+reconnect is the closest
+ * real "try again" action available. Used by the UI's "Try again" button after a write
+ * has been stuck unsynced for a while - see `_authenticated.index.tsx`.
+ */
+export const reconnect = async (): Promise<void> => {
+  await db.disconnect();
+  db.connect(connector);
+};

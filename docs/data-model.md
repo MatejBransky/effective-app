@@ -661,6 +661,38 @@ router middleware that needs the `HttpRouter` service itself to register
 against, available while routes are still being built, not after `serve` has
 already collapsed that requirement.
 
+**Home page UX (`_authenticated.index.tsx`)** - two refinements made after
+the first working version, both informed by how PowerSync's reactivity
+actually behaves rather than assumptions:
+
+- _Offline shouldn't affect reads, only a stuck write should surface an
+  error._ The first version disabled the rename input whenever
+  `useStatus().connected` was `false` - but `connected` reflects the
+  PowerSync service's _download_ stream, not whether a write can reach
+  `apps/server` (the actual upload path), and disabling on mere
+  disconnection contradicts the local-first premise (edits should always be
+  possible; only a write that's been stuck unsynced for a while is worth
+  interrupting the user about). Fixed by reactively watching PowerSync's own
+  internal `ps_crud` upload-queue table (`SELECT COUNT(*) AS row_count FROM
+ps_crud` - the documented pattern in PowerSync's Production Readiness
+  Guide) instead of `useStatus()`, and only escalating to a visible
+  "Failed to save changes" + retry button after the queue has stayed
+  non-empty for 30 seconds - a brief blip or a slow-but-working retry
+  shouldn't alarm the user. "Retry" forces a fresh `disconnect()`/`connect()`
+  cycle since `AbstractPowerSyncDatabase` has no public "upload now" API to
+  call instead (checked its surface directly).
+- _Old-value flicker on blur._ The first version reset the optimistic
+  `draftName` input state as soon as `db.execute()`'s promise resolved, then
+  relied on the `hosts` query to already reflect the new value. It doesn't:
+  `useQuery`'s watched-query re-run is throttled (`DEFAULT_WATCH_THROTTLE_MS
+= 30`, in `@powersync/common`'s `WatchedQuery` module - confirmed directly
+  in the installed package source, since neither the PowerSync docs nor the
+  skill state the exact default), so there's a real gap between the local
+  write completing and the query reflecting it, during which the old value
+  flashed. Fixed by only clearing `draftName` once the watched query's value
+  actually equals what was written, so the input always shows either the
+  optimistic value or the confirmed one - never a stale one in between.
+
 **Verified end-to-end** (2026-07-17): logged in through the real browser
 flow (Authorization Code + PKCE redirect to Keycloak, back to
 `localhost:5173`) as the seeded `test-host-owner` user; the host's real name
@@ -668,17 +700,19 @@ rendered, synced from Postgres through PowerSync into local SQLite with no
 manual query. Renaming the host in the UI queued a local write, uploaded
 through `POST /sync/upload`, and landed in Postgres - confirmed via `psql`
 directly, with RLS still scoping the write (no `WHERE` clause in the
-handler). A direct `UPDATE hosts ...` via `psql` appeared in the browser
-without a page reload (PowerSync stream push). Reloading the page restored
-the session silently via `signinSilent()` (in-memory token survives a reload
-without ever being persisted). Stopping the `powersync` container flipped
-`useStatus().connected` to `false` and disabled the rename input in the UI
-(demonstrating PowerSync's own sync-stream health); separately, stopping
+handler), and with no old-value flicker on blur (sampled the input's DOM
+value every 5-10ms across two separate real writes - a single stable value
+throughout, per the fix above). A direct `UPDATE hosts ...` via `psql`
+appeared in the browser without a page reload (PowerSync stream push).
+Reloading the page restored the session silently via `signinSilent()`
+(in-memory token survives a reload without ever being persisted). Stopping
 `apps/server` (the actual upload path - independent of PowerSync's own
-availability) queued a write locally without touching Postgres and surfaced
-`dataFlowStatus.uploadError` in the UI, then flushed automatically once
-`apps/server` came back - confirming "reads work offline, mutations need
-connectivity" end-to-end, not just the connector wiring.
+sync-stream availability) queued a write locally without touching Postgres
+and without disabling the input; after the 30s grace period the "Failed to
+save changes" + retry banner appeared as designed, and the write flushed
+automatically once `apps/server` came back (PowerSync's own retry, before
+"Try again" was even clicked) - confirming "reads work offline, mutations
+need connectivity" end-to-end, not just the connector wiring.
 
 ## Deferred / out of scope for this PoC
 

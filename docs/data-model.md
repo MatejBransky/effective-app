@@ -931,6 +931,91 @@ only a genuinely fresh server instance plus a fresh navigation (not just
 `window.location.reload()` on the same tab) cleared it, confirming the error
 was already fixed and the tool's console buffer, not the app, was stale.
 
+### Cloudflare deployment (`apps/infrastructure`)
+
+`README.md`'s Layout section already named this package ("Alchemy IaC that
+deploys the above") before it existed; this section covers the first real
+step. Uses the vendored Effect-native Alchemy fork
+(`repos/alchemy-effect` - see the repo's own `AGENTS.md` for why: an
+Effect-based reimplementation of Alchemy, not a wrapper over the classic
+non-Effect `alchemy` npm package).
+
+**No credential-free local mode exists.** Even `alchemy dev` (which runs a
+Worker's own code locally against real `workerd`) provisions KV/D1/R2/etc.
+in a real Cloudflare account and bootstraps a dedicated state-store Worker
+into it on first run (`Cloudflare.state()`) - a free Cloudflare account is
+needed from the very first `apps/infrastructure` commit, there's no way to
+defer that. The day-to-day `apps/server` dev loop is unaffected by this,
+though: Workers-specific constraints (no raw TCP, `fetch`-handler model)
+only apply once code actually executes inside `workerd`, which only happens
+via `alchemy dev`/`wrangler dev` - opt-in, not how `pnpm --filter
+@effective-app/server run dev` runs today (plain Node, unchanged).
+
+**Postgres → Workers, resolved in favor of Hyperdrive, not a driver swap.**
+Cloudflare Workers can't open the raw TCP sockets `pg`/`node-postgres`
+needs - but Hyperdrive (a connection-pooling proxy in front of any existing
+Postgres, confirmed via Cloudflare's own docs to accept a plain
+host/port/user/password origin, not tied to a partnered provider) sits in
+front of the _existing_ driver rather than replacing it. It also has an
+explicit local-dev bypass (`localConnectionString`/`DATABASE_URL`) that lets
+Worker code talk directly to docker-compose's Postgres during `alchemy dev` -
+no pooling, no proxy, same code path apps/server already has. For prod,
+self-hosted Postgres stays private via a Cloudflare Tunnel rather than being
+exposed to the public internet (one of Hyperdrive's three supported
+connectivity modes). Net result: `pg`/`drizzle-orm/node-postgres`/
+`HostScopedDb.ts` need zero code changes - only the connection string
+differs between `dev` and prod.
+
+**Zero-downtime deploys are inherent to Workers, not something built here.**
+A Worker deploy is a single atomic script upload (`WorkerProvider.ts`'s
+`putWorker` call) - there's no fleet of servers to roll-restart, so there's
+no window where an old version is mid-shutdown while a new one is mid-start.
+The only caveat (documented directly in the fork's own code comment,
+`StateStore/State.ts`): the upload is eventually consistent across
+Cloudflare's global edge, so different edge locations can serve the previous
+version for a few seconds after a deploy returns - version-skew, not
+downtime, no request is dropped. Cloudflare's own advanced rollout tooling
+(canary/gradual percentage traffic-splitting via `wrangler versions deploy`,
+one-command `wrangler rollback`) is **not** wired up in this alchemy-effect
+fork as of the vendored version - if that stronger guarantee is ever wanted,
+it needs `wrangler` invoked directly alongside `alchemy deploy` for that one
+concern, or an upstream contribution.
+
+**PowerSync + Keycloak stay self-hosted, unaffected.** This Cloudflare work
+is scoped to `apps/server` (API, as a Worker) and `apps/client` (static
+assets) only, per the README's Layout section - not a silent default.
+
+**First step built: `apps/infrastructure/alchemy.run.ts` + `src/HelloWorker.ts`** -
+the smallest possible Worker (`Cloudflare.Worker` wrapping a plain
+`fetch: Effect.succeed(HttpServerResponse.text("hello world"))`), deployed on
+its own before any real service depends on this toolchain. Deliberately
+minimal since alchemy-effect is alpha/beta software (its own README says so)
+and this is new tooling for this repo - smallest possible surface area to
+debug if something doesn't behave as documented. `pnpm --filter
+@effective-app/infrastructure run deploy`/`dev`/`destroy` map directly to the
+`alchemy` CLI. `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` (`.env.example`)
+are real credentials, unlike every other var in that file - never committed,
+only ever in an untracked `.env`.
+
+**Dependency note:** `alchemy` is pinned to `2.0.0-beta.62` (not the newer
+`beta.63` published the same day this was written) - this repo's pnpm
+supply-chain policy (`minimumReleaseAge: 1440` minutes) blocks installing a
+version published within the last 24 hours, and `beta.62` is also the exact
+version already vendored and analyzed in `repos/alchemy-effect`, so the code
+here matches source that was actually read, not assumed compatible.
+`workerd` (Cloudflare's Workers runtime, needed locally for `alchemy dev`)
+required a new `onlyBuiltDependencies`/`allowBuilds` entry in
+`pnpm-workspace.yaml` for its prebuilt-binary postinstall script - same
+low-risk pattern as the existing esbuild/msgpackr-extract/wa-sqlite/@swc/core
+entries, but flagged for the user's own sign-off since the existing entries
+in that file were each explicitly user-approved before being added.
+
+**Not yet verified end-to-end** - blocked on a real Cloudflare account/API
+token, which needs to come from the user (never pasted into chat; set only
+in `.env`). Once available: `pnpm --filter @effective-app/infrastructure run
+deploy`, then a request against the deployed Worker's URL should return
+`hello world`.
+
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:

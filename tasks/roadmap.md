@@ -18,21 +18,29 @@ offline, mutations need connectivity" (`useStatus()`-gated UI, verified by
 stopping `apps/server` mid-edit and watching the write queue then flush).
 See `docs/data-model.md` for the full writeup of each.
 
+## In progress
+
+- **`apps/infrastructure`** - "Alchemy IaC that deploys the above." Started:
+  scaffolded against `repos/alchemy-effect` (the Effect-native Alchemy
+  flavor this repo vendors for this - see `docs/data-model.md`'s "Cloudflare
+  deployment (apps/infrastructure)" section for the full architecture
+  writeup, including how Postgres/Hyperdrive, zero-downtime, and local dev
+  parity were resolved). First deployable unit built: a trivial
+  `HelloWorker` (`alchemy.run.ts` + `src/HelloWorker.ts`), deliberately
+  minimal to prove the toolchain (credentials, state-store bootstrap, a real
+  `alchemy deploy`) before `apps/server` itself depends on it. **Blocked on
+  a real Cloudflare account/API token** to actually run `pnpm --filter
+@effective-app/infrastructure run deploy` and verify - the account is
+  needed even for local `alchemy dev` (no credential-free local mode
+  exists), so this is the very next unblocking step, not deferrable.
+  Remaining phases (per `docs/data-model.md`): `apps/server`'s HTTP
+  transport swap (`NodeHttpServer` → Worker `fetch` handler), Hyperdrive +
+  Cloudflare Tunnel wiring for Postgres, then `apps/client` as static
+  assets, then Cron Triggers/Queues examples and the GitHub Actions deploy
+  workflow.
+
 ## Documented as planned, not built yet
 
-Both of these are already named in `README.md`'s "Layout" section as
-intended parts of this boilerplate - they just don't exist yet:
-
-- **`apps/infrastructure`** - "Alchemy IaC that deploys the above." Needs to
-  be initialized against `repos/alchemy-effect` (the Effect-native Alchemy
-  flavor this repo already vendors specifically for this - see `AGENTS.md`:
-  analyze it before writing any IaC code, don't copy patterns from plain
-  Alchemy docs without checking they still apply). Scope: deploy
-  `apps/server` to Cloudflare Workers at minimum; decide what else needs a
-  cloud target (`apps/client` as static assets via Workers/Pages? Keycloak
-  and the self-hosted Postgres/PowerSync stack most likely stay
-  self-hosted/VM-based rather than move to Cloudflare - worth an explicit
-  decision, not a silent default).
 - **`packages/shared`'s "app-shell state"** - a modal manager / app-shell
   manager / keybindings layer (command palette style global shortcuts, a
   place to trigger modals from anywhere in the tree without prop-drilling).

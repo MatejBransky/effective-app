@@ -2,12 +2,17 @@ import { toCompilableQuery } from "@powersync/drizzle-driver";
 import { useQuery } from "@powersync/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { eq } from "drizzle-orm";
+import { useEffect, useRef } from "react";
 import { drizzleDb } from "../lib/powersync/database.ts";
 import { hosts, members } from "../lib/powersync/schema.ts";
 
 export const Route = createFileRoute("/_authenticated/")({
   component: HomePage,
 });
+
+/** Delay after the user stops typing before the rename actually writes - long enough to
+ * not fire on every keystroke, short enough to feel like autosave rather than a form. */
+const DEBOUNCE_MS = 400;
 
 function HomePage() {
   // The sync stream (see powersync/sync-config.yaml's `host_data`) only ever sends the
@@ -22,6 +27,12 @@ function HomePage() {
   const { data: memberRows, isLoading: membersLoading } = useQuery(
     toCompilableQuery(drizzleDb.select().from(members).orderBy(members.createdAt)),
   );
+
+  // Only the pending-write *timer* needs to survive across renders - the write itself
+  // never touches component state (see the input's own comment on why it stays
+  // uncontrolled), so a plain ref is enough; no reducer or extra state required.
+  const pendingRename = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(pendingRename.current), []);
 
   if (hostLoading || membersLoading) return <p>Loading...</p>;
   const host = hostRows[0];
@@ -38,6 +49,19 @@ function HomePage() {
     }
   };
 
+  // Debounced on every keystroke rather than waiting for blur - a local-first app should
+  // feel like autosave, not an old-style form you have to click away from to save.
+  // `onBlur` still flushes immediately: without it, clicking away (or closing the tab)
+  // within the debounce window would silently drop the last few keystrokes.
+  const scheduleRename = (name: string) => {
+    clearTimeout(pendingRename.current);
+    pendingRename.current = setTimeout(() => void renameHost(name), DEBOUNCE_MS);
+  };
+  const flushRename = (name: string) => {
+    clearTimeout(pendingRename.current);
+    void renameHost(name);
+  };
+
   return (
     <>
       <h1>
@@ -50,7 +74,8 @@ function HomePage() {
         <input
           key={host.name}
           defaultValue={host.name}
-          onBlur={(e) => void renameHost(e.target.value)}
+          onChange={(e) => scheduleRename(e.target.value)}
+          onBlur={(e) => flushRename(e.target.value)}
         />
       </h1>
       <h2>Members</h2>

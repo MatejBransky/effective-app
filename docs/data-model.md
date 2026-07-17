@@ -726,13 +726,23 @@ reactivity actually behaves rather than assumptions:
   the watched query's value actually matched what was written - correct, but
   added a `useState`/`useEffect` pair whose only job was reconciling a
   controlled value against a query that's reactive on its own timeline.
-  Replaced with an **uncontrolled** input (`key={host.name}` +
-  `defaultValue={host.name}`, no `value`/`onChange`): the DOM owns the
-  displayed text until `key` changes, which only happens once the watched
-  query confirms a (new) name - so there's no controlled-vs-reactive-query
-  race to produce a flicker, and no local draft state to manage at all.
-  `renameHost` just calls `drizzleDb.update(...)` on blur; nothing else reacts
-  to it.
+  Replaced with an **uncontrolled** input (`key={host.name}` + `defaultValue`,
+  no `value` prop): the DOM owns the displayed text until `key` changes,
+  which only happens once the watched query confirms a (new) name - so
+  there's no controlled-vs-reactive-query race to produce a flicker, and no
+  local draft state to manage at all.
+- _Save on blur felt like an old-style form, not autosave._ Only writing on
+  blur meant nothing happened until the user clicked away - unexpected for a
+  local-first app, which should feel closer to "every keystroke is already
+  saved" than to a form with a submit step. Switched to debouncing the write
+  on every `onChange` (400ms after the user stops typing - long enough not
+  to fire mid-keystroke, short enough to still read as autosave), with
+  `onBlur` flushing any still-pending debounced write immediately so
+  clicking away (or closing the tab) within that window can't silently drop
+  the last few keystrokes. The pending write only needs a plain `useRef` for
+  its timeout handle, cleared on unmount - the write itself never touches
+  component state (same reasoning as the uncontrolled input above), so
+  there's nothing to coordinate beyond the one timer.
 
 **Verified end-to-end** (2026-07-17): logged in through the real browser
 flow (Authorization Code + PKCE redirect to Keycloak, back to

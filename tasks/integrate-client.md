@@ -74,7 +74,7 @@ Roughly in dependency order:
 6. **Wire the PowerSync client SDK into `apps/client`** - install
    `@powersync/web` (browser/PWA target, not `@powersync/react-native`), the
    Vite config changes `powersync-js-react.md` calls out
-   (`optimizeDeps.exclude`, `worker.format: 'es'`) - do this *before*
+   (`optimizeDeps.exclude`, `worker.format: 'es'`) - do this _before_
    installing packages, per the skill - and a `PowerSyncBackendConnector`
    implementing `fetchCredentials()` (current Keycloak access token + the
    PowerSync sync endpoint URL) and `uploadData()` (posts to the new

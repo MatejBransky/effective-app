@@ -2,32 +2,21 @@
 
 This is the higher-level index of remaining initiatives, written up because a
 new session is starting and this list only existed in conversation until now.
-For the immediate next task's detailed plan, see
-[`tasks/integrate-client.md`](integrate-client.md).
 
-## Done (backend side, verified live)
+## Done (verified live)
 
 Domain model as Effect Schema, Drizzle bridge with a drift test, Postgres RLS
 per-tenant isolation, self-hosted Keycloak issuing `host_id`-scoped JWTs,
 self-hosted PowerSync (Sync Streams, least-privilege replication role),
-`apps/server` with JWT verification and one RLS-backed query endpoint. See
-`docs/data-model.md` for the full writeup of each.
-
-## Next up (already planned in detail)
-
-**[`tasks/integrate-client.md`](integrate-client.md)** - wire `apps/client`
-to real Keycloak login and real PowerSync sync/upload, closing the
-local-first loop from browser to Postgres and back. This is the immediate
-next task.
-
-That task should also be the natural place to build the **UI example that
-reads and mutates data with PowerSync's online-required-for-mutations
-behavior** (mentioned when this roadmap was written) - i.e. don't just wire
-the connector, actually demo/prove the "mutations need connectivity, reads
-don't" behavior described in `README.md`'s intro (disabled/pending state
-while offline, successful mutation once back online). Fold this into
-`integrate-client.md`'s step 7 (verify the full loop live) rather than
-treating it as a separate task.
+`apps/server` with JWT verification and RLS-backed query/upload endpoints.
+**`tasks/integrate-client.md`** - `apps/client` wired to real Keycloak login
+(Authorization Code + PKCE, in-memory tokens, silent-renew-on-reload) and a
+real PowerSync client (hand-written schema + drift check, custom-backend
+connector, a `POST /sync/upload` endpoint), closing the local-first loop
+from browser to Postgres and back - including a live demo of "reads work
+offline, mutations need connectivity" (`useStatus()`-gated UI, verified by
+stopping `apps/server` mid-edit and watching the write queue then flush).
+See `docs/data-model.md` for the full writeup of each.
 
 ## Documented as planned, not built yet
 
@@ -74,10 +63,11 @@ so they aren't lost, not as ready-to-implement plans.
 
 `AGENTS.md`/`README.md` both call this app "AI-agent-controllable" without
 saying what that means technically. Left open when this roadmap was written
+
 - candidates discussed: an MCP server exposing `apps/server`'s capabilities
-as tools, vs. just making sure `HttpApi` contracts/error types/docs are
-clean enough for any agent to code against directly. Revisit before
-starting the item below, since it depends on this being resolved first.
+  as tools, vs. just making sure `HttpApi` contracts/error types/docs are
+  clean enough for any agent to code against directly. Revisit before
+  starting the item below, since it depends on this being resolved first.
 
 ### Customer-facing "AI proposes a PoC feature" playground
 
@@ -88,7 +78,7 @@ opencode, etc. - explicitly **bring-your-own**, not a vendor-hosted AI
 integration we'd be paying for on the customer's behalf) reads this app's
 docs/API and implements a PoC, opening a PR in our repo. One of our
 developers then reviews it - merges, refines, or pushes back. The goal:
-the customer gets to validate their own idea with a working PoC *before*
+the customer gets to validate their own idea with a working PoC _before_
 formally requesting it from the dev team, instead of us building things
 customers turn out not to actually want.
 

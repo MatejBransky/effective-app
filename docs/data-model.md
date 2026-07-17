@@ -601,8 +601,84 @@ startup error ... postgres query failed"` at the wire-protocol level (not a
    # "bucket":"1#host_data|0[\"<host_id>\"]"
    ```
 7. **The full end-to-end proof** - a real client syncing to local SQLite and
-   seeing row changes - needs the client SDK wired into `apps/client`, which is
-   intentionally out of scope here (see the task's original scoping notes).
+   seeing row changes - needed the client SDK wired into `apps/client`; done as
+   a follow-on task, see "apps/client: Keycloak login + PowerSync client"
+   below.
+
+### apps/client: Keycloak login + PowerSync client
+
+Closes the loop from the previous sections: a real browser login against
+Keycloak, and a real PowerSync client syncing to local SQLite with writes
+flowing back through a new `apps/server` endpoint to Postgres.
+
+**Auth** (`apps/client/src/lib/auth.ts`): `oidc-client-ts`'s `UserManager`,
+Authorization Code + PKCE against the same `effective-app-client` Keycloak
+client `apps/server` uses for password-grant testing (`standardFlowEnabled`,
+public client - PKCE is automatic since no `client_secret` is configured).
+Token storage is in-memory only (`InMemoryWebStorage`), never
+`sessionStorage`/`localStorage` - the OWASP-recommended pattern for SPAs, so
+an XSS payload can't exfiltrate a token from storage after the fact. The
+tradeoff is that a hard page reload loses the in-memory session;
+`silent-renew.html` (a second Vite HTML entry point, not a route - see
+`vite.config.ts`'s `build.rollupOptions.input`) recovers it via a hidden
+iframe (`signinSilent()`, `prompt=none`) against Keycloak's own SSO session
+cookie. A pathless TanStack Router layout route
+(`apps/client/src/routes/_authenticated.tsx`) guards every data route,
+redirecting to `/login` only if both the in-memory user and the silent
+sign-in come back empty.
+
+**PowerSync client schema** (`apps/client/src/lib/powersync/schema.ts`):
+hand-written, mirroring this doc's "Effect Schema -> Drizzle bridge" pattern
+rather than generated - 12 tables (the 11 write-capable entities plus
+read-only `lead_stage_templates`), a compile-time drift check
+(`schema.drift.test.ts`) against `@effective-app/schema`'s field names, same
+spirit as `packages/db/src/drift.test.ts`. Table names match `packages/db`'s
+Postgres table names exactly (snake_case), so a `CrudEntry.table` lines up
+1:1 with the server-side write allowlist below.
+
+**Upload endpoint** (`POST /sync/upload`, `apps/server/src/SyncHandlers.ts` +
+`SyncEntities.ts`): the first `apps/server` endpoint that writes, not just
+reads. A table allowlist (deliberately excluding `lead_stage_templates` -
+platform-maintained reference data, not tenant-editable) maps each PowerSync
+table name to its Drizzle table and `@effective-app/schema` entity; each
+op's `opData` decodes through that Effect Schema before reaching Drizzle,
+reusing the same source of truth the drift tests check against rather than
+hand-writing per-table validation. Every op runs through the existing
+`HostScopedDb.query` (RLS-scoped, same as every other handler), but each op
+gets its **own** transaction rather than sharing one across the batch -
+Postgres aborts an entire transaction on the first error, which would make
+one bad op silently fail every op after it. Per the PowerSync upload
+contract (`references/custom-backend.md`), this endpoint always returns 2xx;
+per-op failures surface in the response body's `errors` array instead of an
+HTTP error status, since a 4xx would block the client's upload queue
+permanently.
+
+**CORS**: `effect/unstable/http`'s `HttpRouter.cors` (no CORS module existed
+in this repo's vendored Effect v4 before now), allowlisting `CLIENT_ORIGIN`
+(`http://localhost:5173`). Needed to be provided to `main.ts`'s `ApiLive`
+pipe _before_ `HttpRouter.serve`, unlike `HostScopedDbLayer` - CORS is global
+router middleware that needs the `HttpRouter` service itself to register
+against, available while routes are still being built, not after `serve` has
+already collapsed that requirement.
+
+**Verified end-to-end** (2026-07-17): logged in through the real browser
+flow (Authorization Code + PKCE redirect to Keycloak, back to
+`localhost:5173`) as the seeded `test-host-owner` user; the host's real name
+rendered, synced from Postgres through PowerSync into local SQLite with no
+manual query. Renaming the host in the UI queued a local write, uploaded
+through `POST /sync/upload`, and landed in Postgres - confirmed via `psql`
+directly, with RLS still scoping the write (no `WHERE` clause in the
+handler). A direct `UPDATE hosts ...` via `psql` appeared in the browser
+without a page reload (PowerSync stream push). Reloading the page restored
+the session silently via `signinSilent()` (in-memory token survives a reload
+without ever being persisted). Stopping the `powersync` container flipped
+`useStatus().connected` to `false` and disabled the rename input in the UI
+(demonstrating PowerSync's own sync-stream health); separately, stopping
+`apps/server` (the actual upload path - independent of PowerSync's own
+availability) queued a write locally without touching Postgres and surfaced
+`dataFlowStatus.uploadError` in the UI, then flushed automatically once
+`apps/server` came back - confirming "reads work offline, mutations need
+connectivity" end-to-end, not just the connector wiring.
 
 ## Deferred / out of scope for this PoC
 

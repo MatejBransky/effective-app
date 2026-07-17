@@ -47,4 +47,43 @@ const HostsGroup = HttpApiGroup.make("Hosts")
   )
   .middleware(Auth);
 
-export const Api = HttpApi.make("EffectiveApp").add(HealthGroup).add(MeGroup).add(HostsGroup);
+const SyncOp = Schema.Struct({
+  id: Schema.String,
+  op: Schema.Literals(["PUT", "PATCH", "DELETE"]),
+  table: Schema.String,
+  opData: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+});
+
+const SyncUploadRequest = Schema.Struct({
+  operations: Schema.Array(SyncOp),
+});
+
+const SyncOpError = Schema.Struct({
+  id: Schema.String,
+  reason: Schema.String,
+});
+
+const SyncUploadResponse = Schema.Struct({
+  errors: Schema.Array(SyncOpError),
+});
+
+// The PowerSync upload-queue contract (see references/custom-backend.md's "Backend API
+// for uploadData") requires this endpoint to always return 2xx - a 4xx blocks the
+// client's upload queue permanently. So there's deliberately no `error` schema here: a
+// per-op validation/write failure is reported inside `SyncUploadResponse.errors`, not as
+// an HTTP-level error. The only non-2xx this endpoint can produce is `Auth`'s existing
+// 401 for a missing/invalid token.
+const SyncGroup = HttpApiGroup.make("Sync")
+  .add(
+    HttpApiEndpoint.post("upload", "/sync/upload", {
+      payload: SyncUploadRequest,
+      success: SyncUploadResponse,
+    }),
+  )
+  .middleware(Auth);
+
+export const Api = HttpApi.make("EffectiveApp")
+  .add(HealthGroup)
+  .add(MeGroup)
+  .add(HostsGroup)
+  .add(SyncGroup);

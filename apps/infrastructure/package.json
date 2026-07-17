@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy deploy --yes \"$@\"' --",
-    "dev": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy dev --yes \"$@\"' --",
-    "destroy": "sh -c 'set -a; . ../../.env; CI=1; set +a; alchemy destroy \"$@\"' --",
-    "bootstrap-github": "sh -c 'set -a; . ../../.env; CI=1; set +a; unset CLOUDFLARE_API_TOKEN; alchemy deploy stacks/github.ts --yes'",
+    "deploy": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; alchemy deploy --yes \"$@\"'",
+    "dev": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; alchemy dev --yes \"$@\"'",
+    "destroy": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; alchemy destroy \"$@\"'",
+    "bootstrap-github": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; CI=1; set +a; unset CLOUDFLARE_API_TOKEN; alchemy deploy stacks/github.ts --yes'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

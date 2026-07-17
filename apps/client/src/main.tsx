@@ -3,9 +3,13 @@ import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 
-import { completeLogin, isLoginCallback } from "./lib/auth";
+import { completeLogin, isLoginCallback, listenForLogoutInOtherTabs } from "./lib/auth";
 import { db } from "./lib/powersync/database.ts";
 import { routeTree } from "./routeTree.gen";
+
+// Every tab listens from startup, not just after its own login - a *different* tab's
+// logout needs to reach tabs that never call `logout()` themselves.
+listenForLogoutInOtherTabs();
 
 const router = createRouter({ routeTree });
 

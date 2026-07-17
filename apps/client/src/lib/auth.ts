@@ -40,12 +40,38 @@ export const userManager = new UserManager({
 export const login = (): Promise<void> => userManager.signinRedirect();
 
 /**
+ * Each browser tab holds its own independent in-memory session (no shared
+ * `localStorage` to piggyback the native cross-tab `storage` event on - by design, see
+ * the module comment above), so logging out in one tab otherwise goes unnoticed by
+ * others until their own next silent-renew attempt happens to fail. `BroadcastChannel`
+ * closes that gap explicitly instead of waiting on that.
+ */
+const authChannel = new BroadcastChannel("effective-app-auth");
+
+/**
  * Ends the Keycloak SSO session too (`signoutRedirect`, not just a local `removeUser`) -
  * otherwise `restoreSession`'s silent renew would immediately re-authenticate the user
- * from Keycloak's still-live session cookie right after a "logout".
+ * from Keycloak's still-live session cookie right after a "logout". Also notifies other
+ * open tabs (see `listenForLogoutInOtherTabs`) before the redirect navigates this tab
+ * away.
  */
 export const logout = async (): Promise<void> => {
+  authChannel.postMessage({ type: "logged-out" });
   await userManager.signoutRedirect();
+};
+
+/**
+ * Called once at app startup (see `main.tsx`) in every tab. A full reload is the
+ * simplest reliable reaction: it re-runs `restoreSession` from scratch, which now
+ * correctly fails (the Keycloak SSO session is gone too) and the route guard redirects
+ * to `/login` - the same end state a manual reload already produced, just automatic.
+ */
+export const listenForLogoutInOtherTabs = (): void => {
+  authChannel.addEventListener("message", (event: MessageEvent<{ type: string }>) => {
+    if (event.data.type === "logged-out") {
+      window.location.reload();
+    }
+  });
 };
 
 export const getUser = (): Promise<User | null> => userManager.getUser();

@@ -674,26 +674,45 @@ router middleware that needs the `HttpRouter` service itself to register
 against, available while routes are still being built, not after `serve` has
 already collapsed that requirement.
 
-**Home page UX (`_authenticated.index.tsx`)** - two refinements made after
-the first working version, both informed by how PowerSync's reactivity
-actually behaves rather than assumptions:
+**App shell (`_authenticated.tsx`)** - sync status, the logged-in user, and
+cross-tab logout are handled once in the layout every authenticated route
+shares, not duplicated per page:
 
-- _Offline shouldn't affect reads, only a stuck write should surface an
-  error._ The first version disabled the rename input whenever
-  `useStatus().connected` was `false` - but `connected` reflects the
-  PowerSync service's _download_ stream, not whether a write can reach
-  `apps/server` (the actual upload path), and disabling on mere
-  disconnection contradicts the local-first premise (edits should always be
-  possible; only a write that's been stuck unsynced for a while is worth
-  interrupting the user about). Fixed by reactively watching PowerSync's own
-  internal `ps_crud` upload-queue table (`SELECT COUNT(*) AS row_count FROM
-ps_crud` - the documented pattern in PowerSync's Production Readiness
-  Guide) instead of `useStatus()`, and only escalating to a visible
-  "Failed to save changes" + retry button after the queue has stayed
-  non-empty for 30 seconds - a brief blip or a slow-but-working retry
-  shouldn't alarm the user. "Retry" forces a fresh `disconnect()`/`connect()`
-  cycle since `AbstractPowerSyncDatabase` has no public "upload now" API to
-  call instead (checked its surface directly).
+- _Stuck-write status is an app-shell concern, not a per-page one._ Originally
+  lived inside `_authenticated.index.tsx` (the only page at the time); moved
+  to a `useSyncStatus()` hook (`apps/client/src/lib/powersync/useSyncStatus.ts`)
+  mounted once in `_authenticated.tsx`'s layout, so a page never has to
+  reimplement "was my write stuck" - it's already visible in the shared
+  status bar above `<Outlet />` regardless of which page is showing.
+- _Logged-in username._ `_authenticated.tsx`'s `beforeLoad` already resolves
+  the full `User` (via `restoreSession`) to decide whether to redirect to
+  `/login`; the layout component reads it back via `Route.useRouteContext()`
+  and shows `user.profile.preferred_username` next to "Log out" - no extra
+  fetch, since `beforeLoad`'s return value is exactly what TanStack Router
+  merges into route context for the component to read.
+- _Cross-tab logout._ Reported gap: logging out in one browser tab left
+  other open tabs on the same origin still showing as logged in - sometimes
+  indefinitely, sometimes reverting back to "logged in" after appearing to
+  react, until a manual reload. Root cause: token storage is in-memory only
+  (deliberately, see `auth.ts`'s module comment), so each tab's
+  `oidc-client-ts` `UserManager` is a fully independent instance with no
+  built-in cross-tab awareness - unlike `localStorage`, which fires a native
+  `storage` event in _other_ tabs, in-memory state changes in one tab are
+  invisible to others until that other tab's own next silent-renew happens
+  to fail. Fixed with an explicit `BroadcastChannel("effective-app-auth")` in
+  `auth.ts`: `logout()` posts a message before redirecting away, and every
+  tab (registered once at startup in `main.tsx`) reloads on receiving it -
+  the reload re-runs `restoreSession()`, which now correctly fails (the
+  Keycloak SSO session is gone too) and the route guard redirects to
+  `/login`, the same end state a manual reload already produced, just
+  automatic. Verified by posting a message on a second `BroadcastChannel`
+  instance from the same origin and confirming the app's own listener
+  triggered a real reload in response.
+
+**Home page (`_authenticated.index.tsx`)** - one remaining UX refinement
+made after the first working version, informed by how PowerSync's
+reactivity actually behaves rather than assumptions:
+
 - _Old-value flicker on blur._ The first version kept the input **controlled**
   (`value={draftName ?? host.name}`) and reset the optimistic `draftName`
   state as soon as `db.execute()`'s promise resolved, assuming the `hosts`
@@ -738,7 +757,10 @@ and without disabling the input; after the 30s grace period the "Failed to
 save changes" + retry banner appeared as designed, and the write flushed
 automatically once `apps/server` came back (PowerSync's own retry, before
 "Try again" was even clicked) - confirming "reads work offline, mutations
-need connectivity" end-to-end, not just the connector wiring.
+need connectivity" end-to-end, not just the connector wiring. The layout
+correctly showed "Logged in as test-host-owner", and a normal single-tab
+logout still redirected to Keycloak's real login page after the app-shell
+changes above.
 
 ## Deferred / out of scope for this PoC
 

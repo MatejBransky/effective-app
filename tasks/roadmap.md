@@ -1,0 +1,109 @@
+# Roadmap - what's left to make this boilerplate "complete"
+
+This is the higher-level index of remaining initiatives, written up because a
+new session is starting and this list only existed in conversation until now.
+For the immediate next task's detailed plan, see
+[`tasks/integrate-client.md`](integrate-client.md).
+
+## Done (backend side, verified live)
+
+Domain model as Effect Schema, Drizzle bridge with a drift test, Postgres RLS
+per-tenant isolation, self-hosted Keycloak issuing `host_id`-scoped JWTs,
+self-hosted PowerSync (Sync Streams, least-privilege replication role),
+`apps/server` with JWT verification and one RLS-backed query endpoint. See
+`docs/data-model.md` for the full writeup of each.
+
+## Next up (already planned in detail)
+
+**[`tasks/integrate-client.md`](integrate-client.md)** - wire `apps/client`
+to real Keycloak login and real PowerSync sync/upload, closing the
+local-first loop from browser to Postgres and back. This is the immediate
+next task.
+
+That task should also be the natural place to build the **UI example that
+reads and mutates data with PowerSync's online-required-for-mutations
+behavior** (mentioned when this roadmap was written) - i.e. don't just wire
+the connector, actually demo/prove the "mutations need connectivity, reads
+don't" behavior described in `README.md`'s intro (disabled/pending state
+while offline, successful mutation once back online). Fold this into
+`integrate-client.md`'s step 7 (verify the full loop live) rather than
+treating it as a separate task.
+
+## Documented as planned, not built yet
+
+Both of these are already named in `README.md`'s "Layout" section as
+intended parts of this boilerplate - they just don't exist yet:
+
+- **`apps/infrastructure`** - "Alchemy IaC that deploys the above." Needs to
+  be initialized against `repos/alchemy-effect` (the Effect-native Alchemy
+  flavor this repo already vendors specifically for this - see `AGENTS.md`:
+  analyze it before writing any IaC code, don't copy patterns from plain
+  Alchemy docs without checking they still apply). Scope: deploy
+  `apps/server` to Cloudflare Workers at minimum; decide what else needs a
+  cloud target (`apps/client` as static assets via Workers/Pages? Keycloak
+  and the self-hosted Postgres/PowerSync stack most likely stay
+  self-hosted/VM-based rather than move to Cloudflare - worth an explicit
+  decision, not a silent default).
+- **`packages/shared`'s "app-shell state"** - a modal manager / app-shell
+  manager / keybindings layer (command palette style global shortcuts, a
+  place to trigger modals from anywhere in the tree without prop-drilling).
+  Independent of the backend/infra work above - can be built in parallel,
+  no dependencies on `apps/infrastructure` or the PowerSync client wiring.
+
+## New idea from this conversation: scheduled/async jobs example
+
+A concrete example of a scheduled/background job (Effect `Schedule` or
+similar) that:
+
+- Runs locally during dev without needing any external/online service.
+- Also runs after deployment to Cloudflare (Cron Triggers or Queues,
+  whichever fits) - the point is proving **local/cloud parity**: the same
+  logic works in both places, not two different implementations.
+
+This depends on `apps/infrastructure` existing first (nothing to deploy to
+Cloudflare and verify parity against until then) - do it after, not before,
+the infrastructure item above.
+
+## Exploratory - needs a dedicated design conversation before it's a real task
+
+These two are related (the second depends on the first) but neither is
+concretely scoped yet - don't start building against guesses. Flagged here
+so they aren't lost, not as ready-to-implement plans.
+
+### AI communication prep (general capability)
+
+`AGENTS.md`/`README.md` both call this app "AI-agent-controllable" without
+saying what that means technically. Left open when this roadmap was written
+- candidates discussed: an MCP server exposing `apps/server`'s capabilities
+as tools, vs. just making sure `HttpApi` contracts/error types/docs are
+clean enough for any agent to code against directly. Revisit before
+starting the item below, since it depends on this being resolved first.
+
+### Customer-facing "AI proposes a PoC feature" playground
+
+The actual product idea (not yet a technical plan): let a **customer**,
+after logging in, describe a feature they want in a "playground" area of
+the app. **Their own AI coding agent** (Claude Code, Gemini, ChatGPT,
+opencode, etc. - explicitly **bring-your-own**, not a vendor-hosted AI
+integration we'd be paying for on the customer's behalf) reads this app's
+docs/API and implements a PoC, opening a PR in our repo. One of our
+developers then reviews it - merges, refines, or pushes back. The goal:
+the customer gets to validate their own idea with a working PoC *before*
+formally requesting it from the dev team, instead of us building things
+customers turn out not to actually want.
+
+Open questions to resolve in a dedicated scoping conversation, not guessed
+at here:
+
+- How does the customer's own agent authenticate/get scoped, sandboxed
+  access to propose a PR against our repo (not our production
+  infrastructure)?
+- What does "reads this app's docs/API to know how to extend it" require
+  concretely - is this the same mechanism as "AI communication prep" above,
+  or something narrower (e.g. just a well-written `AGENTS.md`-equivalent
+  scoped to the playground)?
+- What's the actual playground surface - a real preview environment per
+  proposal, a sandboxed branch/worktree, something else?
+- Isolation/safety: what can a customer-triggered PoC actually touch (must
+  not reach other tenants' data - ties back into the RLS/multi-tenancy work
+  already done).

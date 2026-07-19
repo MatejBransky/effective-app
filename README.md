@@ -17,6 +17,7 @@ typical of fully offline-first apps.
 - `packages/lint-config`, `packages/typescript-config` - shared tooling config
 - `repos/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code
 - `repos/alchemy-effect` - reference copy of [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) (git subtree), the Effect-native flavor of Alchemy - consulted before writing infrastructure (IaC) code
+- `repos/effect-atom` - reference copy of [tim-smart/effect-atom](https://github.com/tim-smart/effect-atom) (git subtree), the Effect-native state management library - consulted before writing atom-based state code
 
 Apps and packages beyond the tooling above are added iteratively - see the note in
 `AGENTS.md`.

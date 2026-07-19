@@ -15,7 +15,9 @@
     "dev:infra": "docker compose up -d",
     "dev:infra:down": "docker compose down",
     "update:effect": "git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash",
-    "update:alchemy-effect": "git subtree pull --prefix=repos/alchemy-effect https://github.com/alchemy-run/alchemy-effect.git main --squash"
+    "update:alchemy-effect": "git subtree pull --prefix=repos/alchemy-effect https://github.com/alchemy-run/alchemy-effect.git main --squash",
+    "update:effect-atom": "git subtree pull --prefix=repos/effect-atom https://github.com/tim-smart/effect-atom.git main --squash",
+    "update:opencode": "git subtree pull --prefix=repos/opencode https://github.com/anomalyco/opencode.git dev --squash"
   },
   "devDependencies": {
     "@repo/lint-config": "workspace:*",

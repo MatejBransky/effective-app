@@ -18,6 +18,7 @@ typical of fully offline-first apps.
 - `repos/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code
 - `repos/alchemy-effect` - reference copy of [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) (git subtree), the Effect-native flavor of Alchemy - consulted before writing infrastructure (IaC) code
 - `repos/effect-atom` - reference copy of [tim-smart/effect-atom](https://github.com/tim-smart/effect-atom) (git subtree), the Effect-native state management library - consulted before writing atom-based state code
+- `repos/opencode` - reference copy of [anomalyco/opencode](https://github.com/anomalyco/opencode) (git subtree, `dev` branch), an AI coding agent - consulted for agent/CLI tooling patterns
 
 Apps and packages beyond the tooling above are added iteratively - see the note in
 `AGENTS.md`.

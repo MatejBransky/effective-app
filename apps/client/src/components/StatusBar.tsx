@@ -1,4 +1,4 @@
-import { useAtomValue } from "../lib/atom/react.ts";
+import { useAtomValue } from "@effective-app/shared-lib";
 import {
   browserOnlineAtom,
   pendingWritesCountAtom,

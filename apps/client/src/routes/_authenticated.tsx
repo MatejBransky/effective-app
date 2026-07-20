@@ -1,4 +1,5 @@
-import { Link, Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Sidebar } from "../components/Sidebar.tsx";
 import { StatusBar } from "../components/StatusBar.tsx";
 import { db } from "../lib/powersync/database.ts";
 import { logout, restoreSession } from "../lib/auth";
@@ -40,9 +41,7 @@ function AuthenticatedLayout() {
         </button>
       </p>
       {/* Persists across every child route below - only <Outlet /> changes on navigation. */}
-      <nav>
-        <Link to="/">Home</Link> <Link to="/about">About</Link>
-      </nav>
+      <Sidebar />
       <StatusBar />
       <Outlet />
     </>

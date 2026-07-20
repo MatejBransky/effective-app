@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@effective-app/schema": "workspace:*",
+    "@effective-app/shared-app-shell": "workspace:*",
+    "@effective-app/shared-lib": "workspace:*",
     "@journeyapps/wa-sqlite": "1.7.2",
     "@powersync/drizzle-driver": "0.7.4",
     "@powersync/react": "1.10.0",

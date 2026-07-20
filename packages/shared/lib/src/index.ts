@@ -9,9 +9,13 @@ import { useCallback, useSyncExternalStore } from "react";
  * github.com/tim-smart/effect-atom issue #413, tim-smart's own reply: "In v4 Atom is part of
  * the library `import { Atom } from 'effect/unstable/reactivity'`"). The published
  * `@effect-atom/atom-react` still requires `effect: ^3.19` as a peer, which would pull a
- * second, incompatible major version of `effect` into this client - so these are minimal
+ * second, incompatible major version of `effect` into any consumer - so these are minimal
  * hand-rolled React bindings over the registry that already ships in our pinned `effect`,
  * rather than a second dependency tree.
+ *
+ * Lives here (not in apps/client) so every layer above `shared` - entities, features,
+ * widgets, and apps/client itself - shares one registry instance. A registry per package
+ * would mean Atoms set in one package are invisible to `useAtomValue` calls in another.
  */
 export const registry: AtomRegistry.AtomRegistry = AtomRegistry.make();
 

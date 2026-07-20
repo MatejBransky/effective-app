@@ -18,6 +18,24 @@ offline, mutations need connectivity" (`useStatus()`-gated UI, verified by
 stopping `apps/server` mid-edit and watching the write queue then flush).
 See `docs/data-model.md` for the full writeup of each.
 
+**`packages/shared`'s "app-shell state"** (2026-07-19) - `packages/shared/lib`
+(the Atom/`AtomRegistry` React bindings, extracted out of `apps/client` so
+every layer above `shared` can share one registry instance) and
+`packages/shared/app-shell` (a modal manager - `openModal`/`closeModal`,
+rendered as native `<dialog>` elements by `ModalHost` - and a global
+keybindings registry with exact-modifier-match parsing for `"mod+k"`-style
+patterns). Wired into `apps/client` via a `Sidebar` demo (Mod+B toggles it,
+Mod+/ opens a shortcuts-help modal) so the capability is exercised by real
+app code, not just unit tests. **Verified end-to-end** in a real browser:
+both keybindings dispatch correctly and the modal opens/closes. A real bug
+surfaced and got fixed in the process - every Atom defaults to
+`keepAlive: false`, so an atom touched only imperatively (`get`/`update`,
+never `useAtomValue`) gets its node silently reset on the next tick unless
+wrapped in `Atom.keepAlive` - `keybindingsAtom` needed this;
+`modalStackAtom` got it too since it only "worked" by the accident of
+`ModalHost` always subscribing. Regression tests assert both atoms survive
+past a tick with no active subscriber.
+
 ## In progress
 
 - **`apps/infrastructure`** - "Alchemy IaC that deploys the above." Started:
@@ -130,11 +148,8 @@ scripted via API/CLI):
 
 ## Documented as planned, not built yet
 
-- **`packages/shared`'s "app-shell state"** - a modal manager / app-shell
-  manager / keybindings layer (command palette style global shortcuts, a
-  place to trigger modals from anywhere in the tree without prop-drilling).
-  Independent of the backend/infra work above - can be built in parallel,
-  no dependencies on `apps/infrastructure` or the PowerSync client wiring.
+(nothing currently - see "Done" above for `packages/shared`'s app-shell state,
+built 2026-07-19)
 
 ## New idea from this conversation: scheduled/async jobs example
 

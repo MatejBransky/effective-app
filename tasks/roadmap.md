@@ -39,7 +39,7 @@ past a tick with no active subscriber.
 ## In progress
 
 - **`apps/infrastructure`** - "Alchemy IaC that deploys the above." Started:
-  scaffolded against `repos/alchemy-effect` (the Effect-native Alchemy
+  scaffolded against `externals/alchemy-effect` (the Effect-native Alchemy
   flavor this repo vendors for this - see `docs/data-model.md`'s "Cloudflare
   deployment (apps/infrastructure)" section for the full architecture
   writeup, including how Postgres/Hyperdrive, zero-downtime, and local dev

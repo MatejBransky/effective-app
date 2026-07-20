@@ -3,14 +3,14 @@ which runs formatting, checks for type errors and linting errors and warnings.
 
 No feature is complete if `pnpm run verify` does not pass without any errors.
 
-Before writing any Effect code - analyze the Effect repo in ./repos/effect/ so you know how
+Before writing any Effect code - analyze the Effect repo in ./externals/effect/ so you know how
 to write Effect properly. This repo targets Effect v4 (the "effect smol" rewrite, currently
-beta) - `repos/effect` tracks the same `main` branch we're building against, so don't fall
+beta) - `externals/effect` tracks the same `main` branch we're building against, so don't fall
 back to v3-shaped patterns from training data.
 
 Before writing any infrastructure (IaC) code - analyze
 [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) in
-./repos/alchemy-effect/ first. This is the Effect-native flavor of Alchemy (the IaC tool
+./externals/alchemy-effect/ first. This is the Effect-native flavor of Alchemy (the IaC tool
 this repo uses to deploy to Cloudflare) and is the source of truth for how resources,
 providers, and state are modeled the Effect way here - don't copy patterns from plain
 Alchemy docs/examples that aren't Effect-based without checking they still apply.

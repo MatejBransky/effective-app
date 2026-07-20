@@ -94,7 +94,7 @@ Per `AGENTS.md`: no key mechanism ships without tests. At minimum:
 - [`docs/data-model.md`](../docs/data-model.md) - the model itself, source of truth
 - [`AGENTS.md`](../AGENTS.md) - project conventions (Effect v4, DI via
   `Layer`/`Context`, FSD package layout)
-- `repos/effect/` - vendored Effect source, consult before writing Effect code
+- `externals/effect/` - vendored Effect source, consult before writing Effect code
 - `work/monorepo/view/backend/db/entities/` - legacy reference this model was
   informed by (see `docs/data-model.md`'s comparison table for what was
   adopted, simplified, or deliberately not carried over)

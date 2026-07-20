@@ -1020,7 +1020,7 @@ lint coverage was silently dropped.
 `README.md`'s Layout section already named this package ("Alchemy IaC that
 deploys the above") before it existed; this section covers the first real
 step. Uses the vendored Effect-native Alchemy fork
-(`repos/alchemy-effect` - see the repo's own `AGENTS.md` for why: an
+(`externals/alchemy-effect` - see the repo's own `AGENTS.md` for why: an
 Effect-based reimplementation of Alchemy, not a wrapper over the classic
 non-Effect `alchemy` npm package).
 
@@ -1085,7 +1085,7 @@ only ever in an untracked `.env`.
 `beta.63` published the same day this was written) - this repo's pnpm
 supply-chain policy (`minimumReleaseAge: 1440` minutes) blocks installing a
 version published within the last 24 hours, and `beta.62` is also the exact
-version already vendored and analyzed in `repos/alchemy-effect`, so the code
+version already vendored and analyzed in `externals/alchemy-effect`, so the code
 here matches source that was actually read, not assumed compatible.
 `workerd` (Cloudflare's Workers runtime, needed locally for `alchemy dev`)
 required a new `onlyBuiltDependencies`/`allowBuilds` entry in

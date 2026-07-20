@@ -22,7 +22,7 @@ catalog:
   turbo: 2.10.5
   vitest: 4.1.10
   "@effect/vitest": 4.0.0-beta.98
-  # Effect v4 ("effect smol") - beta, but this is what repos/effect (vendored from the
+  # Effect v4 ("effect smol") - beta, but this is what externals/effect (vendored from the
   # Effect-TS/effect main branch) is already on, so we're tracking the same line.
   effect: 4.0.0-beta.98
   drizzle-orm: 0.45.2
@@ -75,7 +75,7 @@ trustPolicyExclude:
   # "trusted publisher", this one has SLSA provenance attestation instead) - checked
   # npm metadata: beta.97 and beta.98 are published by the same `effect-bot` npm user,
   # same maintainer list, same source repo (Effect-TS/effect, the same upstream we
-  # vendor into repos/effect), consistent with the Effect team switching their CI
+  # vendor into externals/effect), consistent with the Effect team switching their CI
   # publish mechanism rather than an account takeover. User-approved 2026-07-15;
   # revisit if pnpm flags it again elsewhere.
   - "@effect/vitest@4.0.0-beta.98"

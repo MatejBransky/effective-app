@@ -1,16 +1,16 @@
 {
-  "typescript.preferences.autoImportFileExcludePatterns": ["repos/**"],
-  "javascript.preferences.autoImportFileExcludePatterns": ["repos/**"],
+  "typescript.preferences.autoImportFileExcludePatterns": ["externals/**"],
+  "javascript.preferences.autoImportFileExcludePatterns": ["externals/**"],
 
   "files.exclude": {
-    "repos/**": true
+    "externals/**": true
   },
 
   "files.watcherExclude": {
-    "repos/**": true
+    "externals/**": true
   },
 
   "search.exclude": {
-    "repos/**": true
+    "externals/**": true
   }
 }

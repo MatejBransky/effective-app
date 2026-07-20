@@ -15,10 +15,10 @@ typical of fully offline-first apps.
 - `packages/entities`, `packages/features`, `packages/widgets` - FSD slices, each its own package; a package's `package.json#exports` is its public API instead of a barrel `index.ts`, and the FSD layer-import rule (a slice may only depend on slices in strictly lower layers) is enforced through the pnpm/Turborepo package graph, not a folder-path lint rule
 - `packages/shared` - cross-cutting FE code (ui kit, api client, app-shell state, lib, config)
 - `packages/lint-config`, `packages/typescript-config` - shared tooling config
-- `repos/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code
-- `repos/alchemy-effect` - reference copy of [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) (git subtree), the Effect-native flavor of Alchemy - consulted before writing infrastructure (IaC) code
-- `repos/effect-atom` - reference copy of [tim-smart/effect-atom](https://github.com/tim-smart/effect-atom) (git subtree), the Effect-native state management library - consulted before writing atom-based state code
-- `repos/opencode` - reference copy of [anomalyco/opencode](https://github.com/anomalyco/opencode) (git subtree, `dev` branch), an AI coding agent - consulted for agent/CLI tooling patterns
+- `externals/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code
+- `externals/alchemy-effect` - reference copy of [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) (git subtree), the Effect-native flavor of Alchemy - consulted before writing infrastructure (IaC) code
+- `externals/effect-atom` - reference copy of [tim-smart/effect-atom](https://github.com/tim-smart/effect-atom) (git subtree), the Effect-native state management library - consulted before writing atom-based state code
+- `externals/opencode` - reference copy of [anomalyco/opencode](https://github.com/anomalyco/opencode) (git subtree, `dev` branch), an AI coding agent - consulted for agent/CLI tooling patterns
 
 Apps and packages beyond the tooling above are added iteratively - see the note in
 `AGENTS.md`.

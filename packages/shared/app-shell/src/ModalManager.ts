@@ -26,13 +26,22 @@ export const modalStackAtom: Atom.Writable<ReadonlyArray<ModalEntry>> = Atom.kee
   Atom.make<ReadonlyArray<ModalEntry>>([]),
 );
 
-/** Pushes a modal onto the stack from anywhere in the component tree, no prop-drilling or
- * context provider needed. `render` receives a handle so the modal's own content can close
- * itself (e.g. a "Cancel" button) without the caller having to track the id. */
-export const openModal = (render: (handle: ModalHandle) => ReactNode): ModalHandle => {
+/** Opens a modal from anywhere in the component tree, no prop-drilling or context provider
+ * needed. `render` receives a handle so the modal's own content can close itself (e.g. a
+ * "Cancel" button) without the caller having to track the id.
+ *
+ * By default this **replaces** any currently-open modal(s) rather than stacking on top of
+ * them - two unrelated modals overlapping is almost never the intent, and native `<dialog>`
+ * elements don't visually communicate "there's another one behind this" the way a z-indexed
+ * card stack might. Pass `{ stack: true }` for the rarer case where nesting is actually
+ * wanted (e.g. a "discard changes?" confirmation opened from within a form modal). */
+export const openModal = (
+  render: (handle: ModalHandle) => ReactNode,
+  options?: { readonly stack?: boolean },
+): ModalHandle => {
   const id = crypto.randomUUID();
   const handle: ModalHandle = { id, close: () => closeModal(id) };
-  registry.update(modalStackAtom, (stack) => [...stack, { id, render }]);
+  registry.update(modalStackAtom, (stack) => [...(options?.stack ? stack : []), { id, render }]);
   return handle;
 };
 

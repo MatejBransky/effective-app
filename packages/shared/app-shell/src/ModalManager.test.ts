@@ -19,16 +19,23 @@ describe("openModal/closeModal", () => {
     expect(registry.get(modalStackAtom)).toHaveLength(1);
   });
 
-  it("stacks multiple modals in open order", () => {
-    const first = openModal(() => "first");
+  it("replaces the current modal by default, not stacking", () => {
+    openModal(() => "first");
     const second = openModal(() => "second");
+
+    expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([second.id]);
+  });
+
+  it("stacks when { stack: true } is passed", () => {
+    const first = openModal(() => "first");
+    const second = openModal(() => "second", { stack: true });
 
     expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([first.id, second.id]);
   });
 
-  it("removes only the closed modal, keeping the rest", () => {
+  it("removes only the closed modal, keeping the rest, when stacked", () => {
     const first = openModal(() => "first");
-    const second = openModal(() => "second");
+    const second = openModal(() => "second", { stack: true });
 
     closeModal(first.id);
 

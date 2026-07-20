@@ -1,8 +1,10 @@
+import { resolveActionLabel, useActionTrigger } from "@effective-app/shared-app-shell";
 import { toCompilableQuery } from "@powersync/drizzle-driver";
 import { useQuery } from "@powersync/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { eq } from "drizzle-orm";
 import { useEffect, useRef, useState } from "react";
+import { resetHostName } from "../lib/hostActions.ts";
 import { drizzleDb } from "../lib/powersync/database.ts";
 import { hosts, members } from "../lib/powersync/schema.ts";
 
@@ -40,6 +42,11 @@ function HomePage() {
   // unrelated to whether the change ever reaches the server), so it's shown right next to
   // the field the user was editing rather than in the app-shell.
   const [writeError, setWriteError] = useState<string | null>(null);
+
+  // Demo of @effective-app/shared-app-shell's action registry: `resetHostName.execute`
+  // owns its own confirm-then-write flow (see hostActions.ts) - this hook only tracks
+  // pending/error state for the button below, it doesn't orchestrate anything itself.
+  const resetAction = useActionTrigger(resetHostName);
 
   const host = hostRows[0];
 
@@ -103,6 +110,16 @@ function HomePage() {
         />
       </h1>
       {writeError && <p role="alert">{writeError}</p>}
+      <p>
+        <button
+          type="button"
+          disabled={resetAction.pending || !!resetHostName.isDisabled?.(host)}
+          onClick={() => resetAction.trigger(host)}
+        >
+          {resetAction.pending ? "Resetting..." : resolveActionLabel(resetHostName, host)}
+        </button>
+        {resetAction.error && <span role="alert"> Failed to reset the name locally.</span>}
+      </p>
       <h2>Members</h2>
       <ul>
         {memberRows.map((member) => (

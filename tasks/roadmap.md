@@ -36,6 +36,22 @@ wrapped in `Atom.keepAlive` - `keybindingsAtom` needed this;
 `ModalHost` always subscribing. Regression tests assert both atoms survive
 past a tick with no active subscriber.
 
+**Action registry** (2026-07-20) - `packages/shared/app-shell`'s
+`ActionDefinition`/`defineAction`/`useActionTrigger`, plus `confirm()` (wraps
+`openModal` in `Effect.callback` so a confirmation dialog can be
+`yield*`-ed inline inside an action's own `Effect.gen`, not orchestrated by
+the registry). `execute` has full control over the trigger - confirm, fetch,
+several sequential steps, whatever it needs - and `isDisabled` depends on
+whatever context the action is triggered with (a specific entity's current
+state), not global state. **Verified end-to-end** in a real browser against
+real synced data: `apps/client/src/lib/hostActions.ts`'s `resetHostName`
+action shows a "Resetting..." pending state, opens a confirm dialog
+interpolating the real host name, performs the actual PowerSync write on
+confirm (query re-syncs to the new value), and `isDisabled` correctly
+re-evaluates against the new state afterward. A test interrupting a
+running fiber mid-confirmation asserts the modal closes instead of being
+left stuck open with nothing listening for its result.
+
 ## In progress
 
 - **`apps/infrastructure`** - "Alchemy IaC that deploys the above." Started:

@@ -12,7 +12,7 @@
     "format:fix": "oxfmt --disable-nested-config .",
     "verify": "turbo run lint format typecheck",
     "verify:fix": "turbo run lint:fix format:fix",
-    "dev:infra": "docker compose up -d",
+    "dev:infra": "docker compose --progress quiet up -d --wait --wait-timeout 180",
     "dev:infra:down": "docker compose down",
     "update:effect": "git subtree pull --prefix=externals/effect https://github.com/Effect-TS/effect.git main --squash",
     "update:alchemy-effect": "git subtree pull --prefix=externals/alchemy-effect https://github.com/alchemy-run/alchemy-effect.git main --squash",

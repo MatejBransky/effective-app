@@ -9,6 +9,9 @@
     "//#format:fix": {
       "cache": false
     },
+    "//#dev:infra": {
+      "cache": false
+    },
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
@@ -21,6 +24,7 @@
       "dependsOn": ["^build"]
     },
     "dev": {
+      "dependsOn": ["//#dev:infra"],
       "cache": false,
       "persistent": true
     },

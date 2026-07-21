@@ -8,9 +8,11 @@ export const ModalHost = () => {
   const stack = useAtomValue(modalStackAtom);
   return (
     <>
-      {stack.map(({ id, render }) => (
-        <Modal key={id} id={id} render={render} />
-      ))}
+      {stack
+        .filter((entry) => !entry.hidden)
+        .map(({ id, render }) => (
+          <Modal key={id} id={id} render={render} />
+        ))}
     </>
   );
 };

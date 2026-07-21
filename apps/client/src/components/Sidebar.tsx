@@ -41,11 +41,59 @@ export const Sidebar = () => {
       <button type="button" onClick={openShortcutsHelp}>
         Keyboard shortcuts (⌘/Ctrl+/)
       </button>
+      <button type="button" onClick={openLockedDemo}>
+        Locked dialog demo
+      </button>
+      <button type="button" onClick={openPlainDemo}>
+        Plain dialog demo
+      </button>
     </aside>
   );
 };
 
-const openShortcutsHelp = () => openModal((handle) => <ShortcutsHelp handle={handle} />);
+/** `restorePrevious` marks the help dialog itself as a temporary, unintrusive overlay: opening
+ * it never destroys whatever was open before it (a plain dialog, the reset-name confirm, ...) -
+ * that modal is suspended and comes back automatically once this help dialog closes. */
+const openShortcutsHelp = () =>
+  openModal((handle) => <ShortcutsHelp handle={handle} />, { restorePrevious: true });
+
+/** Demo of `openModal`'s `locked` option: while this is open, no other `openModal` call -
+ * including the ⌘/Ctrl+/ shortcuts help - can replace or cover it. */
+const openLockedDemo = () =>
+  openModal(
+    (handle) => (
+      <div>
+        <h2>Locked dialog</h2>
+        <p>
+          Opened with <code>{"{ locked: true }"}</code>. Try <kbd>⌘/Ctrl + /</kbd> - the shortcuts
+          help won&apos;t appear until you close this dialog first.
+        </p>
+        <button type="button" onClick={handle.close}>
+          Close
+        </button>
+      </div>
+    ),
+    { locked: true },
+  );
+
+/** Demo of the *other* side of `restorePrevious`: this dialog is opened with no special
+ * options at all - it doesn't need to know anything about what might replace it. Press
+ * ⌘/Ctrl + / to open the shortcuts help on top of it, then close the help dialog - this one
+ * reappears instead of being lost, purely because the help dialog opted into
+ * `restorePrevious`. */
+const openPlainDemo = () =>
+  openModal((handle) => (
+    <div>
+      <h2>Plain dialog</h2>
+      <p>
+        Opened with no options. Press <kbd>⌘/Ctrl + /</kbd> to open the shortcuts help on top of it,
+        then close the help dialog - this one reappears instead of being lost.
+      </p>
+      <button type="button" onClick={handle.close}>
+        Close
+      </button>
+    </div>
+  ));
 
 const ShortcutsHelp = ({ handle }: { readonly handle: ModalHandle }) => (
   <div>

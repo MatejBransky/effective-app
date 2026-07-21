@@ -71,3 +71,70 @@ describe("openModal/closeModal", () => {
     expect(registry.get(modalStackAtom)).toHaveLength(1);
   });
 });
+
+describe("locked modals", () => {
+  it("refuses to be replaced by a later default openModal call", () => {
+    const locked = openModal(() => "locked", { locked: true });
+    openModal(() => "second");
+
+    expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([locked.id]);
+  });
+
+  it("refuses to be covered even by a stacked openModal call", () => {
+    const locked = openModal(() => "locked", { locked: true });
+    openModal(() => "second", { stack: true });
+
+    expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([locked.id]);
+  });
+
+  it("allows new modals again once the locked one is closed", () => {
+    const locked = openModal(() => "locked", { locked: true });
+    closeModal(locked.id);
+
+    const second = openModal(() => "second");
+
+    expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([second.id]);
+  });
+});
+
+describe("restorePrevious modals", () => {
+  it("suspends (not discards) whatever was open, without needing the other modal's cooperation", () => {
+    const first = openModal(() => "first");
+    const second = openModal(() => "second", { restorePrevious: true });
+
+    expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([first.id, second.id]);
+  });
+
+  it("hides the suspended modal from the rendered stack", () => {
+    const first = openModal(() => "first");
+    openModal(() => "second", { restorePrevious: true });
+
+    const stack = registry.get(modalStackAtom);
+    expect(stack.find((entry) => entry.id === first.id)?.hidden).toBe(true);
+  });
+
+  it("restores the suspended modal (un-hidden) once it closes", () => {
+    const first = openModal(() => "first");
+    const second = openModal(() => "second", { restorePrevious: true });
+
+    closeModal(second.id);
+
+    const stack = registry.get(modalStackAtom);
+    expect(stack.map((entry) => entry.id)).toEqual([first.id]);
+    expect(stack[0]?.hidden).toBeFalsy();
+  });
+
+  it("is a no-op suspension when nothing was open before it", () => {
+    const only = openModal(() => "only", { restorePrevious: true });
+
+    expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([only.id]);
+  });
+
+  it("is discarded along with what it suspended if a later default openModal call replaces it", () => {
+    openModal(() => "first");
+    openModal(() => "second", { restorePrevious: true });
+    const third = openModal(() => "third");
+
+    expect(registry.get(modalStackAtom).map((entry) => entry.id)).toEqual([third.id]);
+  });
+});

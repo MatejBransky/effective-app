@@ -1,11 +1,11 @@
-import { useAtomValue } from "@effective-app/shared-lib";
-import { openModal, registerKeybinding, type ModalHandle } from "@effective-app/shared-app-shell";
+import { openModal, registerKeybinding, type ModalHandle } from "@repo/shared-app-shell";
+import { useAtomValue } from "@effect/atom-react";
 import { Link } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { sidebarOpenAtom, toggleSidebar } from "../lib/appShell/sidebarAtoms.ts";
 
 /**
- * A concrete demo of every `@effective-app/shared-app-shell` capability in one place, not
+ * A concrete demo of every `@repo/shared-app-shell` capability in one place, not
  * three disconnected examples: open/closed state lives in an Atom (`sidebarOpenAtom`, same
  * pattern as `syncAtoms.ts`), toggled by a registered keybinding (Mod+B) as well as a plain
  * button, and a second keybinding (Mod+/) opens a modal via `openModal`.

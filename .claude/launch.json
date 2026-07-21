@@ -4,13 +4,13 @@
     {
       "name": "client",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@effective-app/client", "run", "dev"],
+      "runtimeArgs": ["--filter", "@repo/client", "run", "dev"],
       "port": 5173
     },
     {
       "name": "server",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@effective-app/server", "run", "dev"],
+      "runtimeArgs": ["--filter", "@repo/server", "run", "dev"],
       "port": 4000
     }
   ]

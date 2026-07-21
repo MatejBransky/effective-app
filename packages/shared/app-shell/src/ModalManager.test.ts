@@ -1,4 +1,4 @@
-import { registry } from "@effective-app/shared-lib";
+import { registry } from "@repo/shared-lib";
 import { beforeEach, describe, expect, it } from "vitest";
 import { closeModal, modalStackAtom, openModal } from "./ModalManager.ts";
 

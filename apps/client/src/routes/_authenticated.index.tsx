@@ -1,4 +1,4 @@
-import { resolveActionLabel, useActionTrigger } from "@effective-app/shared-app-shell";
+import { resolveActionLabel, useActionTrigger } from "@repo/shared-app-shell";
 import { toCompilableQuery } from "@powersync/drizzle-driver";
 import { useQuery } from "@powersync/react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -43,7 +43,7 @@ function HomePage() {
   // the field the user was editing rather than in the app-shell.
   const [writeError, setWriteError] = useState<string | null>(null);
 
-  // Demo of @effective-app/shared-app-shell's action registry: `resetHostName.execute`
+  // Demo of @repo/shared-app-shell's action registry: `resetHostName.execute`
   // owns its own confirm-then-write flow (see hostActions.ts) - this hook only tracks
   // pending/error state for the button below, it doesn't orchestrate anything itself.
   const resetAction = useActionTrigger(resetHostName);

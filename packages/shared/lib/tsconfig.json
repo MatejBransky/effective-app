@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "@repo/typescript-config/react-app.json",
+  "extends": "@repo/typescript-config/node-library.json",
   "compilerOptions": {
     "rootDir": "src"
   },

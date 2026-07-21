@@ -18,7 +18,7 @@ import * as Redacted from "effect/Redacted";
  * Cloudflare Workers" token doesn't grant (see docs/data-model.md's
  * "GitHub CI/CD" section). Run once via:
  *
- *   pnpm --filter @effective-app/infrastructure run bootstrap-github
+ *   pnpm --filter @repo/infrastructure run bootstrap-github
  *
  * Re-run only to rotate the token or change its permissions.
  */

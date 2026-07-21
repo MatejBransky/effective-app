@@ -1,4 +1,4 @@
-import { hosts } from "@effective-app/db";
+import { hosts } from "@repo/db";
 import { Effect } from "effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Api, HostNotFound } from "./Api.ts";

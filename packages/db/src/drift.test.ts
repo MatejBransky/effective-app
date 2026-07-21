@@ -11,7 +11,7 @@ import {
   SequenceEdge,
   SequenceEnrollment,
   SequenceVersion,
-} from "@effective-app/schema";
+} from "@repo/schema";
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 

@@ -12,7 +12,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  * Table names (the string passed to `sqliteTable`, not the JS export name) match
  * `packages/db`'s Postgres table names exactly, so a `CrudEntry.table` lines up 1:1 with
  * `apps/server/src/SyncEntities.ts`'s write allowlist. Column keys are camelCase, matching
- * `@effective-app/schema`'s field names (and thus `apps/server`'s decode logic) - same
+ * `@repo/schema`'s field names (and thus `apps/server`'s decode logic) - same
  * convention the previous hand-written PowerSync `Table` version used. Column types are
  * limited to `text`/`integer` (SQLite has no boolean/date/JSON type) - booleans as 0/1,
  * dates as ISO strings, and the four jsonb-backed fields (`rules`/`config`/`snapshot`/

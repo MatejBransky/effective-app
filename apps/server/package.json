@@ -1,5 +1,5 @@
 {
-  "name": "@effective-app/server",
+  "name": "@repo/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@effective-app/db": "workspace:*",
-    "@effective-app/schema": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/schema": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "jose": "catalog:",

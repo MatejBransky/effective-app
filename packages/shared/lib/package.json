@@ -1,5 +1,5 @@
 {
-  "name": "@effective-app/shared-lib",
+  "name": "@repo/shared-lib",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,14 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@effect/atom-react": "catalog:",
-    "effect": "catalog:",
-    "react": "catalog:",
-    "scheduler": "0.27.0"
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@types/react": "catalog:",
+    "@types/node": "catalog:",
     "typescript": "catalog:"
   }
 }

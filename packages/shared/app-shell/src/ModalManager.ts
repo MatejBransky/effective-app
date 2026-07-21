@@ -1,4 +1,4 @@
-import { registry } from "@effective-app/shared-lib";
+import { registry } from "@repo/shared-lib";
 import { Atom } from "effect/unstable/reactivity";
 import type { ReactNode } from "react";
 

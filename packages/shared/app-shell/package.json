@@ -1,5 +1,5 @@
 {
-  "name": "@effective-app/shared-app-shell",
+  "name": "@repo/shared-app-shell",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@effective-app/shared-lib": "workspace:*",
+    "@effect/atom-react": "catalog:",
+    "@repo/shared-lib": "workspace:*",
     "effect": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"

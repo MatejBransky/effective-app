@@ -61,7 +61,7 @@ left stuck open with nothing listening for its result.
   writeup, including how Postgres/Hyperdrive, zero-downtime, and local dev
   parity were resolved). First deployable unit built and **verified live**:
   a trivial `HelloWorker` (`alchemy.run.ts` + `src/HelloWorker.ts`) deployed
-  to a real Cloudflare account - `pnpm --filter @effective-app/infrastructure
+  to a real Cloudflare account - `pnpm --filter @repo/infrastructure
 run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
   deployed `HelloWorker`, and the live `*.workers.dev` URL returned
   `hello world` (HTTP 200) on the first request. Proves the whole toolchain

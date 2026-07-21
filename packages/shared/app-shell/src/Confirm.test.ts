@@ -1,4 +1,4 @@
-import { registry } from "@effective-app/shared-lib";
+import { registry } from "@repo/shared-lib";
 import { Effect, Fiber } from "effect";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it } from "vitest";

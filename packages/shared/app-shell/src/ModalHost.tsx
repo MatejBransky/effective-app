@@ -1,4 +1,4 @@
-import { useAtomValue } from "@effective-app/shared-lib";
+import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { closeModal, modalStackAtom, type ModalHandle } from "./ModalManager.ts";

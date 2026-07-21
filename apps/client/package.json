@@ -1,5 +1,5 @@
 {
-  "name": "@effective-app/client",
+  "name": "@repo/client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,13 +12,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@effective-app/schema": "workspace:*",
-    "@effective-app/shared-app-shell": "workspace:*",
-    "@effective-app/shared-lib": "workspace:*",
+    "@effect/atom-react": "catalog:",
     "@journeyapps/wa-sqlite": "1.7.2",
     "@powersync/drizzle-driver": "0.7.4",
     "@powersync/react": "1.10.0",
     "@powersync/web": "1.39.0",
+    "@repo/schema": "workspace:*",
+    "@repo/shared-app-shell": "workspace:*",
+    "@repo/shared-lib": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",

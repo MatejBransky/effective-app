@@ -1,4 +1,4 @@
-import { useAtomValue } from "@effective-app/shared-lib";
+import { useAtomValue } from "@effect/atom-react";
 import {
   browserOnlineAtom,
   pendingWritesCountAtom,

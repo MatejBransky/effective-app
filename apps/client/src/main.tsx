@@ -1,4 +1,5 @@
-import { RegistryContext, registry } from "@effective-app/shared-lib";
+import { registry } from "@repo/shared-lib";
+import { RegistryContext } from "@effect/atom-react";
 import { PowerSyncContext } from "@powersync/react";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
@@ -33,7 +34,7 @@ async function bootstrap() {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <StrictMode>
-        {/* Provides our single app-wide registry (see @effective-app/shared-lib) to
+        {/* Provides our single app-wide registry (see @repo/shared-lib) to
             @effect/atom-react's hooks - without this, hooks would silently fall back to
             RegistryContext's own default standalone registry instead of the one
             ModalManager/Keybindings/syncAtoms.ts read and write imperatively. */}

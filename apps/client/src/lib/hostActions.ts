@@ -1,4 +1,4 @@
-import { confirm, defineAction } from "@effective-app/shared-app-shell";
+import { confirm, defineAction } from "@repo/shared-app-shell";
 import { eq } from "drizzle-orm";
 import { Effect, Schema } from "effect";
 import { drizzleDb } from "./powersync/database.ts";
@@ -12,7 +12,7 @@ export class ResetHostNameError extends Schema.TaggedErrorClass<ResetHostNameErr
 ) {}
 
 /**
- * A concrete demo of `@effective-app/shared-app-shell`'s action registry against real synced
+ * A concrete demo of `@repo/shared-app-shell`'s action registry against real synced
  * data (not an invented example) - `execute` has full control over the trigger: it `yield*`s
  * `confirm(...)` (an Effect, not a Promise, so it composes directly in this `Effect.gen`
  * alongside the PowerSync write that follows it) and only proceeds to write if confirmed.

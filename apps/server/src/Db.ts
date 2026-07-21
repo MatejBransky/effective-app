@@ -1,4 +1,4 @@
-import * as schema from "@effective-app/db";
+import * as schema from "@repo/db";
 import { Context, Effect, Layer } from "effect";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { drizzle } from "drizzle-orm/node-postgres";

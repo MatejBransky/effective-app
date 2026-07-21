@@ -93,15 +93,9 @@ importers:
 
   apps/client:
     dependencies:
-      '@effective-app/schema':
-        specifier: workspace:*
-        version: link:../../packages/schema
-      '@effective-app/shared-app-shell':
-        specifier: workspace:*
-        version: link:../../packages/shared/app-shell
-      '@effective-app/shared-lib':
-        specifier: workspace:*
-        version: link:../../packages/shared/lib
+      '@effect/atom-react':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.98(effect@4.0.0-beta.98)(react@19.2.7)(scheduler@0.27.0)
       '@journeyapps/wa-sqlite':
         specifier: 1.7.2
         version: 1.7.2
@@ -114,6 +108,15 @@ importers:
       '@powersync/web':
         specifier: 1.39.0
         version: 1.39.0(@journeyapps/wa-sqlite@1.7.2)(@powersync/common@1.57.2)
+      '@repo/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+      '@repo/shared-app-shell':
+        specifier: workspace:*
+        version: link:../../packages/shared/app-shell
+      '@repo/shared-lib':
+        specifier: workspace:*
+        version: link:../../packages/shared/lib
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -209,10 +212,10 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-beta.98(effect@4.0.0-beta.98)(ioredis@5.11.1)
-      '@effective-app/db':
+      '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@effective-app/schema':
+      '@repo/schema':
         specifier: workspace:*
         version: link:../../packages/schema
       drizzle-orm:
@@ -256,7 +259,7 @@ importers:
         specifier: 'catalog:'
         version: 8.22.0
     devDependencies:
-      '@effective-app/schema':
+      '@repo/schema':
         specifier: workspace:*
         version: link:../schema
       '@repo/typescript-config':
@@ -314,7 +317,10 @@ importers:
 
   packages/shared/app-shell:
     dependencies:
-      '@effective-app/shared-lib':
+      '@effect/atom-react':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.98(effect@4.0.0-beta.98)(react@19.2.7)(scheduler@0.27.0)
+      '@repo/shared-lib':
         specifier: workspace:*
         version: link:../lib
       effect:
@@ -345,25 +351,16 @@ importers:
 
   packages/shared/lib:
     dependencies:
-      '@effect/atom-react':
-        specifier: 'catalog:'
-        version: 4.0.0-beta.98(effect@4.0.0-beta.98)(react@19.2.7)(scheduler@0.27.0)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.98
-      react:
-        specifier: 'catalog:'
-        version: 19.2.7
-      scheduler:
-        specifier: 0.27.0
-        version: 0.27.0
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../typescript-config
-      '@types/react':
+      '@types/node':
         specifier: 'catalog:'
-        version: 19.2.17
+        version: 24.13.3
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

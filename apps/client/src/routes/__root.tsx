@@ -1,4 +1,4 @@
-import { ModalHost, useGlobalKeybindings } from "@effective-app/shared-app-shell";
+import { ModalHost, useGlobalKeybindings } from "@repo/shared-app-shell";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 

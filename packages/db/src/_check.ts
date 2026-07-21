@@ -29,7 +29,7 @@ import type {
   SequenceEdge,
   SequenceEnrollment,
   SequenceVersion,
-} from "@effective-app/schema";
+} from "@repo/schema";
 
 import type {
   domainEvents,

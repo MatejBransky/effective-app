@@ -1,5 +1,5 @@
 {
-  "name": "@effective-app/db",
+  "name": "@repo/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "pg": "catalog:"
   },
   "devDependencies": {
-    "@effective-app/schema": "workspace:*",
+    "@repo/schema": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",

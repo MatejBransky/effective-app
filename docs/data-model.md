@@ -640,11 +640,11 @@ interface matched the schema. With the Drizzle schema, every query
 (`drizzleDb.select().from(hosts)...`, wrapped via
 `@powersync/drizzle-driver`'s `toCompilableQuery` for `useQuery`) and every
 write (`drizzleDb.update(hosts).set(...)`) is type-checked against the same
-table definitions the drift test below checks against `@effective-app/schema`.
+table definitions the drift test below checks against `@repo/schema`.
 12 tables (the 11 write-capable entities plus read-only `lead_stage_templates`),
 a compile-time-ish drift check (`schema.drift.test.ts`, using `drizzle-orm`'s
 `getTableColumns` - the same mechanism `packages/db/src/drift.test.ts` already
-uses) against `@effective-app/schema`'s field names. Table names (the string
+uses) against `@repo/schema`'s field names. Table names (the string
 passed to `sqliteTable`, not the JS export name) match `packages/db`'s
 Postgres table names exactly (snake_case), so a `CrudEntry.table` lines up
 1:1 with the server-side write allowlist below.
@@ -668,7 +668,7 @@ supported')` if attempted. **Not currently used by this app** - every
   copy** - confirmed by a PowerSync maintainer as a limitation of PowerSync
   itself, not Drizzle: client tables are backed by views, not real SQLite
   tables with constraints. **Not a gap for this app** - referential/data
-  integrity is enforced server-side (Postgres RLS + the `@effective-app/schema`
+  integrity is enforced server-side (Postgres RLS + the `@repo/schema`
   decode step in `SyncHandlers.ts`); the local copy is a replica, not the
   source of truth. A "raw tables" escape hatch exists if real SQLite
   constraints are ever needed locally, at the cost of losing some automatic
@@ -711,7 +711,7 @@ multi-statement `drizzleDb.transaction()` calls without testing them first.
 `SyncEntities.ts`): the first `apps/server` endpoint that writes, not just
 reads. A table allowlist (deliberately excluding `lead_stage_templates` -
 platform-maintained reference data, not tenant-editable) maps each PowerSync
-table name to its Drizzle table and `@effective-app/schema` entity; each
+table name to its Drizzle table and `@repo/schema` entity; each
 op's `opData` decodes through that Effect Schema before reaching Drizzle,
 reusing the same source of truth the drift tests check against rather than
 hand-writing per-table validation. Every op runs through the existing
@@ -1046,7 +1046,7 @@ defer that. The day-to-day `apps/server` dev loop is unaffected by this,
 though: Workers-specific constraints (no raw TCP, `fetch`-handler model)
 only apply once code actually executes inside `workerd`, which only happens
 via `alchemy dev`/`wrangler dev` - opt-in, not how `pnpm --filter
-@effective-app/server run dev` runs today (plain Node, unchanged).
+@repo/server run dev` runs today (plain Node, unchanged).
 
 **Postgres → Workers, resolved in favor of Hyperdrive, not a driver swap.**
 Cloudflare Workers can't open the raw TCP sockets `pg`/`node-postgres`
@@ -1089,7 +1089,7 @@ its own before any real service depends on this toolchain. Deliberately
 minimal since alchemy-effect is alpha/beta software (its own README says so)
 and this is new tooling for this repo - smallest possible surface area to
 debug if something doesn't behave as documented. `pnpm --filter
-@effective-app/infrastructure run deploy`/`dev`/`destroy` map directly to the
+@repo/infrastructure run deploy`/`dev`/`destroy` map directly to the
 `alchemy` CLI. `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` (`.env.example`)
 are real credentials, unlike every other var in that file - never committed,
 only ever in an untracked `.env`.
@@ -1107,7 +1107,7 @@ low-risk pattern as the existing esbuild/msgpackr-extract/wa-sqlite/@swc/core
 entries, but flagged for the user's own sign-off since the existing entries
 in that file were each explicitly user-approved before being added.
 
-**Verified end-to-end** (2026-07-17): `pnpm --filter @effective-app/infrastructure
+**Verified end-to-end** (2026-07-17): `pnpm --filter @repo/infrastructure
 run deploy` against a real Cloudflare account - bootstrapped the state store
 (`Cloudflare.state()`'s one-time `alchemy-state-store` Worker + Secrets
 Store) on the first run, then deployed `HelloWorker`. A request against the
@@ -1172,7 +1172,7 @@ get that one-time-use privilege is the account's Global API Key
 (`CLOUDFLARE_EMAIL`/`CLOUDFLARE_API_KEY` in `.env`, real credentials like
 the existing `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` entries - never
 committed, never used anywhere else, never used by CI). Run via `pnpm
---filter @effective-app/infrastructure run bootstrap-github`; only needs
+--filter @repo/infrastructure run bootstrap-github`; only needs
 re-running to rotate the token or change its permissions.
 
 **Known, accepted limitation of the PR preview (not yet fixed):** the

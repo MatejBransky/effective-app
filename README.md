@@ -31,8 +31,8 @@ PowerSync locally:
 cp .env.example .env
 pnpm run dev:infra       # starts Postgres + Mailpit + Keycloak + PowerSync (docker compose)
 pnpm run dev:infra:down  # stops them
-pnpm --filter @effective-app/server run dev  # apps/server, once dev:infra is up
-pnpm --filter @effective-app/client run dev  # apps/client, once apps/server is up
+pnpm --filter @repo/server run dev  # apps/server, once dev:infra is up
+pnpm --filter @repo/client run dev  # apps/client, once apps/server is up
 ```
 
 - Postgres: `localhost:5442` (off the standard 5432 to avoid colliding with other local Postgres instances - see `.env.example` for credentials)

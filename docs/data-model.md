@@ -1173,8 +1173,11 @@ its own before any real service depends on this toolchain. Deliberately
 minimal since alchemy-effect is alpha/beta software (its own README says so)
 and this is new tooling for this repo - smallest possible surface area to
 debug if something doesn't behave as documented. `pnpm --filter
-@repo/infrastructure run deploy`/`dev`/`destroy` map directly to the
-`alchemy` CLI. `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` (`.env.example`)
+@repo/infrastructure run deploy`/`alchemy:dev`/`destroy` map directly to the
+`alchemy` CLI - `alchemy:dev` (not just `dev`) so root `pnpm dev`
+(`turbo run dev`) doesn't implicitly spin up a Cloudflare Workers dev
+session alongside `apps/client`/`apps/server`.
+`CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` (`.env.example`)
 are real credentials, unlike every other var in that file - never committed,
 only ever in an untracked `.env`.
 
@@ -1209,7 +1212,7 @@ obvious up front, now baked into the `deploy`/`dev` scripts:
   separate `alchemy bootstrap cloudflare` command first) to proceed
   non-interactively.
 
-Both are now part of `deploy`/`dev`'s scripts in `package.json` (`sh -c 'set
+Both are now part of `deploy`/`alchemy:dev`'s scripts in `package.json` (`sh -c 'set
 -a; . ../../.env; CI=1; set +a; alchemy deploy --yes'`) - deliberately not
 added to `destroy`, which should keep requiring explicit confirmation since
 it's the one genuinely destructive command here.

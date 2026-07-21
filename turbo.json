@@ -24,6 +24,10 @@
       "cache": false,
       "persistent": true
     },
+    "alchemy:dev": {
+      "cache": false,
+      "persistent": true
+    },
     "deploy": {
       "cache": false
     },

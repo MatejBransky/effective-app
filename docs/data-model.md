@@ -802,37 +802,45 @@ reactivity actually behaves rather than assumptions:
   component state (same reasoning as the uncontrolled input above), so
   there's nothing to coordinate beyond the one timer.
 
-**Global state: effect v4's native `Atom` reactivity, not `@effect-atom/atom-react`.**
+**Global state: `@effect/atom-react`, effect v4's own official React bindings.**
 The status bar below needs state that isn't page-local (PowerSync connection
-health, pending-write count, browser online/offline) - a natural fit for
-`@effect-atom/atom-react`, and this was the intended choice. It turned out to
-require `effect: ^3.19` as a peer dependency (checked `npm view
-@effect-atom/atom-react peerDependencies`), which conflicts with this repo's
-`effect: 4.0.0-beta.98` pin (`pnpm-workspace.yaml` deliberately tracks that
-exact v4 beta line everywhere else). Rather than bundling a second,
-incompatible major version of `effect` into the client, `apps/client` uses
-`effect/unstable/reactivity` directly - the `Atom`/`AtomRegistry` module v4
-ships **natively inside `effect` itself** (confirmed via
-github.com/tim-smart/effect-atom issue #413, the library author's own reply:
-"In v4 Atom is part of the library `import { Atom } from
-'effect/unstable/reactivity'`" - `@effect-atom/atom`/`@effect-atom/atom-react`
-were folded into effect core for v4, just not published as a matching v4
-release yet). `apps/client/src/lib/atom/react.ts` is a small hand-rolled
-`useAtomValue`/`useAtomSet` pair over `useSyncExternalStore`, since no
-official React bindings package exists yet for v4's native module - the
-Atom/Registry API itself is otherwise the same design as `@effect-atom/atom`.
-**Update (2026-07-21): superseded by the real official package.** Once
-`externals/effect-atom` (a git subtree of tim-smart/effect-atom, added later
-for an unrelated reason) turned out to still be the same v3-only package
-checked above, closer inspection of `externals/effect` itself found
-`packages/atom/react` - Effect-TS's _own_ React bindings for the v4 Atom
-module, published separately under the `@effect` scope as `@effect/atom-react`
-(not `@effect-atom/atom-react`), pinned to the exact same `4.0.0-beta.98` line
-as `effect` (confirmed via `npm view @effect/atom-react@4.0.0-beta.98
-peerDependencies`). The hand-rolled `useAtomValue`/`useAtomSet` pair below was
-replaced with this real package directly (`packages/shared/lib` re-exports
-it), and `externals/effect-atom` was removed as redundant - see
-`packages/shared/lib/src/index.ts`'s own comment for the current state.
+health, pending-write count, browser online/offline) - a natural fit for an
+Atom-based registry. Getting there took three attempts, worth recording since
+each wrong turn looked plausible from the package name alone:
+
+1. `@effect-atom/atom-react` (tim-smart's original, pre-v4 package) requires
+   `effect: ^3.19` as a peer (`npm view @effect-atom/atom-react
+peerDependencies`), incompatible with this repo's `effect: 4.0.0-beta.98`
+   pin.
+2. Rather than bundle a second, incompatible major version of `effect`, a
+   hand-rolled `useAtomValue`/`useAtomSet` pair over `useSyncExternalStore`
+   was written directly against `effect/unstable/reactivity` (the
+   `Atom`/`AtomRegistry` module folded into effect core for v4 - confirmed via
+   github.com/tim-smart/effect-atom issue #413, tim-smart's own reply: "In v4
+   Atom is part of the library `import { Atom } from
+'effect/unstable/reactivity'`"). Vendoring `externals/effect-atom` (tim-smart's
+   repo, added later for an unrelated reason) as a reference turned out to
+   still be the same v3-only package, not a fix.
+3. **The real fix**: closer inspection of `externals/effect` itself (not
+   `externals/effect-atom`) found `packages/atom/react` - Effect-TS's _own_
+   React bindings for the v4 Atom module, published under the `@effect` scope
+   as `@effect/atom-react` (not `@effect-atom/atom-react` - easy to conflate),
+   pinned to the exact same `4.0.0-beta.98` line as `effect` (confirmed via
+   `npm view @effect/atom-react@4.0.0-beta.98 peerDependencies`). The
+   hand-rolled hooks were deleted entirely in favor of this real package, and
+   `externals/effect-atom` was removed as redundant.
+
+`packages/shared/lib` now holds only the one app-wide `registry`
+(`AtomRegistry.make()`), provided to `@effect/atom-react`'s `RegistryContext`
+at `apps/client/src/main.tsx`'s root - components import
+`useAtomValue`/`useAtomSet`/etc. directly from `@effect/atom-react`, not
+through a re-export (there's no benefit to hiding a real, working package
+behind an extra indirection). `registry` still needs to be exported directly,
+though: plenty of this app's Atom access is deliberately _not_ through a hook
+
+- see "App-shell state" below - and Context only resolves inside a component's
+  render, not from a plain function called from an event handler or an Effect
+  program.
 
 `apps/client/src/lib/powersync/syncAtoms.ts` bridges PowerSync's imperative,
 callback-based APIs into Atoms the same way any external event listener is
@@ -1028,6 +1036,77 @@ to it (confirmed via `oxlint --print-config`) - the fix lists
 `unicorn`/`typescript`/`oxc` alongside `react` explicitly, so no existing
 lint coverage was silently dropped.
 
+### App-shell state (`packages/shared/lib`, `packages/shared/app-shell`)
+
+The "app-shell manager / modal manager / keybindings layer" `README.md`/`tasks/roadmap.md`
+flagged as planned - a place to trigger modals or register global shortcuts from anywhere
+in the tree without prop-drilling. Two new FSD-`shared` packages, both consumed by
+`apps/client` (see the "Global state" section above for `packages/shared/lib`'s own
+`@effect/atom-react` migration).
+
+**`packages/shared/app-shell`'s `ModalManager`/`ModalHost`.** `openModal(render)` pushes an
+entry onto `modalStackAtom`; `ModalHost` (mounted once at `apps/client/src/routes/__root.tsx`'s
+root, so modals work on pre-login routes too) renders each entry as a native `<dialog>`
+element via a portal, calling `showModal()` on mount - free focus-trapping/Escape-to-close
+from the browser itself, no hand-rolled accessibility logic needed. **Replaces the current
+modal by default, not stacking** - two unrelated modals overlapping is almost never the
+intent, and native `<dialog>` elements don't visually communicate "there's another one behind
+this." Stacking (e.g. a "discard changes?" confirmation opened from within a form modal) is
+an explicit opt-in via `openModal(render, { stack: true })`.
+
+**`Keybindings`'s `registerKeybinding`/`useGlobalKeybindings`.** One global `keydown`
+listener (mounted alongside `ModalHost`) dispatches to every currently-registered binding;
+`matchesKeybinding` does exact-modifier-state matching (not "at least") for `"mod+k"`-style
+patterns (`mod` = Cmd on macOS, Ctrl elsewhere), so `"k"` and `"mod+k"` never both fire on
+the same keypress.
+
+**A real bug found and fixed while wiring the first consumer (`apps/client/src/components/Sidebar.tsx`,
+a Mod+B-toggleable sidebar demo):** every Atom defaults to `keepAlive: false`, and
+`AtomRegistry`'s `createNode` schedules an unmounted atom's node for removal on the very
+next tick unless something is actively subscribed (`useAtomValue`/`registry.subscribe`).
+`modalStackAtom` happened to always have `ModalHost`'s `useAtomValue` subscription keeping
+it alive; `keybindingsAtom` is touched only imperatively (`registry.get`/`update`, never a
+hook), so every registered keybinding was silently wiped moments after registering - traced
+directly through `externals/effect/packages/effect/src/unstable/reactivity/AtomRegistry.ts`'s
+`createNode`/`scheduleAtomRemoval` to find this. Fixed by wrapping both atoms in
+`Atom.keepAlive(...)`. Regression tests assert both atoms survive past a tick with no active
+subscriber - the exact blind spot a synchronous read-right-after-write test would miss.
+
+**`Confirm`'s `confirm()` - an `Effect`, not a `Promise`, wrapping `openModal`.** Built on
+`Effect.callback` (effect v4's callback-integration primitive, `Effect.async` in older effect
+versions): `confirm({ title, message })` opens a modal and resolves to whether the user
+confirmed, and its registration function's cleanup Effect closes the modal automatically if
+the fiber running it is interrupted (e.g. the triggering component unmounts mid-confirmation)
+
+- verified by a test that interrupts a running fiber and asserts the modal closes instead of
+  being left stuck open with nothing listening for its result. Being an `Effect` (not a
+  `Promise`) is what makes it directly `yield*`-able inside an action's own `Effect.gen`,
+  alongside a fetch or PowerSync write, rather than needing `Effect.tryPromise` glue at every
+  call site.
+
+**`Action`'s `defineAction`/`useActionTrigger` - a registry with full control kept at the
+trigger, not centralized.** An `ActionDefinition<Ctx, E>` has an `id`, a `label`
+(string or `(ctx) => string`), an optional `isDisabled: (ctx) => boolean | string` (computed
+from whatever context the action is triggered with - e.g. a specific member's current
+status - not global state), and an `execute: (ctx) => Effect.Effect<void, E>`. Deliberately
+_not_ a declarative `{ confirm: {...}, run: ... }` shape the registry would orchestrate -
+`execute` is a plain Effect program that can `yield* confirm(...)`, branch on the result,
+`yield* Effect.tryPromise(...)` a write, or do several sequential steps, however the action
+actually needs to flow. `useActionTrigger(action)` runs `execute` via `Effect.runPromise`,
+tracking `pending`/`error` locally to the calling component (via `Effect.match`, so two
+components triggering the same action for different `ctx` get independent pending states,
+not one shared flag keyed by action id).
+
+**Verified end-to-end** (2026-07-20, in a real browser, against real synced data - not an
+invented example): `apps/client/src/lib/hostActions.ts`'s `resetHostName` action, wired to a
+button next to the existing host-name field in `_authenticated.index.tsx`. Clicking it shows
+a "Resetting..." pending state, opens a confirm dialog interpolating the real current host
+name, performs the actual PowerSync write on confirm (`drizzleDb.update(hosts)...`, the
+query re-syncs to the new value), and `isDisabled` correctly re-evaluates against the new
+state afterward (the button disables itself once the name already matches the default).
+Triggering the same modal twice in a row via the keybinding left exactly one `<dialog>` in
+the DOM, confirming the replace-not-stack default.
+
 ### Cloudflare deployment (`apps/infrastructure`)
 
 `README.md`'s Layout section already named this package ("Alchemy IaC that
@@ -1080,7 +1159,12 @@ concern, or an upstream contribution.
 
 **PowerSync + Keycloak stay self-hosted, unaffected.** This Cloudflare work
 is scoped to `apps/server` (API, as a Worker) and `apps/client` (static
-assets) only, per the README's Layout section - not a silent default.
+assets) only, per the README's Layout section - not a silent default. A
+production deployment of Keycloak/PowerSync themselves was explored
+(2026-07-17) but not built - see `tasks/roadmap.md`'s "Keycloak + PowerSync
+production deployment" section for the chosen approach (a Cloudflare Tunnel
+to the existing self-hosted services, not Cloudflare Containers) and what
+it's blocked on.
 
 **First step built: `apps/infrastructure/alchemy.run.ts` + `src/HelloWorker.ts`** -
 the smallest possible Worker (`Cloudflare.Worker` wrapping a plain

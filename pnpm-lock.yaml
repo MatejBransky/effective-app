@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@effect/atom-react':
+      specifier: 4.0.0-beta.98
+      version: 4.0.0-beta.98
     '@effect/platform-node':
       specifier: 4.0.0-beta.98
       version: 4.0.0-beta.98
@@ -342,12 +345,18 @@ importers:
 
   packages/shared/lib:
     dependencies:
+      '@effect/atom-react':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.98(effect@4.0.0-beta.98)(react@19.2.7)(scheduler@0.27.0)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.98
       react:
         specifier: 'catalog:'
         version: 19.2.7
+      scheduler:
+        specifier: 0.27.0
+        version: 0.27.0
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
@@ -1092,6 +1101,13 @@ packages:
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
+
+  '@effect/atom-react@4.0.0-beta.98':
+    resolution: {integrity: sha512-M7BMiXyJZ1sSOwkipkF8/yNYoAp5WA6xhD0u8wobI6h9OIQp5oxx+AvE4FCj0wmfexAsUZPfZ4McCXstXYskbg==}
+    peerDependencies:
+      effect: ^4.0.0-beta.98
+      react: ^19.2.4
+      scheduler: '*'
 
   '@effect/platform-node-shared@4.0.0-beta.98':
     resolution: {integrity: sha512-iySXaffnCJX1sNAIp79ghhIeui9E5qwUQyqd1VLPkB9UNO4vdpd9B5fTEXwe7S/GusL4jsk9vSvX38XJgRFG1w==}
@@ -5792,6 +5808,12 @@ snapshots:
       effect: 4.0.0-beta.98
 
   '@drizzle-team/brocli@0.10.2': {}
+
+  '@effect/atom-react@4.0.0-beta.98(effect@4.0.0-beta.98)(react@19.2.7)(scheduler@0.27.0)':
+    dependencies:
+      effect: 4.0.0-beta.98
+      react: 19.2.7
+      scheduler: 0.27.0
 
   '@effect/platform-node-shared@4.0.0-beta.98(effect@4.0.0-beta.98)':
     dependencies:

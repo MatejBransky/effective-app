@@ -821,6 +821,19 @@ release yet). `apps/client/src/lib/atom/react.ts` is a small hand-rolled
 `useAtomValue`/`useAtomSet` pair over `useSyncExternalStore`, since no
 official React bindings package exists yet for v4's native module - the
 Atom/Registry API itself is otherwise the same design as `@effect-atom/atom`.
+**Update (2026-07-21): superseded by the real official package.** Once
+`externals/effect-atom` (a git subtree of tim-smart/effect-atom, added later
+for an unrelated reason) turned out to still be the same v3-only package
+checked above, closer inspection of `externals/effect` itself found
+`packages/atom/react` - Effect-TS's _own_ React bindings for the v4 Atom
+module, published separately under the `@effect` scope as `@effect/atom-react`
+(not `@effect-atom/atom-react`), pinned to the exact same `4.0.0-beta.98` line
+as `effect` (confirmed via `npm view @effect/atom-react@4.0.0-beta.98
+peerDependencies`). The hand-rolled `useAtomValue`/`useAtomSet` pair below was
+replaced with this real package directly (`packages/shared/lib` re-exports
+it), and `externals/effect-atom` was removed as redundant - see
+`packages/shared/lib/src/index.ts`'s own comment for the current state.
+
 `apps/client/src/lib/powersync/syncAtoms.ts` bridges PowerSync's imperative,
 callback-based APIs into Atoms the same way any external event listener is
 wrapped (`get.setSelf`/`get.addFinalizer` - see effect's `Atom.make` docs):

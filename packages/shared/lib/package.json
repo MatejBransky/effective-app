@@ -10,8 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@effect/atom-react": "catalog:",
     "effect": "catalog:",
-    "react": "catalog:"
+    "react": "catalog:",
+    "scheduler": "0.27.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

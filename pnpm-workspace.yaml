@@ -30,6 +30,13 @@ catalog:
   # Node runtime adapter for effect/unstable/httpapi - a separate package from `effect`
   # itself in this v4 line. Pinned to the exact same beta as `effect` above.
   "@effect/platform-node": 4.0.0-beta.98
+  # React bindings for effect/unstable/reactivity's Atom/AtomRegistry - Effect-TS's own
+  # official package (externals/effect/packages/atom/react in the effect monorepo itself,
+  # published under the `@effect` scope), not the older standalone `@effect-atom/atom-react`
+  # (still pins effect@^3.19 - checked directly against npm, incompatible with this repo's v4
+  # pin - no separate `externals/effect-atom` subtree needed once this was found). Pinned to
+  # the exact same beta as `effect` above, matching its own peerDependencies.
+  "@effect/atom-react": 4.0.0-beta.98
   # JWT/JWKS verification for apps/server's AuthService - vendored Effect v4 has no
   # built-in JWT support (HttpApiSecurity only extracts the raw credential string).
   jose: 6.2.3

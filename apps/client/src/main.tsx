@@ -1,3 +1,4 @@
+import { RegistryContext, registry } from "@effective-app/shared-lib";
 import { PowerSyncContext } from "@powersync/react";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
@@ -32,9 +33,15 @@ async function bootstrap() {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <StrictMode>
-        <PowerSyncContext.Provider value={db}>
-          <RouterProvider router={router} />
-        </PowerSyncContext.Provider>
+        {/* Provides our single app-wide registry (see @effective-app/shared-lib) to
+            @effect/atom-react's hooks - without this, hooks would silently fall back to
+            RegistryContext's own default standalone registry instead of the one
+            ModalManager/Keybindings/syncAtoms.ts read and write imperatively. */}
+        <RegistryContext.Provider value={registry}>
+          <PowerSyncContext.Provider value={db}>
+            <RouterProvider router={router} />
+          </PowerSyncContext.Provider>
+        </RegistryContext.Provider>
       </StrictMode>,
     );
   }

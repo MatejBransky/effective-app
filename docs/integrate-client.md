@@ -1,16 +1,16 @@
 # Integrate apps/client with Keycloak auth + PowerSync sync
 
-> **Pre-reset context:** this task was written against `apps/client`,
-> `apps/server`, and the Keycloak/PowerSync/Postgres-RLS stack described
-> below as "already ready" - all of that was scrapped in the 2026-07-22
-> clean-slate reset (see `docs/roadmap.md`). Nothing in this file exists
-> right now: `apps/client`/`apps/server` are gone, `infra/keycloak` and
-> `infra/powersync` are empty placeholder directories (no realm export, no
-> sync config), and `docs/data-model.md` was deleted. This task is blocked
-> until the domain model (`docs/implement-domain-model.md`), `apps/server`,
-> and the self-hosted Keycloak/PowerSync infra are rebuilt from scratch. The
-> steps below are kept as a reference for what this integration will
-> eventually need to cover, not a ready-to-start plan.
+> **Status (2026-07-22, post-reset rebuild):** this task was originally written
+> against a pre-reset `apps/client`/`apps/server` stack - see `docs/roadmap.md`
+> for what was scrapped. Since then, rebuilt from scratch and **partially done**:
+> self-hosted Keycloak (generic, no tenant claim yet - `docs/powersync-setup.md`
+> Phase 0), `apps/server` (a public `/health` + a Keycloak-JWT-protected `/me`,
+> not yet the domain-model-backed endpoints below), and step 2 of "What remains"
+> below (`apps/web`'s OIDC login, Authorization Code + PKCE via `oidc-client-ts`,
+> in-memory token storage, verified live). Still blocked: the domain model
+> (`docs/implement-domain-model.md`), Postgres RLS, and self-hosted PowerSync
+> (Phase 1/3 of `docs/powersync-setup.md`) - steps 3 onward below still describe
+> real, not-yet-started work, not just history.
 
 ## Goal
 
@@ -46,13 +46,14 @@ client code - it has the exact Vite config, connector interface, and gotchas
 
 Roughly in dependency order:
 
-1. **Decide the login flow and token storage approach** (see "Open decisions"
-   below) - blocks everything else.
-2. **Add an OIDC login flow to `apps/client`** - Authorization Code + PKCE
-   against Keycloak, a login route, a logout action, and a route guard so
-   unauthenticated users can't reach data routes. Password-grant flows, if
-   enabled on the Keycloak client for backend testing, must never be used
-   from the browser.
+1. [x] **Decide the login flow and token storage approach** (see "Open
+       decisions" below) - in-memory token storage, `oidc-client-ts`.
+2. [x] **Add an OIDC login flow to `apps/web`** - Authorization Code + PKCE
+       against Keycloak, a login route, a logout action, and a route guard
+       (`@tanstack/react-router`'s pathless `_authenticated` layout +
+       `beforeLoad`) so unauthenticated users can't reach data routes.
+       Password-grant is enabled on the Keycloak client for curl/Bruno testing
+       only, never used from the browser.
 3. **Add a write/upload endpoint to `apps/server`** - PowerSync's client
    connector calls `uploadData()`, which needs a real backend endpoint to
    apply the batch of local writes to Postgres. Route it through the same
@@ -86,15 +87,13 @@ Roughly in dependency order:
 
 ## Open decisions to resolve first
 
-- **Token storage in the browser**: in-memory only (safest, but loses the
-  session on refresh unless paired with silent-refresh-via-iframe or a
-  refresh token flow) vs. persisted (localStorage/IndexedDB, simpler, more
-  exposure if XSS occurs). Pick one explicitly and document why - this is
-  security-relevant (OWASP token-handling), not a detail to default silently.
-- **OIDC client library**: e.g. `oidc-client-ts` (mature, framework-agnostic)
-  vs. a thinner hand-rolled PKCE flow. Check what's already common in this
-  kind of Vite + TanStack Router setup before adding a dependency.
-- **PowerSync client schema strategy** (see step 5 above).
+- [x] **Token storage in the browser**: **in-memory only** (`InMemoryWebStorage`) -
+      confirmed explicitly (OWASP-recommended for SPAs). Session loss on refresh is
+      mitigated by a hidden-iframe silent renew (`apps/web/silent-renew.html`)
+      against Keycloak's own SSO session cookie.
+- [x] **OIDC client library**: **`oidc-client-ts`** - mature, framework-agnostic,
+      avoids hand-rolling PKCE.
+- **PowerSync client schema strategy** (see step 5 above) - still open.
 
 ## Testing
 

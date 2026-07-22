@@ -15,11 +15,29 @@ the concrete implementation built on top of them is gone.
 
 ## Done
 
-(nothing yet - see "Reset" above)
+- **Keycloak (self-hosted, local dev)** - `docker-compose.yml`'s `keycloak` service +
+  `infra/keycloak/realm-export.json`. Deliberately generic (no tenant/business claim
+  yet - see `CONTEXT.md`). Phase 0 of `docs/powersync-setup.md`.
+- **`apps/server` (skeleton)** - Effect v4 HTTP API (`effect/unstable/httpapi`) with a
+  public `/health` and a Keycloak-JWT-protected `/me` endpoint, verified end-to-end
+  against the live Keycloak. The `uploadData`/tenant-scoped endpoints Phase 2 also
+  calls for still wait on a domain model existing.
+- **`apps/web` Keycloak login** - Authorization Code + PKCE (`oidc-client-ts`),
+  in-memory token storage with hidden-iframe silent renew, `@tanstack/react-router`
+  (first use in this repo). Calls `apps/server`'s `/me` with the resulting token,
+  proving the full browser -> Keycloak -> apps/server chain live in the browser.
+- **`CONTEXT.md`** - business glossary started (Host/Member/Lead/Admin), referenced
+  from `AGENTS.md`.
+
+See `docs/powersync-setup.md` for the full phase breakdown and exactly what's still
+blocked (its own checklist is the source of truth, not this list).
 
 ## In progress
 
-(nothing yet)
+Nothing actively in progress. Next up per `docs/powersync-setup.md`'s readiness
+gate: Phase 1 (Postgres logical replication/publication for PowerSync's CDC), then
+Phase 3 (self-hosted PowerSync instance) - both block PowerSync client integration
+in `apps/web` (Phase 4).
 
 ## New idea from a previous conversation: scheduled/async jobs example
 

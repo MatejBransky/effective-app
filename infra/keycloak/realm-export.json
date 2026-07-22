@@ -1,0 +1,43 @@
+{
+  "realm": "app",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "app-client",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "protocolMappers": [
+        {
+          "name": "powersync-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "powersync-dev",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "test-host",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "test-host@example.test",
+      "firstName": "Test",
+      "lastName": "User",
+      "credentials": [{ "type": "password", "value": "local_dev_only", "temporary": false }],
+      "requiredActions": []
+    }
+  ]
+}

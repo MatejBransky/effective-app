@@ -46,20 +46,30 @@ exist before `apps/web` can wire up a connector; and none of this is
 verifiable end-to-end until the Postgres replication/publication side is set
 up too.
 
-## Phase 0 - Auth (Keycloak, local) — next session starts here
+## Phase 0 - Auth (Keycloak, local) — done (2026-07-22)
 
-1. Add a Keycloak service to `docker-compose.yml` (image, port, admin
-   credentials via `.env`, following the same "avoid default/common local
-   ports" pattern already used for Postgres/mailpit).
-2. Create/configure a realm + client so issued JWTs carry an `aud` claim that
-   will match PowerSync's `service.yaml` `client_auth.audience`.
-3. Confirm the realm's JWKS URL is reachable from the PowerSync container -
-   from inside Docker this is the Keycloak service's container name/network
-   alias, not `localhost` (self-hosted service.yaml § "Complete service.yaml
-   Example" / `custom-backend.md`'s `block_local_jwks` note apply here). This
-   replaces the custom JWT-signing code in `references/custom-backend.md`
-   entirely; Keycloak is both the token issuer and the JWKS provider.
-4. Populate `infra/keycloak/realm-export.json` for real (currently an empty
+1. [x] Added a `keycloak` service to `docker-compose.yml` (image, port via
+   `KEYCLOAK_PORT`, admin credentials via `.env`, following the same "avoid
+   default/common local ports" pattern already used for Postgres/mailpit -
+   8180 is clear of the banned-ports list).
+2. [x] Realm `app` + public client `app-client`
+   (Authorization Code + PKCE, `directAccessGrantsEnabled` for curl-only
+   testing) issue JWTs carrying an `aud: powersync-dev` claim (an
+   `oidc-audience-mapper`) that will match PowerSync's `service.yaml`
+   `client_auth.audience` once that's configured in Phase 3.
+   - **Deliberately generic**: no tenant/business claim (e.g. a `host_id`
+     equivalent) yet - the prior (reset) attempt baked one in before any
+     domain/multi-tenancy model existed to justify its shape. That claim
+     gets designed alongside the domain model, not guessed here.
+3. [ ] Confirm the realm's JWKS URL is reachable from the PowerSync
+   container - still open, blocked on PowerSync existing (Phase 3). From
+   inside Docker this must be the Keycloak service's container name/network
+   alias (`http://keycloak:8080/...`), not `localhost` (self-hosted
+   service.yaml § "Complete service.yaml Example" / `custom-backend.md`'s
+   `block_local_jwks` note apply here). This replaces the custom
+   JWT-signing code in `references/custom-backend.md` entirely; Keycloak is
+   both the token issuer and the JWKS provider.
+4. [x] Populated `infra/keycloak/realm-export.json` for real (was an empty
    placeholder dir) so the realm config is reproducible/committed.
 
 ## Phase 1 - Source database (Postgres)

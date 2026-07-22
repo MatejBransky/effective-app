@@ -40,6 +40,48 @@ services:
     volumes:
       - mailpit-data:/data
 
+  # Local IdP (self-hosted, dev-mode) - issues the JWTs apps/server will verify and
+  # (via the "powersync-audience" mapper in infra/keycloak/realm-export.json) the ones
+  # PowerSync's client_auth will accept once those exist. `start-dev --import-realm` is
+  # dev-only: plain HTTP, no clustering - never run this image/mode anywhere but local dev.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    environment:
+      # Local-dev-only admin console login - never reuse these anywhere but this
+      # throwaway container. Only takes effect on a genuinely fresh keycloak-data
+      # volume; --import-realm skips importing a realm that already exists, so
+      # these also won't "reset" an existing one.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local_dev_only}
+    ports:
+      # Override in .env if already taken - also update KEYCLOAK_PORT in .env to match,
+      # since KEYCLOAK_ISSUER/KEYCLOAK_JWKS_URI are derived from it.
+      - "${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      # Realm/client fixture, imported once into a fresh volume (see below).
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # Persists the imported realm (and any admin-console changes) across container
+      # restarts/recreates, consistent with the other stateful services above.
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      # This image has no curl/wget (deliberately removed) - this is Keycloak's own
+      # documented workaround for probing itself: craft a raw HTTP request over bash's
+      # /dev/tcp. Health/readiness lives on the management port (9000), not 8080.
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3 && head -1 <&3 | grep -q 200",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
 volumes:
   postgres-data:
   mailpit-data:
+  keycloak-data:

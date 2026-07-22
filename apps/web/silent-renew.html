@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Silent renew</title>
+  </head>
+  <body>
+    <!--
+      Loaded in a hidden iframe by oidc-client-ts's signinSilent() - never navigated to
+      directly. Recovers the in-memory session after a hard reload via Keycloak's own SSO
+      session cookie, without a full-page redirect. See src/lib/auth.ts.
+    -->
+    <script type="module" src="/src/silent-renew.ts"></script>
+  </body>
+</html>

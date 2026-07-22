@@ -57,6 +57,12 @@ catalog:
   "@types/react": 19.2.17
   "@types/react-dom": 19.2.3
   "@tanstack/react-router": 1.170.18
+  # Not version-locked to @tanstack/react-router above - this monorepo's packages don't
+  # share version numbers in lockstep, just compatible peer ranges.
+  "@tanstack/router-plugin": 1.168.23
+  # OIDC client for apps/web's Keycloak login (Authorization Code + PKCE) - mature,
+  # framework-agnostic, avoids hand-rolling PKCE/token-refresh logic.
+  "oidc-client-ts": 3.5.0
 
 # Force patched versions for transitive dev-only vulnerabilities that the direct
 # dependency hasn't bumped past yet (flagged by `pnpm audit`, part of CI's security

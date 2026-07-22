@@ -2,7 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "jsPlugins": ["@repo/shared-lint-config"],
   "plugins": ["react", "unicorn", "typescript", "oxc"],
-  "ignorePatterns": ["externals/**"],
+  "ignorePatterns": ["externals/**", "**/routeTree.gen.ts"],
   "rules": {
     "repo/no-type-assertion": "error",
     // Layer order = allowed import direction (each layer may only import from layers below

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-router": "catalog:",
+    "oidc-client-ts": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
@@ -17,6 +19,7 @@
     "@babel/core": "7.29.7",
     "@repo/shared-typescript-config": "workspace:*",
     "@rolldown/plugin-babel": "0.2.3",
+    "@tanstack/router-plugin": "catalog:",
     "@types/babel__core": "7.20.5",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

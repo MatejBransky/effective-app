@@ -32,17 +32,23 @@ the concrete implementation built on top of them is gone.
   `wal_level=logical`, the least-privilege `powersync_replication` role, and a
   `FOR ALL TABLES` publication (`infra/postgres/init-scripts/01-powersync-
   replication.sql`) - `PS_DATA_SOURCE_URI` in `.env`.
+- **Self-hosted PowerSync instance (Phase 3)** - `infra/powersync/` (CLI-managed:
+  `powersync init self-hosted` + `docker configure` + `docker start`), `client_auth`
+  wired to Keycloak's JWKS over the shared Docker network, verified replicating
+  against `infra/postgres` with 0 bytes lag. `sync-config.yaml` is deliberately
+  `streams: {}` - no domain model to sync yet.
 
 See `docs/powersync-setup.md` for the full phase breakdown and exactly what's still
 blocked (its own checklist is the source of truth, not this list).
 
 ## In progress
 
-Nothing actively in progress. Next up per `docs/powersync-setup.md`'s readiness
-gate: Phase 3 (self-hosted PowerSync instance, self-hosted `powersync init` ->
-`docker configure` -> `docker start`, wiring `client_auth` to Keycloak's JWKS and
-the `PS_DATA_SOURCE_URI` from Phase 1) - blocks PowerSync client integration in
-`apps/web` (Phase 4).
+Nothing actively in progress. `docs/powersync-setup.md`'s readiness gate is mostly
+green, but one item blocks Phase 4 (`apps/web` PowerSync client integration): the
+backend's `uploadData` endpoint doesn't exist yet, and that in turn waits on a
+domain model existing (see "Done" above - `apps/server`'s `/health`/`/me` prove the
+JWKS verification chain, not the data path). A domain model has to come before
+Phase 4 can start.
 
 ## New idea from a previous conversation: scheduled/async jobs example
 

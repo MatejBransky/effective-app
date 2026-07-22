@@ -2,15 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "client",
+      "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@repo/client", "run", "dev"],
+      "runtimeArgs": ["--filter", "@repo/app-web", "run", "dev"],
       "port": 5173
     },
     {
       "name": "server",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@repo/server", "run", "dev"],
+      "runtimeArgs": ["--filter", "@repo/app-server", "run", "dev"],
       "port": 4000
     }
   ]

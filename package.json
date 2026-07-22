@@ -22,6 +22,7 @@
     "@repo/shared-lint-config": "workspace:*",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "powersync": "0.10.0",
     "turbo": "catalog:",
     "typescript": "catalog:"
   },

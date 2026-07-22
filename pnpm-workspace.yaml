@@ -14,34 +14,44 @@ autoInstallPeers: true
 # https://pnpm.io/catalogs
 catalog:
   typescript: 7.0.2
+  # Pinned to Node 24's own @types/node line (CI's actions/setup-node targets node-version:
+  # 24) - already the latest 24.x release; the 26.x line tracks a newer Node major we don't
+  # run yet.
   "@types/node": 24.13.3
+  # oxlint 1.75.0 exists but is <24h old (minimumReleaseAge gate below) - staying on the
+  # previous mature release until it clears the cooldown.
   oxlint: 1.74.0
+  # oxfmt 0.60.0 exists but is <24h old (minimumReleaseAge gate below) - same as oxlint.
   oxfmt: 0.59.0
   turbo: 2.10.5
   vitest: 4.1.10
-  "@effect/vitest": 4.0.0-beta.98
+  "@effect/vitest": 4.0.0-beta.100
   # Effect v4 ("effect smol") - beta, but this is what externals/effect (vendored from the
   # Effect-TS/effect main branch) is already on, so we're tracking the same line.
-  effect: 4.0.0-beta.98
+  effect: 4.0.0-beta.100
   drizzle-orm: 0.45.2
   drizzle-kit: 0.31.10
   # Node runtime adapter for effect/unstable/httpapi - a separate package from `effect`
   # itself in this v4 line. Pinned to the exact same beta as `effect` above.
-  "@effect/platform-node": 4.0.0-beta.98
+  "@effect/platform-node": 4.0.0-beta.100
   # React bindings for effect/unstable/reactivity's Atom/AtomRegistry - Effect-TS's own
   # official package (externals/effect/packages/atom/react in the effect monorepo itself,
   # published under the `@effect` scope), not the older standalone `@effect-atom/atom-react`
   # (still pins effect@^3.19 - checked directly against npm, incompatible with this repo's v4
   # pin - no separate `externals/effect-atom` subtree needed once this was found). Pinned to
   # the exact same beta as `effect` above, matching its own peerDependencies.
-  "@effect/atom-react": 4.0.0-beta.98
+  "@effect/atom-react": 4.0.0-beta.100
   # JWT/JWKS verification for apps/server's AuthService - vendored Effect v4 has no
   # built-in JWT support (HttpApiSecurity only extracts the raw credential string).
+  # jose 6.2.4 exists but is <24h old (minimumReleaseAge gate below) - staying on 6.2.3
+  # until it clears the cooldown.
   jose: 6.2.3
   # node-postgres, not postgres.js - matches the driver @effect/sql-pg wraps, so a later
   # Effect-based query layer shares the same driver/connection-pool conventions.
   pg: 8.22.0
   "@types/pg": 8.20.0
+  # react/react-dom 19.2.8 exist but are <24h old (minimumReleaseAge gate below) - staying
+  # on 19.2.7 until they clear the cooldown.
   react: 19.2.7
   react-dom: 19.2.7
   "@types/react": 19.2.17
@@ -83,22 +93,10 @@ trustPolicyExclude:
   # vendor into externals/effect), consistent with the Effect team switching their CI
   # publish mechanism rather than an account takeover. User-approved 2026-07-15;
   # revisit if pnpm flags it again elsewhere.
+  # Our own catalog pin moved on to 4.0.0-beta.100 (no new trust flag raised for that
+  # bump), but this beta.98 entry is still needed: alchemy@2.0.0-beta.63 bundles its own
+  # devDependency on `@effect/vitest@4.0.0-beta.98` independent of our catalog pin.
   - "@effect/vitest@4.0.0-beta.98"
-  # effect@4.0.0-beta.98 - same trust-downgrade pattern as @effect/vitest@4.0.0-beta.98
-  # above (same `effect-bot` npm user, same maintainers, same Effect-TS/effect repo) -
-  # this is a whole-monorepo CI publish-mechanism change across the beta.98 release,
-  # not an isolated package. User-approved 2026-07-15; revisit if pnpm flags it again
-  # elsewhere.
-  - "effect@4.0.0-beta.98"
-  # @effect/platform-node@4.0.0-beta.98 - same trust-downgrade pattern as effect@4.0.0-beta.98
-  # and @effect/vitest@4.0.0-beta.98 above (checked npm metadata: same `effect-bot` npm user,
-  # same maintainers, same Effect-TS/effect-smol repo). User-approved 2026-07-16.
-  - "@effect/platform-node@4.0.0-beta.98"
-  # @effect/platform-node-shared@4.0.0-beta.98 - transitive dep of @effect/platform-node
-  # above, same publish-mechanism trust-downgrade pattern (same `effect-bot` npm user,
-  # same Effect-TS/effect-smol repo). No further Effect-TS deps beneath this one (checked
-  # npm metadata). User-approved 2026-07-16.
-  - "@effect/platform-node-shared@4.0.0-beta.98"
   # semver@6.3.1 (transitive dep of @babel/core via @tanstack/router-plugin) predates npm
   # provenance (introduced ~April 2023; 6.3.1 published 2023-07-10) and has none, while some
   # other version in its history does - a registry-side metadata touch on 2026-07-06 hit

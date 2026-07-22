@@ -1,8 +1,0 @@
-{
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "@repo/typescript-config/node-library.json",
-  "compilerOptions": {
-    "rootDir": "src"
-  },
-  "include": ["src"]
-}

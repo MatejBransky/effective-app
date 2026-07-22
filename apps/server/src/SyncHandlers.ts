@@ -1,4 +1,4 @@
-import * as schema from "@repo/db";
+import * as schema from "@repo/entities/db";
 import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Effect, Schema } from "effect";

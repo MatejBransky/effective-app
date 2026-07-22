@@ -19,7 +19,7 @@
     "update:opencode": "git subtree pull --prefix=externals/opencode https://github.com/anomalyco/opencode.git dev --squash"
   },
   "devDependencies": {
-    "@repo/lint-config": "workspace:*",
+    "@repo/shared-lint-config": "workspace:*",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "turbo": "catalog:",

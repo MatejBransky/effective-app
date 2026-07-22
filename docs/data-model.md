@@ -342,11 +342,12 @@ Legacy reference: `work/monorepo/view/backend/db/entities/` (`Hosts`,
 
 ### Effect Schema → Drizzle bridge
 
-Built as `packages/db`: hand-written Drizzle table definitions (Postgres, via
-`drizzle-orm`/`drizzle-kit`) alongside the Effect Schema entities in
-`packages/schema`, plus a drift test (`packages/db/src/drift.test.ts`) that
-compares each Drizzle table's column-name set against its corresponding Effect
-Schema's field-name set, failing if they diverge.
+Built as `shared/entities`'s `./db` export: hand-written Drizzle table definitions
+(Postgres, via `drizzle-orm`/`drizzle-kit`), living in the same package as the Effect Schema
+entities (root export) precisely because the two must stay in lockstep - kept honest by a
+drift test (`shared/entities/src/db/drift.test.ts`) that compares each Drizzle table's
+column-name set against its corresponding Effect Schema's field-name set, failing if they
+diverge, rather than by codegen.
 
 Rejected alternative: codegen instead of a drift test. Drizzle does ship an
 Effect Schema bridge (`drizzle-orm/effect-schema`'s `createInsertSchema`/
@@ -356,24 +357,24 @@ two things rule it out here: it only exists on Drizzle's `1.0.0-rc.*` line, not
 the `0.45.x` stable release this repo pins, and it generates in the opposite
 direction from what we need - DB table to per-operation validator, not our
 domain-model-is-the-source-of-truth direction. It also wouldn't replace
-`packages/schema`'s branded ids or discriminated unions (`SequenceAction`,
+`shared/entities`'s branded ids or discriminated unions (`SequenceAction`,
 `FilterRule`), only auto-derive raw CRUD-shaped validators from the DB row
 shape. Worth revisiting once Drizzle v1 is stable, as a way to generate
 `apps/server`'s raw insert/update/select validators - not as a replacement for
-this drift test or for `packages/schema` itself.
+this drift test or for `shared/entities` itself.
 
 `id`/foreign-key columns are `text`, not Postgres's native `uuid` type - same
 PowerSync requirement as the `id` column itself (see "Why client-generated UUID
 ids" above). `SequenceAction` is one flat table in Postgres even though
-`packages/schema` models it as a discriminated union in TypeScript - `config`'s
+`shared/entities` models it as a discriminated union in TypeScript - `config`'s
 shape depends on `type` at the application layer, not the DB layer, so the
 drift test reads its field set from any one of the union's cases (they all
 share the same top-level keys).
 
 ### Postgres RLS for multi-tenancy
 
-Every host-scoped table in `packages/db`'s schema has `.enableRLS()` plus a
-`pgPolicy` (see `packages/db/src/rls.ts` for the two shared policy builders):
+Every host-scoped table in `shared/entities`'s `./db` schema has `.enableRLS()` plus a
+`pgPolicy` (see `shared/entities/src/db/rls.ts` for the two shared policy builders):
 
 - **Direct `host_id` column** (`hosts` itself via `id`, `host_filter_sets`,
   `lead_stages`, `marketing_sequences`, `member_hosts`, `sequence_enrollments`,
@@ -556,7 +557,7 @@ startup error ... postgres query failed"` at the wire-protocol level (not a
 
 1. **Apply the Drizzle migration first.** `sync-config.yaml` references real
    table names (`hosts`, `member_hosts`, ...) - they need to exist in Postgres
-   before PowerSync can replicate them, so run `packages/db`'s
+   before PowerSync can replicate them, so run `shared/entities`'s `./db`
    `db:generate`/`db:migrate` (see "Effect Schema → Drizzle bridge" above)
    before starting PowerSync for the first time.
 2. **Start the stack and check health.**
@@ -640,12 +641,12 @@ interface matched the schema. With the Drizzle schema, every query
 (`drizzleDb.select().from(hosts)...`, wrapped via
 `@powersync/drizzle-driver`'s `toCompilableQuery` for `useQuery`) and every
 write (`drizzleDb.update(hosts).set(...)`) is type-checked against the same
-table definitions the drift test below checks against `@repo/schema`.
+table definitions the drift test below checks against `@repo/entities`.
 12 tables (the 11 write-capable entities plus read-only `lead_stage_templates`),
 a compile-time-ish drift check (`schema.drift.test.ts`, using `drizzle-orm`'s
-`getTableColumns` - the same mechanism `packages/db/src/drift.test.ts` already
-uses) against `@repo/schema`'s field names. Table names (the string
-passed to `sqliteTable`, not the JS export name) match `packages/db`'s
+`getTableColumns` - the same mechanism `shared/entities/src/db/drift.test.ts` already
+uses) against `@repo/entities`'s field names. Table names (the string
+passed to `sqliteTable`, not the JS export name) match `shared/entities`'s `./db`
 Postgres table names exactly (snake_case), so a `CrudEntry.table` lines up
 1:1 with the server-side write allowlist below.
 
@@ -668,7 +669,7 @@ supported')` if attempted. **Not currently used by this app** - every
   copy** - confirmed by a PowerSync maintainer as a limitation of PowerSync
   itself, not Drizzle: client tables are backed by views, not real SQLite
   tables with constraints. **Not a gap for this app** - referential/data
-  integrity is enforced server-side (Postgres RLS + the `@repo/schema`
+  integrity is enforced server-side (Postgres RLS + the `@repo/entities`
   decode step in `SyncHandlers.ts`); the local copy is a replica, not the
   source of truth. A "raw tables" escape hatch exists if real SQLite
   constraints are ever needed locally, at the cost of losing some automatic
@@ -711,7 +712,7 @@ multi-statement `drizzleDb.transaction()` calls without testing them first.
 `SyncEntities.ts`): the first `apps/server` endpoint that writes, not just
 reads. A table allowlist (deliberately excluding `lead_stage_templates` -
 platform-maintained reference data, not tenant-editable) maps each PowerSync
-table name to its Drizzle table and `@repo/schema` entity; each
+table name to its Drizzle table and `@repo/entities` entity; each
 op's `opData` decodes through that Effect Schema before reaching Drizzle,
 reusing the same source of truth the drift tests check against rather than
 hand-writing per-table validation. Every op runs through the existing
@@ -830,7 +831,7 @@ peerDependencies`), incompatible with this repo's `effect: 4.0.0-beta.98`
    hand-rolled hooks were deleted entirely in favor of this real package, and
    `externals/effect-atom` was removed as redundant.
 
-`packages/shared/lib` now holds only the one app-wide `registry`
+`shared/lib` now holds only the one app-wide `registry`
 (`AtomRegistry.make()`), provided to `@effect/atom-react`'s `RegistryContext`
 at `apps/client/src/main.tsx`'s root - components import
 `useAtomValue`/`useAtomSet`/etc. directly from `@effect/atom-react`, not
@@ -1036,15 +1037,15 @@ to it (confirmed via `oxlint --print-config`) - the fix lists
 `unicorn`/`typescript`/`oxc` alongside `react` explicitly, so no existing
 lint coverage was silently dropped.
 
-### App-shell state (`packages/shared/lib`, `packages/shared/app-shell`)
+### App-shell state (`shared/lib`, `shared/app-shell`)
 
 The "app-shell manager / modal manager / keybindings layer" `README.md`/`tasks/roadmap.md`
 flagged as planned - a place to trigger modals or register global shortcuts from anywhere
 in the tree without prop-drilling. Two new FSD-`shared` packages, both consumed by
-`apps/client` (see the "Global state" section above for `packages/shared/lib`'s own
+`apps/client` (see the "Global state" section above for `shared/lib`'s own
 `@effect/atom-react` migration).
 
-**`packages/shared/app-shell`'s `ModalManager`/`ModalHost`.** `openModal(render)` pushes an
+**`shared/app-shell`'s `ModalManager`/`ModalHost`.** `openModal(render)` pushes an
 entry onto `modalStackAtom`; `ModalHost` (mounted once at `apps/client/src/routes/__root.tsx`'s
 root, so modals work on pre-login routes too) renders each entry as a native `<dialog>`
 element via a portal, calling `showModal()` on mount - free focus-trapping/Escape-to-close
@@ -1106,6 +1107,41 @@ query re-syncs to the new value), and `isDisabled` correctly re-evaluates agains
 state afterward (the button disables itself once the name already matches the default).
 Triggering the same modal twice in a row via the keybinding left exactly one `<dialog>` in
 the DOM, confirming the replace-not-stack default.
+
+**Later revision (2026-07-21): `AtomRegistryService`, an Effect DI tag, replaced `shared/lib`'s
+bare `registry` export as the way non-hook code (`openModal`/`closeModal`, `registerKeybinding`/
+`dispatchKeydown`, `confirm`, an action's `execute`) gets at the registry.** Every one of these
+now returns `Effect.Effect<_, _, AtomRegistryService>` instead of running synchronously against
+an imported constant - the exact same functions can run against a different, isolated registry
+in a test (see `ModalManager.test.ts`/`Keybindings.test.ts`/`Confirm.test.ts`, none of which
+needed to change when this landed, since they never touched the registry constant directly to
+begin with). `shared/app-shell` stays framework-runtime-agnostic: it only ever _declares_ the
+`AtomRegistryService` requirement, never runs anything itself.
+
+**What actually _runs_ those effects turned out not to need a bespoke mechanism at all -
+`effect/unstable/reactivity`'s own `Atom.runtime` already solves it.** `shared/lib` exports
+`runtime = Atom.runtime(AtomRegistryServiceLive)` - an `AtomRuntime`, which per its own type is
+just an ordinary `Atom`. Being an Atom, it's reached through the exact same `AtomRegistry`/
+`RegistryContext` every other atom here already uses (`main.tsx`'s one
+`RegistryContext.Provider value={registry}`) - no second Context, no app-specific runtime
+module. `ModalHost`, `useGlobalKeybindings`, and `useActionTrigger` (all in `shared/app-shell`)
+read it via `useAtomValue(runtime, AsyncResult.getOrThrow)` to get the resolved `Context`, then
+`Effect.provide`/`Effect.runSync`/`runFork`/`runPromise` as needed; non-component code (e.g.
+`main.tsx`'s bootstrap-time keybinding registration) reads it imperatively via
+`AsyncResult.getOrThrow(registry.get(runtime))`, the same idiom already used for reading any
+other atom outside a component.
+
+Two earlier designs were tried and dropped on the way here, both documented in git history for
+that reasoning: (1) a bespoke `shared/app-shell`-owned `AppContext` bridging `apps/client`'s
+composed runtime through the component tree - dropped because it duplicated machinery
+`@effect/atom-react` already has; (2) moving the runtime-consuming hooks themselves into
+`apps/client` to import a concrete `ManagedRuntime` directly - dropped because it made them
+non-reusable for no real benefit, once `Atom.runtime` made the Context unnecessary rather than
+just redundant. Confirmed against `externals/effect/packages/atom/react/test/index.test.tsx`'s
+own "can inject test layers" test: test isolation comes from `runtime.layer` (itself an Atom)
+being overridable per-registry via `Atom.initialValue(runtime.layer, testLayer)`, not from a
+separate `Atom.context({...})` factory - the plain, shared `Atom.runtime` is exactly what
+Effect's own tests use.
 
 ### Cloudflare deployment (`apps/infrastructure`)
 
@@ -1173,7 +1209,7 @@ its own before any real service depends on this toolchain. Deliberately
 minimal since alchemy-effect is alpha/beta software (its own README says so)
 and this is new tooling for this repo - smallest possible surface area to
 debug if something doesn't behave as documented. `pnpm --filter
-@repo/infrastructure run deploy`/`alchemy:dev`/`destroy` map directly to the
+@repo/infra run deploy`/`alchemy:dev`/`destroy` map directly to the
 `alchemy` CLI - `alchemy:dev` (not just `dev`) so root `pnpm dev`
 (`turbo run dev`) doesn't implicitly spin up a Cloudflare Workers dev
 session alongside `apps/client`/`apps/server`.
@@ -1194,7 +1230,7 @@ low-risk pattern as the existing esbuild/msgpackr-extract/wa-sqlite/@swc/core
 entries, but flagged for the user's own sign-off since the existing entries
 in that file were each explicitly user-approved before being added.
 
-**Verified end-to-end** (2026-07-17): `pnpm --filter @repo/infrastructure
+**Verified end-to-end** (2026-07-17): `pnpm --filter @repo/infra
 run deploy` against a real Cloudflare account - bootstrapped the state store
 (`Cloudflare.state()`'s one-time `alchemy-state-store` Worker + Secrets
 Store) on the first run, then deployed `HelloWorker`. A request against the
@@ -1259,7 +1295,7 @@ get that one-time-use privilege is the account's Global API Key
 (`CLOUDFLARE_EMAIL`/`CLOUDFLARE_API_KEY` in `.env`, real credentials like
 the existing `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` entries - never
 committed, never used anywhere else, never used by CI). Run via `pnpm
---filter @repo/infrastructure run bootstrap-github`; only needs
+--filter @repo/infra run bootstrap-github`; only needs
 re-running to rotate the token or change its permissions.
 
 **Known, accepted limitation of the PR preview (not yet fixed):** the

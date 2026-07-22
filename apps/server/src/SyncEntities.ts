@@ -10,7 +10,7 @@ import {
   sequenceEdges,
   sequenceEnrollments,
   sequenceVersions,
-} from "@repo/db";
+} from "@repo/entities/db";
 import {
   DomainEvent,
   Host,
@@ -23,7 +23,7 @@ import {
   SequenceEdge,
   SequenceEnrollment,
   SequenceVersion,
-} from "@repo/schema";
+} from "@repo/entities";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 import { Schema } from "effect";
 
@@ -35,8 +35,8 @@ import { Schema } from "effect";
  * never a 4xx - see `custom-backend.md`'s "Common Pitfalls" #1, a 4xx would block the
  * client's upload queue permanently).
  *
- * `fields`/`fullSchema` reuse `@repo/schema` (the same source of truth
- * `packages/db`'s drift test checks Drizzle against) instead of hand-writing per-table
+ * `fields`/`fullSchema` reuse `@repo/entities` (the same source of truth
+ * `shared/db`'s drift test checks Drizzle against) instead of hand-writing per-table
  * validation here - an invalid write gets rejected with a real type/shape check, not
  * just passed through to Postgres.
  *
@@ -61,8 +61,8 @@ export interface EntityDescriptor {
   readonly booleanFields?: ReadonlyArray<string>;
 }
 
-// `SequenceAction` is a discriminated union in packages/schema (`config`'s shape depends
-// on `type`), but one flat table here - same gap `packages/db/src/drift.test.ts` already
+// `SequenceAction` is a discriminated union in shared/entities (`config`'s shape depends
+// on `type`), but one flat table here - same gap `shared/db/src/drift.test.ts` already
 // documents. For a PATCH's per-field validation there's no single `config` schema to
 // check a partial update against without already knowing `type`, so `config` is excluded
 // from `fields` (JSON-parsed but not schema-validated on PATCH) and validated only as

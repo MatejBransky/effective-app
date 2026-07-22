@@ -35,7 +35,7 @@ const HostResponse = Schema.Struct({
   businessType: Schema.String,
 });
 
-// Proves Postgres RLS (packages/db's per-table policies) actually filters by the
+// Proves Postgres RLS (shared/db's per-table policies) actually filters by the
 // caller's hostId, not just that apps/server trusts the claim - see docs/data-model.md's
 // "Postgres RLS for multi-tenancy" section.
 const HostsGroup = HttpApiGroup.make("Hosts")

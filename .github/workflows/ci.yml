@@ -137,7 +137,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Deploy
-        run: pnpm --filter @repo/infrastructure run deploy -- --stage "$STAGE"
+        run: pnpm --filter @repo/infra run deploy -- --stage "$STAGE"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -175,7 +175,7 @@ jobs:
           fi
 
       - name: Destroy preview environment
-        run: pnpm --filter @repo/infrastructure run destroy -- --stage "$STAGE"
+        run: pnpm --filter @repo/infra run destroy -- --stage "$STAGE"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

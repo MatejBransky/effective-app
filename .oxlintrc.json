@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "jsPlugins": ["@repo/lint-config"],
+  "jsPlugins": ["@repo/shared-lint-config"],
   "plugins": ["react", "unicorn", "typescript", "oxc"],
   "ignorePatterns": ["externals/**", "**/.alchemy/**"],
   "rules": {

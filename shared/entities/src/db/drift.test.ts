@@ -11,9 +11,10 @@ import {
   SequenceEdge,
   SequenceEnrollment,
   SequenceVersion,
-} from "@repo/entities";
+} from "../index.ts";
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+
 import {
   domainEvents,
   hostFilterSets,
@@ -27,19 +28,16 @@ import {
   sequenceEdges,
   sequenceEnrollments,
   sequenceVersions,
-} from "./schema.ts";
+} from "./schema/index.ts";
 
 /**
- * Guards against `shared/entities` (Effect Schema, source of truth) and this file's
- * hand-written Drizzle SQLite tables drifting apart - same spirit, and now the same
- * mechanism (`getTableColumns`), as `shared/db/src/drift.test.ts` does for the Postgres
- * side, now that the client schema is a Drizzle schema too (see `schema.ts`'s
- * `DrizzleAppSchema` comment for why - one client-side schema instead of two).
+ * Guards against shared/entities (Effect Schema, source of truth) and shared/db
+ * (hand-written Drizzle tables) drifting apart - see "Effect Schema -> Drizzle bridge"
+ * in docs/data-model.md for why this is a drift test rather than codegen.
  *
- * `SequenceAction` is a discriminated union in shared/entities but one flat
- * `sequence_actions` table here (`config`'s shape depends on `type` at the application
- * layer) - same gap `shared/db/src/drift.test.ts` documents; its field set is read from
- * any one case, since every case shares the same top-level keys.
+ * `SequenceAction` is a discriminated union in shared/entities but one flat table here
+ * (its `config` shape depends on `type` at the application layer, not the DB layer), so
+ * its field set is read from any one case - every case shares the same top-level keys.
  */
 const entities = [
   { name: "Host", fields: Object.keys(Host.fields), table: hosts },
@@ -72,7 +70,7 @@ const entities = [
   { name: "DomainEvent", fields: Object.keys(DomainEvent.fields), table: domainEvents },
 ];
 
-describe("Effect Schema <-> Drizzle client schema drift", () => {
+describe("Effect Schema <-> Drizzle drift", () => {
   it.each(entities)("$name: schema fields match table columns", ({ fields, table }) => {
     const columns = Object.keys(getTableColumns(table));
     expect([...columns].sort()).toEqual([...fields].sort());

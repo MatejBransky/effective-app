@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    // This repo writes explicit `.ts` extensions on relative imports everywhere (see
+    // apps/server, packages/schema, packages/db) - needed here too now that apps/client
+    // imports @repo/entities directly. Requires `noEmit` (set above), which
+    // react-app projects (Vite-bundled, not tsc-emitted) already need regardless.
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
+  },
+  "exclude": ["${configDir}/node_modules", "${configDir}/dist"]
+}

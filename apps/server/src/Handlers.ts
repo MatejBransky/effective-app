@@ -1,4 +1,4 @@
-import { hosts } from "@repo/db";
+import { hosts } from "@repo/entities/db";
 import { Effect } from "effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Api, HostNotFound } from "./Api.ts";
@@ -22,7 +22,7 @@ export const HostsGroupLive = HttpApiBuilder.group(Api, "Hosts", (handlers) =>
   handlers.handle("me", () =>
     Effect.gen(function* () {
       const hostScopedDb = yield* HostScopedDb;
-      // No WHERE clause needed - RLS (packages/db's host_isolation policy) already
+      // No WHERE clause needed - RLS (shared/db's host_isolation policy) already
       // limits this to at most the caller's own host row.
       const rows = yield* hostScopedDb.query((tx) => tx.select().from(hosts));
       const host = rows[0];

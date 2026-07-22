@@ -18,10 +18,10 @@ offline, mutations need connectivity" (`useStatus()`-gated UI, verified by
 stopping `apps/server` mid-edit and watching the write queue then flush).
 See `docs/data-model.md` for the full writeup of each.
 
-**`packages/shared`'s "app-shell state"** (2026-07-19) - `packages/shared/lib`
+**`shared`'s "app-shell state"** (2026-07-19) - `shared/lib`
 (the Atom/`AtomRegistry` React bindings, extracted out of `apps/client` so
 every layer above `shared` can share one registry instance) and
-`packages/shared/app-shell` (a modal manager - `openModal`/`closeModal`,
+`shared/app-shell` (a modal manager - `openModal`/`closeModal`,
 rendered as native `<dialog>` elements by `ModalHost` - and a global
 keybindings registry with exact-modifier-match parsing for `"mod+k"`-style
 patterns). Wired into `apps/client` via a `Sidebar` demo (Mod+B toggles it,
@@ -36,7 +36,7 @@ wrapped in `Atom.keepAlive` - `keybindingsAtom` needed this;
 `ModalHost` always subscribing. Regression tests assert both atoms survive
 past a tick with no active subscriber.
 
-**Action registry** (2026-07-20) - `packages/shared/app-shell`'s
+**Action registry** (2026-07-20) - `shared/app-shell`'s
 `ActionDefinition`/`defineAction`/`useActionTrigger`, plus `confirm()` (wraps
 `openModal` in `Effect.callback` so a confirmation dialog can be
 `yield*`-ed inline inside an action's own `Effect.gen`, not orchestrated by
@@ -61,7 +61,7 @@ left stuck open with nothing listening for its result.
   writeup, including how Postgres/Hyperdrive, zero-downtime, and local dev
   parity were resolved). First deployable unit built and **verified live**:
   a trivial `HelloWorker` (`alchemy.run.ts` + `src/HelloWorker.ts`) deployed
-  to a real Cloudflare account - `pnpm --filter @repo/infrastructure
+  to a real Cloudflare account - `pnpm --filter @repo/infra
 run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
   deployed `HelloWorker`, and the live `*.workers.dev` URL returned
   `hello world` (HTTP 200) on the first request. Proves the whole toolchain
@@ -164,7 +164,7 @@ scripted via API/CLI):
 
 ## Documented as planned, not built yet
 
-(nothing currently - see "Done" above for `packages/shared`'s app-shell state,
+(nothing currently - see "Done" above for `shared`'s app-shell state,
 built 2026-07-19)
 
 ## New idea from this conversation: scheduled/async jobs example

@@ -1,20 +1,21 @@
 {
-  "name": "@repo/server",
+  "name": "@repo/entities",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./db": "./src/db/index.ts"
+  },
   "scripts": {
-    "dev": "node --watch --env-file=../../.env src/main.ts",
-    "start": "node src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@effect/platform-node": "catalog:",
-    "@repo/entities": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
-    "jose": "catalog:",
     "pg": "catalog:"
   },
   "devDependencies": {
@@ -22,6 +23,7 @@
     "@repo/shared-typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

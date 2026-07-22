@@ -17,7 +17,7 @@
     "@powersync/drizzle-driver": "0.7.4",
     "@powersync/react": "1.10.0",
     "@powersync/web": "1.39.0",
-    "@repo/schema": "workspace:*",
+    "@repo/entities": "workspace:*",
     "@repo/shared-app-shell": "workspace:*",
     "@repo/shared-lib": "workspace:*",
     "@tanstack/react-router": "catalog:",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-typescript": "7.29.7",
-    "@repo/typescript-config": "workspace:*",
+    "@repo/shared-typescript-config": "workspace:*",
     "@tanstack/react-router-devtools": "1.167.0",
     "@tanstack/router-cli": "1.167.19",
     "@tanstack/router-plugin": "1.168.20",

@@ -1,4 +1,4 @@
-import * as schema from "@repo/db";
+import * as schema from "@repo/entities/db";
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Context, Effect, Layer, Schema } from "effect";
@@ -13,7 +13,7 @@ export class DbError extends Schema.TaggedErrorClass<DbError>()(
 
 /**
  * Runs a query inside a transaction with `app.host_id` set for its duration (via
- * `set_config`, transaction-local) - this is what packages/db's RLS policies actually
+ * `set_config`, transaction-local) - this is what shared/db's RLS policies actually
  * filter on, see docs/data-model.md's "Postgres RLS for multi-tenancy" section. Every
  * query issued through `query` is host-scoped by construction; there is no way to
  * accidentally query without that context set.

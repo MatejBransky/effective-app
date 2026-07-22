@@ -13,7 +13,9 @@
   "devDependencies": {
     "@repo/shared-typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "jsonc-parser": "3.3.1",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "2.9.0"
   }
 }

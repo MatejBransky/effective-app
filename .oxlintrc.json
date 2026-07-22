@@ -7,8 +7,8 @@
     "repo/no-type-assertion": "error",
     // Layer order = allowed import direction (each layer may only import from layers below
     // it in this list). Matching is by `package.json#name`, not directory - keep patterns
-    // mutually exclusive, and keep this list in sync with shared/lint-config's consistency
-    // test, which cross-checks it against the real workspace packages.
+    // mutually exclusive. shared/lint-config's consistency test reads this config directly
+    // and cross-checks it against the real workspace packages.
     "repo/layer-boundaries": [
       "error",
       {

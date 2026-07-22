@@ -49,6 +49,146 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
+  apps/hello:
+    dependencies:
+      '@repo/domain-hello':
+        specifier: workspace:*
+        version: link:../../domains/hello
+      '@repo/entities':
+        specifier: workspace:*
+        version: link:../../shared/entities
+      '@repo/scripts':
+        specifier: workspace:*
+        version: link:../../scripts
+      '@repo/shared-hello':
+        specifier: workspace:*
+        version: link:../../shared/hello
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../../shared/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  apps/other:
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../../shared/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  domains/hello:
+    dependencies:
+      '@repo/app-other':
+        specifier: workspace:*
+        version: link:../../apps/other
+      '@repo/domain-other':
+        specifier: workspace:*
+        version: link:../other
+      '@repo/entities':
+        specifier: workspace:*
+        version: link:../../shared/entities
+      '@repo/shared-hello':
+        specifier: workspace:*
+        version: link:../../shared/hello
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../../shared/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  domains/other:
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../../shared/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  scripts:
+    dependencies:
+      '@repo/app-other':
+        specifier: workspace:*
+        version: link:../apps/other
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../shared/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  shared/entities:
+    dependencies:
+      '@repo/domain-other':
+        specifier: workspace:*
+        version: link:../../domains/other
+      '@repo/shared-hello':
+        specifier: workspace:*
+        version: link:../hello
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  shared/hello:
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  shared/hello-consumer:
+    dependencies:
+      '@repo/entities':
+        specifier: workspace:*
+        version: link:../entities
+      '@repo/shared-hello':
+        specifier: workspace:*
+        version: link:../hello
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
   shared/lint-config:
     devDependencies:
       '@repo/shared-typescript-config':

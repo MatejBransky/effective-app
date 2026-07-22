@@ -1,0 +1,23 @@
+{
+  "name": "@repo/app-hello",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/domain-hello": "workspace:*",
+    "@repo/entities": "workspace:*",
+    "@repo/scripts": "workspace:*",
+    "@repo/shared-hello": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/shared-typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

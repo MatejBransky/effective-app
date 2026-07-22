@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@effect/atom-react": "catalog:",
+    "@repo/shared-shell": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "effect": "catalog:",
     "oidc-client-ts": "catalog:",

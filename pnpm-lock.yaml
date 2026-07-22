@@ -124,6 +124,9 @@ importers:
       '@effect/atom-react':
         specifier: 'catalog:'
         version: 4.0.0-beta.100(effect@4.0.0-beta.100)(react@19.2.7)(scheduler@0.27.0)
+      '@repo/shared-shell':
+        specifier: workspace:*
+        version: link:../../shared/shell
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -197,6 +200,28 @@ importers:
       yaml:
         specifier: 2.9.0
         version: 2.9.0
+
+  shared/shell:
+    dependencies:
+      '@effect/atom-react':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.100(effect@4.0.0-beta.100)(react@19.2.7)(scheduler@0.27.0)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.100
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+    devDependencies:
+      '@repo/shared-typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
   shared/typescript-config: {}
 

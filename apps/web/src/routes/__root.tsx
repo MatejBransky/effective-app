@@ -1,6 +1,8 @@
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { ShellHost } from "@repo/shared-shell";
 import { Navbar } from "../components/Navbar.tsx";
 import type { AuthState } from "../lib/auth.ts";
+import { shellStateAtom } from "../runtime/shellAtoms.ts";
 
 export interface RouterContext {
   readonly auth: AuthState;
@@ -11,6 +13,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     <>
       <Navbar />
       <Outlet />
+      <ShellHost state={shellStateAtom} />
     </>
   ),
 });

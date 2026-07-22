@@ -1,5 +1,6 @@
 import { Layer } from "effect";
+import { ShellUILive } from "@repo/shared-shell";
 
-// Nothing to compose yet - Iteration 2 (`shared/shell`) replaces this with
-// `Layer.mergeAll(ShellUILive, ...)` once there's at least one real layer.
-export const MainLayer = Layer.empty;
+// Real domain layers get merged in here as they're built, e.g.
+// Layer.mergeAll(ShellUILive, HostsLive, MembersLive, ...).
+export const MainLayer = Layer.mergeAll(ShellUILive);

@@ -21,7 +21,7 @@ const LAYERS: LayerConfig[] = [
   { layer: "shared", packages: "@repo/shared-*", allowSameLayerImports: true },
   { layer: "entities", packages: "@repo/entities", allowSameLayerImports: true },
   { layer: "domains", packages: "@repo/domain-*" },
-  { layer: "app", packages: [] },
+  { layer: "app", packages: "@repo/app-*" },
   { layer: "scripts", packages: "@repo/scripts" },
 ];
 

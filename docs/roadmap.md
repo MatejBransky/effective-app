@@ -57,8 +57,15 @@ compose domain `Layer`s (via `Layer.mergeAll` + `Atom.runtime`), a
 `shared/shell` package for global modal/sidebar management (`ShellUI.open`,
 mirroring the legacy `openModal((resolve) => jsx)` pattern on top of
 `Effect.async`), and the `shared/entities`-tag convention for cross-domain
-action calls. Design-only so far - not implemented; unblocked to build once
-a first real domain exists (see `docs/implement-domain-model.md`).
+action calls.
+
+Iteration 1 (bootstrap skeleton - Effect DI wiring + static navbar, zero
+business logic) is done: `apps/web/src/runtime/MainLayer.ts` (currently
+`Layer.empty`) + `runtime.ts` (`Atom.runtime(MainLayer)`), `main.tsx` wraps
+`RouterProvider` in `@effect/atom-react`'s `RegistryProvider`, and a static
+`Navbar` mounts in `__root.tsx`. The rest of the design (`shared/shell`,
+cross-domain action tags) is still design-only - unblocked to build once a
+first real domain exists (see `docs/implement-domain-model.md`).
 
 ## New idea from a previous conversation: scheduled/async jobs example
 

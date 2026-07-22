@@ -2,7 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "jsPlugins": ["@repo/shared-lint-config"],
   "plugins": ["react", "unicorn", "typescript", "oxc"],
-  "ignorePatterns": ["externals/**", "**/.alchemy/**"],
+  "ignorePatterns": ["externals/**"],
   "rules": {
     "repo/no-type-assertion": "error"
   }

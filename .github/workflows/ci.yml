@@ -4,19 +4,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
-
-# Queues overlapping runs on the same ref instead of racing two deploys against
-# the same stage's Cloudflare resources.
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  # PRs deploy to their own isolated pr-{number} stage; pushes to main deploy to
-  # prod; anything else (a manual workflow_dispatch on another branch, say) falls
-  # back to the branch name - see docs/data-model.md's "GitHub CI/CD" section.
-  STAGE: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || (github.ref == 'refs/heads/main' && 'prod' || github.ref_name) }}
+    types: [opened, synchronize, reopened]
 
 jobs:
   test:
@@ -111,72 +99,3 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  deploy:
-    name: Deploy to Cloudflare
-    needs: [test, security]
-    if: github.event.action != 'closed'
-    timeout-minutes: 15
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Deploy
-        run: pnpm --filter @repo/infra run deploy -- --stage "$STAGE"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PULL_REQUEST: ${{ github.event.number }}
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  cleanup:
-    name: Destroy PR preview
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Safety check
-        run: |
-          if [ "$STAGE" = "prod" ]; then
-            echo "ERROR: Cannot destroy prod environment in cleanup job"
-            exit 1
-          fi
-
-      - name: Destroy preview environment
-        run: pnpm --filter @repo/infra run destroy -- --stage "$STAGE"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PULL_REQUEST: ${{ github.event.number }}

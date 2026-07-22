@@ -49,9 +49,7 @@ const counter = Atom.make(0);
 
 const doubled = Atom.make((get) => get(counter) * 2);
 
-const user = Atom.make(
-  Effect.promise(() => fetch("/api/user").then((r) => r.json())),
-);
+const user = Atom.make(Effect.promise(() => fetch("/api/user").then((r) => r.json())));
 
 const data = Atom.make(fetchData, { initialValue: [] });
 ```
@@ -112,7 +110,7 @@ countByKey("a"); // Atom for key "a"
 countByKey("a"); // Same atom instance (cached)
 
 const userById = Atom.family((id: string) =>
-  Atom.make(Effect.promise(() => fetch(`/api/users/${id}`).then((r) => r.json())))
+  Atom.make(Effect.promise(() => fetch(`/api/users/${id}`).then((r) => r.json()))),
 );
 ```
 
@@ -125,7 +123,7 @@ class UserQuery extends Data.Class<{
 }> {}
 
 const userAtom = Atom.family((query: UserQuery) =>
-  Atom.make(fetchUser(query.id, query.includeProfile))
+  Atom.make(fetchUser(query.id, query.includeProfile)),
 );
 
 userAtom(new UserQuery({ id: "1", includeProfile: true }));
@@ -140,14 +138,14 @@ Atoms that depend on Effect services:
 const appRuntime = Atom.runtime(HttpClient.layer);
 
 const users = appRuntime.atom(
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     const http = yield* HttpClient.HttpClient;
     return yield* http.get("/api/users").pipe(HttpClientResponse.json);
   }),
 );
 
-const createUser = appRuntime.fn<{ name: string; }>()(
-  Effect.fn(function*(input, get) {
+const createUser = appRuntime.fn<{ name: string }>()(
+  Effect.fn(function* (input, get) {
     const http = yield* HttpClient.HttpClient;
     return yield* http.post("/api/users", { body: input });
   }),
@@ -164,12 +162,10 @@ Use reactivity keys to invalidate related query atoms after mutations:
 ```ts
 const runtime = Atom.runtime(Api.layer);
 
-const todosAtom = runtime.atom(fetchTodos).pipe(
-  Atom.withReactivity(["todos"]),
-);
+const todosAtom = runtime.atom(fetchTodos).pipe(Atom.withReactivity(["todos"]));
 
-const createTodo = runtime.fn<{ title: string; }>()(
-  Effect.fn(function*(input) {
+const createTodo = runtime.fn<{ title: string }>()(
+  Effect.fn(function* (input) {
     const api = yield* Api;
     return yield* api.createTodo(input);
   }),
@@ -255,12 +251,13 @@ const paginatedTodos = runtime.pull((get) => {
   const query = get(searchInput$);
 
   return Stream.paginate(null as string | null, (cursor) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const api = yield* Api;
       const page = yield* api.getTodos({ query, cursor });
 
       return [page.items, Option.fromNullable(page.nextCursor)] as const;
-    })).pipe(Stream.flattenIterables);
+    }),
+  ).pipe(Stream.flattenIterables);
 });
 ```
 
@@ -300,8 +297,8 @@ const userAtom = (() => {
 
 ```ts
 type CacheAction = Data.TaggedEnum<{
-  Set: { value: User; };
-  Optimistic: { value: User; };
+  Set: { value: User };
+  Optimistic: { value: User };
   Invalidate: {};
 }>;
 const CacheAction = Data.taggedEnum<CacheAction>();
@@ -357,7 +354,7 @@ The derived atom re-runs whenever `baseAtom` changes.
 
 ```ts
 const outer = Atom.fn(
-  Effect.fn(function*(_, get) {
+  Effect.fn(function* (_, get) {
     const user = yield* get.result(userAtom);
     const data = yield* get.result(dataAtom, { suspendOnWaiting: true });
     return { user, data };
@@ -412,9 +409,7 @@ const counter = Atom.make(0).pipe(Atom.keepAlive);
 Dispose after N time with no subscribers:
 
 ```ts
-const cached = Atom.make(fetchExpensiveData).pipe(
-  Atom.setIdleTTL("30 seconds"),
-);
+const cached = Atom.make(fetchExpensiveData).pipe(Atom.setIdleTTL("30 seconds"));
 ```
 
 ### `Atom.autoDispose`
@@ -422,10 +417,7 @@ const cached = Atom.make(fetchExpensiveData).pipe(
 Explicitly revert `keepAlive` behavior:
 
 ```ts
-const temporary = Atom.make(fetchExpensiveData).pipe(
-  Atom.keepAlive,
-  Atom.autoDispose,
-);
+const temporary = Atom.make(fetchExpensiveData).pipe(Atom.keepAlive, Atom.autoDispose);
 ```
 
 ### `Atom.debounce`
@@ -442,9 +434,7 @@ const searchInput$ = searchInput.pipe(Atom.debounce("300 millis"));
 Periodic refresh for query style atoms:
 
 ```ts
-const metricsAtom = runtime.atom(fetchMetrics).pipe(
-  Atom.withRefresh("30 seconds"),
-);
+const metricsAtom = runtime.atom(fetchMetrics).pipe(Atom.withRefresh("30 seconds"));
 ```
 
 ### `Atom.makeRefreshOnSignal` and `Atom.refreshOnWindowFocus`
@@ -454,9 +444,7 @@ Refresh an atom when another signal atom changes:
 ```ts
 const refetchSignal = Atom.make(0);
 
-const reportAtom = runtime.atom(fetchReport).pipe(
-  Atom.makeRefreshOnSignal(refetchSignal),
-);
+const reportAtom = runtime.atom(fetchReport).pipe(Atom.makeRefreshOnSignal(refetchSignal));
 
 registry.update(refetchSignal, (n) => n + 1);
 ```
@@ -464,9 +452,7 @@ registry.update(refetchSignal, (n) => n + 1);
 For browser focus refresh:
 
 ```ts
-const reportAtom = runtime.atom(fetchReport).pipe(
-  Atom.refreshOnWindowFocus,
-);
+const reportAtom = runtime.atom(fetchReport).pipe(Atom.refreshOnWindowFocus);
 ```
 
 ### `Atom.swr`
@@ -502,7 +488,7 @@ const todosAtom = runtime.atom((get) => {
   const query = get(searchInput$).trim();
   if (query.length <= 3) return Effect.succeed([]);
 
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const api = yield* Api;
     return yield* api.searchTodos(query);
   });
@@ -575,9 +561,11 @@ const optimisticTodos = todos.pipe(Atom.optimistic);
 const addTodo = optimisticTodos.pipe(
   Atom.optimisticFn({
     reducer: (current, newTodo: Todo) => [...current, newTodo],
-    fn: Atom.fn(Effect.fn(function*(todo) {
-      yield* saveTodo(todo);
-    })),
+    fn: Atom.fn(
+      Effect.fn(function* (todo) {
+        yield* saveTodo(todo);
+      }),
+    ),
   }),
 );
 ```
@@ -596,10 +584,10 @@ const addTodo = optimisticTodos.pipe(
     reducer: (current, text: string) => [...current, { id: "temp", text }],
     fn: (set) =>
       Atom.fn<string>()((text) =>
-        Effect.gen(function*() {
+        Effect.gen(function* () {
           set([{ id: "temp", text: `${text}...` }]);
           yield* saveTodo(text);
-        })
+        }),
       ),
   }),
 );
@@ -668,11 +656,7 @@ Options:
 ### `useAtomSubscribe`
 
 ```ts
-useAtomSubscribe(
-  userAtom,
-  (user) => console.log("User changed:", user),
-  { immediate: true },
-);
+useAtomSubscribe(userAtom, (user) => console.log("User changed:", user), { immediate: true });
 ```
 
 ### `useAtomRefresh`

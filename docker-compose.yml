@@ -16,18 +16,10 @@ services:
       # `postgres:18+` images want the volume mounted at the `/var/lib/postgresql`
       # parent dir, not `.../data` (their own data-directory layout changed) - see
       # https://github.com/docker-library/postgres/pull/1259. If you have an existing
-      # volume from before this changed (or before PowerSync was added), it has data
-      # laid out for the old path and needs to be reinitialized once:
+      # volume from before this changed, it has data laid out for the old path and
+      # needs to be reinitialized once:
       # `pnpm run dev:infra:down && docker volume rm effective-app_postgres-data`.
       - postgres-data:/var/lib/postgresql
-      # Runs only on first start (empty volume) - creates the `powersync` publication,
-      # the non-owner `app_user` role apps/server connects as (RLS applies to it, unlike
-      # `effective_app` which owns the tables and bypasses RLS by default), and the
-      # least-privilege `powersync_replication` role PowerSync's replication connection
-      # uses instead of the `effective_app` superuser.
-      - ./postgres/init-scripts:/docker-entrypoint-initdb.d
-    # `wal_level=logical` is required for PowerSync's logical replication connection.
-    command: ["postgres", "-c", "wal_level=logical"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U effective_app"]
       interval: 5s
@@ -48,112 +40,6 @@ services:
     volumes:
       - mailpit-data:/data
 
-  # PowerSync's own bucket/checkpoint metadata store - deliberately a separate Postgres
-  # instance from the `postgres` service above (which is the *replication source*, i.e.
-  # our actual app data), matching the official `powersync docker configure` scaffold.
-  pg-storage:
-    image: postgres:18.4-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${PS_STORAGE_USER:-postgres}
-      POSTGRES_PASSWORD: ${PS_STORAGE_PASSWORD:-local_dev_only}
-      POSTGRES_DB: ${PS_STORAGE_DATABASE:-powersync_storage}
-      PGPORT: ${PS_STORAGE_PORT:-5434}
-    ports:
-      - "${PS_STORAGE_PORT:-5434}:${PS_STORAGE_PORT:-5434}"
-    volumes:
-      # Same `postgres:18+` mount-path requirement as the `postgres` service above.
-      - powersync-storage-data:/var/lib/postgresql
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${PS_STORAGE_USER:-postgres} -d ${PS_STORAGE_DATABASE:-powersync_storage}",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # Local IdP - issues the JWTs apps/server's AuthService verifies and (via the
-  # "powersync-audience" mapper in keycloak/realm-export.json) the ones PowerSync's
-  # client_auth accepts. `start-dev --import-realm` is dev-only: plain HTTP, no
-  # clustering - never run this image/mode anywhere but local dev.
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.7.0
-    restart: unless-stopped
-    command: ["start-dev", "--import-realm", "--health-enabled=true"]
-    environment:
-      # Local-dev-only admin console login - never reuse these anywhere but this
-      # throwaway container. Only takes effect on a genuinely fresh keycloak-data
-      # volume; --import-realm skips importing a realm that already exists, so
-      # these also won't "reset" an existing one.
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local_dev_only}
-    ports:
-      # Override in .env if already taken - also update KEYCLOAK_PORT in .env to match,
-      # since apps/server's KEYCLOAK_ISSUER/KEYCLOAK_JWKS_URI are derived from it.
-      - "${KEYCLOAK_PORT:-8180}:8080"
-    volumes:
-      # Realm/client/test-user fixture, imported once into a fresh volume (see below).
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-      # Persists the imported realm (and any admin-console changes) across container
-      # restarts/recreates, consistent with the other stateful services above.
-      - keycloak-data:/opt/keycloak/data
-    healthcheck:
-      # This image has no curl/wget (deliberately removed) - this is Keycloak's own
-      # documented workaround for probing itself: craft a raw HTTP request over bash's
-      # /dev/tcp. Health/readiness lives on the management port (9000), not 8080.
-      test:
-        [
-          "CMD",
-          "bash",
-          "-c",
-          "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3 && head -1 <&3 | grep -q 200",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 20s
-
-  # Self-hosted PowerSync sync service - see docs/data-model.md's "PowerSync sync
-  # streams" section and powersync/sync-config.yaml for what actually gets synced.
-  powersync:
-    image: journeyapps/powersync-service:latest
-    restart: unless-stopped
-    command: ["start", "-r", "unified"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      pg-storage:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
-    environment:
-      POWERSYNC_CONFIG_PATH: /config/service.yaml
-      # `powersync_replication` (postgres/init-scripts/03-powersync-replication-role.sql)
-      # - REPLICATION + read-only, not the `effective_app` superuser that owns the tables.
-      PS_DATA_SOURCE_URI: postgres://powersync_replication:${PS_REPLICATION_PASSWORD:-local_dev_only}@postgres:5432/effective_app
-      PS_STORAGE_SOURCE_URI: postgres://${PS_STORAGE_USER:-postgres}:${PS_STORAGE_PASSWORD:-local_dev_only}@pg-storage:${PS_STORAGE_PORT:-5434}/${PS_STORAGE_DATABASE:-powersync_storage}
-      PS_API_TOKEN: ${PS_API_TOKEN:-local_dev_only_change_me}
-    volumes:
-      - ./powersync/service.yaml:/config/service.yaml
-      - ./powersync/sync-config.yaml:/config/sync-config.yaml
-    ports:
-      - "${PS_PORT:-8080}:${PS_PORT:-8080}"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:${PS_PORT:-8080}/probes/liveness').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 15
-
 volumes:
   postgres-data:
   mailpit-data:
-  powersync-storage-data:
-  keycloak-data:

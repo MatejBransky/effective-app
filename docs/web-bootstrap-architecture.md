@@ -78,15 +78,32 @@ buttons, a sidebar's contents) - not "no React in shared/domains packages."
 
 Since there's no cross-domain isolation concern here (nothing needs to depend
 on a description without depending on the implementation - see the reasoning
-in section 2), this follows the same shape `apps/server`'s `JwtVerifier.ts`
-already uses: tag _and_ its `Layer` defined together in one file, standard
-Effect-TS service style, no artificial split.
+in section 2), this follows the same principle `apps/server`'s
+`JwtVerifier.ts` already established: no artificial split between a tag and
+its `Layer` when nothing needs to depend on one without the other.
+
+The concrete shape differs by how many concrete implementations a service
+has, though - two established idioms in this repo, pick whichever fits:
+
+- **Exactly one Live implementation, no config/swappable backend** (e.g.
+  `ShellUI` - one in-memory overlay stack, nothing to fake in tests): pass
+  `make` inline as `Context.Service`'s `make` option, and add a
+  `static readonly layer` on the class itself deriving the `Layer` from
+  `this.make` - see `shared/shell/src/ShellUI.ts`. This isn't a repo-specific
+  invention: it's what the vendored Effect source itself does for an
+  equivalently-shaped service (`MemoryDriver` in
+  `externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts:828-1036`).
+- **Multiple concrete implementations to swap** (e.g. `JwtVerifier` - a real
+  network-fetching `layer(options)` vs. an in-memory `layerWithJwks(options)`
+  for tests): keep the tag and its `Layer` factories as separate exported
+  consts in the same file, since a single static property can't hold more
+  than one variant.
 
 ```
 shared/shell/
   package.json          # @repo/shared-shell
   src/
-    ShellUI.ts           # Context.Service tag + its Layer, together (mirrors JwtVerifier.ts)
+    ShellUI.ts           # Context.Service tag, its `make` inline, `static readonly layer`
     ShellHost.tsx         # React component rendering the overlay stack
     useShellUI.ts         # hook for components
 ```

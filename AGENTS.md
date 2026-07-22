@@ -55,7 +55,8 @@ business-shape tier (domain entity/schema definitions) - the reverse (business-a
 depending on generic code) is fine. There's no lint rule for this, just don't add that
 `package.json` dependency - pnpm only resolves what's explicitly declared, so an accidental
 deep-import fails at both TypeScript resolution and at runtime, the same enforcement the
-domain-import rule below relies on. Neither tier exists yet - added iteratively, read
+domain-import rule below relies on. The generic tier has its first package (`shared/shell`,
+a modal/sidebar manager); the business-shape tier doesn't exist yet - added iteratively, read
 `docs/roadmap.md` before assuming what's next.
 
 `domains/<name>` (e.g. `domains/hosts`, `domains/members`) is where real business logic
@@ -77,3 +78,18 @@ dependency resolution, no bespoke lookup mechanism. Whichever app composes every
 (`Layer.mergeAll`), and builds the result once at bootstrap - the same "one registration
 point" pattern the FSD layer-import rule used to enforce through the pnpm/Turborepo package
 graph - don't add a domain-to-domain dependency that would bypass it.
+
+Defining a `Context.Service` tag alongside its `Layer` in one file (no separate description
+vs. implementation split) is fine whenever nothing needs to depend on one without the other,
+e.g. a `shared/*` generic-tier service with no cross-domain isolation concern. Two idioms for
+that case, already both in use, pick by how many concrete implementations the service has:
+
+1. Exactly one Live implementation, no swappable backend (`shared/shell/src/ShellUI.ts`): pass
+   `make` inline as `Context.Service`'s `make` option and add a `static readonly layer` on the
+   class deriving the `Layer` from `this.make`, mirroring the vendored Effect source's own
+   `MemoryDriver`
+   (`externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts:828-1036`).
+2. Multiple concrete implementations to swap, e.g. real vs. test double
+   (`apps/server/src/JwtVerifier.ts`'s network-fetching `layer(options)` vs. in-memory
+   `layerWithJwks(options)`): keep the tag and its `Layer` factories as separate exported
+   consts, since a single static property can't hold more than one variant.

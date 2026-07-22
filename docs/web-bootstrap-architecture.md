@@ -93,7 +93,7 @@ shared/shell/
 
 Core service shape (illustrative) - a single `open` method that mirrors the
 legacy Promise-based `openModal((resolve) => jsx)` pattern, built on
-`Effect.async` instead of `new Promise(...)`:
+`Effect.callback` instead of `new Promise(...)`:
 
 ```ts
 // shared/shell/src/ShellUI.ts
@@ -136,12 +136,12 @@ Effect.gen(function* () {
 ```
 
 Implementation sketch (same `ShellUI.ts`, the exported `layer`/`ShellUILive`):
-`open` is built with `Effect.async` - Effect's equivalent of `new
+`open` is built with `Effect.callback` - Effect's equivalent of `new
 Promise((resolve) => ...)` - which hands the caller a `resume` callback.
 `open` pushes `{ id, kind, render }` onto a single
 `SubscriptionRef<OverlayEntry[]>` stack (the source of truth), and its
 `render` function is called with a `resolve` that both `resume`s the `Effect`
-and removes the entry from the stack. `Effect.async`'s cleanup callback
+and removes the entry from the stack. `Effect.callback`'s cleanup callback
 removes the entry too, so an interrupted/cancelled caller (e.g. a route
 navigation away) doesn't leave a stale overlay behind - something the raw
 Promise-based legacy version couldn't express as cleanly.
@@ -317,7 +317,7 @@ React (or left as-is to surface as a rendered error state). Composing a
   JSX-producing `render` function, so `<ShellHost/>` just calls it.
 - `useAtomSet(runtime.fn(...))` for a component-triggered domain action.
 - Domain-triggered `shell.open(...)` calls need no React hook at all - plain
-  `Effect` code (via `Effect.async`), rendered by whichever
+  `Effect` code (via `Effect.callback`), rendered by whichever
   `entry.render(entry.resolve)` call `<ShellHost/>` makes for that stack
   entry.
 

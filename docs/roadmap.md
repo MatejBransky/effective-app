@@ -56,16 +56,26 @@ Phase 4 can start.
 compose domain `Layer`s (via `Layer.mergeAll` + `Atom.runtime`), a
 `shared/shell` package for global modal/sidebar management (`ShellUI.open`,
 mirroring the legacy `openModal((resolve) => jsx)` pattern on top of
-`Effect.async`), and the `shared/entities`-tag convention for cross-domain
+`Effect.callback`), and the `shared/entities`-tag convention for cross-domain
 action calls.
 
 Iteration 1 (bootstrap skeleton - Effect DI wiring + static navbar, zero
-business logic) is done: `apps/web/src/runtime/MainLayer.ts` (currently
-`Layer.empty`) + `runtime.ts` (`Atom.runtime(MainLayer)`), `main.tsx` wraps
-`RouterProvider` in `@effect/atom-react`'s `RegistryProvider`, and a static
-`Navbar` mounts in `__root.tsx`. The rest of the design (`shared/shell`,
-cross-domain action tags) is still design-only - unblocked to build once a
-first real domain exists (see `docs/implement-domain-model.md`).
+business logic) is done: `apps/web/src/runtime/MainLayer.ts` + `runtime.ts`
+(`Atom.runtime(MainLayer)`), `main.tsx` wraps `RouterProvider` in
+`@effect/atom-react`'s `RegistryProvider`, and a static `Navbar` mounts in
+`__root.tsx`.
+
+Iteration 2 (sidebar management) is done: `shared/shell`
+(`@repo/shared-shell`) - `ShellUI.open` (`Effect.callback` + a
+`SubscriptionRef` stack, `kind: "sidebar"` for now), `ShellHost`
+(runtime-agnostic, takes the bridged state atom as a prop), `useShellUI`
+(dispatches via the app's own `runtime.fn`). `MainLayer` now merges
+`ShellUILive`; the Navbar's "Menu" button opens a sidebar purely to prove
+the open/resolve round trip - scaffolding, not a real feature.
+
+The rest of the design (the `shared/entities`-tag cross-domain action
+convention, a `kind: "modal"` example) is still design-only - unblocked to
+build once a first real domain exists (see `docs/implement-domain-model.md`).
 
 ## New idea from a previous conversation: scheduled/async jobs example
 

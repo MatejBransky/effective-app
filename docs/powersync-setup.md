@@ -49,28 +49,28 @@ up too.
 ## Phase 0 - Auth (Keycloak, local) — done (2026-07-22)
 
 1. [x] Added a `keycloak` service to `docker-compose.yml` (image, port via
-   `KEYCLOAK_PORT`, admin credentials via `.env`, following the same "avoid
-   default/common local ports" pattern already used for Postgres/mailpit -
-   8180 is clear of the banned-ports list).
+       `KEYCLOAK_PORT`, admin credentials via `.env`, following the same "avoid
+       default/common local ports" pattern already used for Postgres/mailpit -
+       8180 is clear of the banned-ports list).
 2. [x] Realm `app` + public client `app-client`
-   (Authorization Code + PKCE, `directAccessGrantsEnabled` for curl-only
-   testing) issue JWTs carrying an `aud: powersync-dev` claim (an
-   `oidc-audience-mapper`) that will match PowerSync's `service.yaml`
-   `client_auth.audience` once that's configured in Phase 3.
+       (Authorization Code + PKCE, `directAccessGrantsEnabled` for curl-only
+       testing) issue JWTs carrying an `aud: powersync-dev` claim (an
+       `oidc-audience-mapper`) that will match PowerSync's `service.yaml`
+       `client_auth.audience` once that's configured in Phase 3.
    - **Deliberately generic**: no tenant/business claim (e.g. a `host_id`
      equivalent) yet - the prior (reset) attempt baked one in before any
      domain/multi-tenancy model existed to justify its shape. That claim
      gets designed alongside the domain model, not guessed here.
 3. [ ] Confirm the realm's JWKS URL is reachable from the PowerSync
-   container - still open, blocked on PowerSync existing (Phase 3). From
-   inside Docker this must be the Keycloak service's container name/network
-   alias (`http://keycloak:8080/...`), not `localhost` (self-hosted
-   service.yaml § "Complete service.yaml Example" / `custom-backend.md`'s
-   `block_local_jwks` note apply here). This replaces the custom
-   JWT-signing code in `references/custom-backend.md` entirely; Keycloak is
-   both the token issuer and the JWKS provider.
+       container - still open, blocked on PowerSync existing (Phase 3). From
+       inside Docker this must be the Keycloak service's container name/network
+       alias (`http://keycloak:8080/...`), not `localhost` (self-hosted
+       service.yaml § "Complete service.yaml Example" / `custom-backend.md`'s
+       `block_local_jwks` note apply here). This replaces the custom
+       JWT-signing code in `references/custom-backend.md` entirely; Keycloak is
+       both the token issuer and the JWKS provider.
 4. [x] Populated `infra/keycloak/realm-export.json` for real (was an empty
-   placeholder dir) so the realm config is reproducible/committed.
+       placeholder dir) so the realm config is reproducible/committed.
 
 ## Phase 1 - Source database (Postgres)
 
@@ -83,15 +83,16 @@ up too.
 
 ## Phase 2 - Backend API (new app)
 
-7. Add a new app (e.g. `apps/server`) with, at minimum:
+7. [x] Added `apps/server` (Effect v4 `effect/unstable/httpapi`) with a
+       public `/health` and a protected `/me` endpoint, verified end-to-end
+       against the live Keycloak - proves the JWKS verification chain, not yet
+       the data path. Still open, blocked on a domain model existing:
    - An `uploadData` endpoint receiving `CrudEntry[]`, writing to Postgres
      **synchronously**, always returning 2xx (a 4xx permanently blocks the
      client's upload queue - see `references/custom-backend.md` § "Backend
      API for uploadData").
-   - Verification of incoming requests against Keycloak's JWKS. No separate
-     `/token` endpoint is needed - Keycloak issues tokens to the browser
-     directly.
-8. Add CORS for `apps/web`'s origin.
+8. [x] Added CORS for `apps/web`'s origin (`CLIENT_ORIGIN` env var,
+       `HttpMiddleware.cors`).
 
 ## Phase 3 - PowerSync self-hosted instance (local dev)
 
@@ -155,7 +156,7 @@ see `docs/roadmap.md`). At minimum this will need:
   plans; check `https://www.powersync.com/pricing` or the dashboard when this
   phase starts.
 - A **separate** PowerSync config directory for this environment (`powersync
-  init cloud` in e.g. `powersync-cloud/`, keeping the self-hosted `powersync/`
+init cloud` in e.g. `powersync-cloud/`, keeping the self-hosted `powersync/`
   directory from Phase 3 untouched) - see `references/powersync-cli.md` §
   "Multi-Environment Setup" for the `--directory` pattern. Do not point the
   same CLI-managed directory at both a self-hosted stack and a Cloud

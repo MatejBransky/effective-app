@@ -1,0 +1,24 @@
+{
+  "name": "@repo/app-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=../../.env --watch src/main.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "effect": "catalog:",
+    "jose": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@repo/shared-typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

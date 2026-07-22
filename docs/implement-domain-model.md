@@ -32,7 +32,7 @@ packages. Both are obsolete framings - the repo has since moved to the
 `shared/*` / `domains/*` / `apps/*` / `scripts` layer split described in
 `AGENTS.md`: entity schemas are business-shape code, so they belong in
 `shared/*`'s business-shape tier (one pnpm package per cross-cutting concern,
-per `AGENTS.md`), not in `domains/*` (business *logic* that operates on those
+per `AGENTS.md`), not in `domains/*` (business _logic_ that operates on those
 shapes) or a resurrected `packages/*` tree. Follow `AGENTS.md`'s current
 layer rules, not the FSD `entities`/`features`/`widgets` split it explicitly
 replaced.

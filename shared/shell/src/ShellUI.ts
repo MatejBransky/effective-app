@@ -11,16 +11,19 @@ export interface OverlayEntry {
 
 /**
  * Global overlay stack (modals/sidebars), openable from anywhere - a React component or a
- * domain's business logic - via a single Promise-like `open` built on `Effect.callback`.
+ * domain's business logic - via a Promise-like `openSidebar` built on `Effect.callback`.
  * See docs/web-bootstrap-architecture.md section 1.
+ *
+ * One explicit method per overlay kind (`openSidebar` now, `openModal` once Iteration 3
+ * needs it) rather than a single `open(render, { kind? })` - an optional `kind` with a
+ * silent default reads ambiguously at the call site.
  */
 export class ShellUI extends Context.Service<
   ShellUI,
   {
     readonly state: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
-    readonly open: <A>(
+    readonly openSidebar: <A>(
       render: (resolve: (value: A) => void) => React.ReactNode,
-      options?: { readonly kind?: OverlayKind },
     ) => Effect.Effect<A>;
   }
 >()("shared-shell/ShellUI", {
@@ -29,8 +32,8 @@ export class ShellUI extends Context.Service<
     let nextId = 0;
 
     const open = <A>(
+      kind: OverlayKind,
       render: (resolve: (value: A) => void) => React.ReactNode,
-      options?: { readonly kind?: OverlayKind },
     ): Effect.Effect<A> =>
       Effect.callback<A>((resume) => {
         const id = nextId++;
@@ -48,16 +51,17 @@ export class ShellUI extends Context.Service<
         });
 
         Effect.runSync(
-          SubscriptionRef.update(state, (entries) => [
-            ...entries,
-            { id, kind: options?.kind ?? "sidebar", node },
-          ]),
+          SubscriptionRef.update(state, (entries) => [...entries, { id, kind, node }]),
         );
 
         return Effect.sync(remove);
       });
 
-    return { state, open };
+    const openSidebar = <A>(
+      render: (resolve: (value: A) => void) => React.ReactNode,
+    ): Effect.Effect<A> => open("sidebar", render);
+
+    return { state, openSidebar };
   }),
 }) {
   static readonly layer: Layer.Layer<ShellUI> = Layer.effect(this, this.make);

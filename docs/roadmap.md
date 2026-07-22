@@ -54,10 +54,10 @@ Phase 4 can start.
 
 `docs/web-bootstrap-architecture.md` - how `apps/web`'s bootstrap should
 compose domain `Layer`s (via `Layer.mergeAll` + `Atom.runtime`), a
-`shared/shell` package for global modal/sidebar management (`ShellUI.open`,
-mirroring the legacy `openModal((resolve) => jsx)` pattern on top of
-`Effect.callback`), and the `shared/entities`-tag convention for cross-domain
-action calls.
+`shared/shell` package for global modal/sidebar management (`ShellUI.openSidebar`/
+`openModal`, mirroring the legacy `openModal((resolve) => jsx)` pattern on top
+of `Effect.callback`), and the `shared/entities`-tag convention for
+cross-domain action calls.
 
 Iteration 1 (bootstrap skeleton - Effect DI wiring + static navbar, zero
 business logic) is done: `apps/web/src/runtime/MainLayer.ts` + `runtime.ts`
@@ -66,11 +66,13 @@ business logic) is done: `apps/web/src/runtime/MainLayer.ts` + `runtime.ts`
 `__root.tsx`.
 
 Iteration 2 (sidebar management) is done: `shared/shell`
-(`@repo/shared-shell`) - `ShellUI.open` (`Effect.callback` + a
-`SubscriptionRef` stack, `kind: "sidebar"` for now), `ShellHost`
-(runtime-agnostic, takes the bridged state atom as a prop), `useShellUI`
-(dispatches via the app's own `runtime.fn`). `ShellUI`'s `make` effect is
-passed inline via `Context.Service`'s `make` option, with a
+(`@repo/shared-shell`) - `ShellUI.openSidebar` (`Effect.callback` + a
+`SubscriptionRef` stack; one explicit method per overlay kind rather than a
+single `open(render, { kind? })` - an optional `kind` with a silent default
+reads ambiguously at the call site), `ShellHost` (runtime-agnostic, takes the
+bridged state atom as a prop), `useShellUI` (dispatches via the app's own
+`runtime.fn`, generic over which `open*` atom it's given). `ShellUI`'s `make`
+effect is passed inline via `Context.Service`'s `make` option, with a
 `static readonly layer` on the class itself - mirrors `MemoryDriver` in
 `externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts`
 rather than a separately exported `layer` const. `MainLayer` now merges

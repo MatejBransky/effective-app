@@ -108,9 +108,13 @@ shared/shell/
     useShellUI.ts         # hook for components
 ```
 
-Core service shape (illustrative) - a single `open` method that mirrors the
-legacy Promise-based `openModal((resolve) => jsx)` pattern, built on
-`Effect.callback` instead of `new Promise(...)`:
+Core service shape - one explicit method per overlay kind (`openSidebar` now,
+`openModal` once a concrete modal example lands), each mirroring the legacy
+Promise-based `openModal((resolve) => jsx)` pattern, built on `Effect.callback`
+instead of `new Promise(...)`. Deliberately **not** a single `open(render, {
+kind? })`: an optional `kind` with a silent default reads ambiguously at the
+call site - was `open(render)` a sidebar or a modal? - so require it
+structurally instead, one method per kind:
 
 ```ts
 // shared/shell/src/ShellUI.ts
@@ -118,30 +122,33 @@ export class ShellUI extends Context.Service<
   ShellUI,
   {
     readonly state: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
-    readonly open: <A>(
+    readonly openSidebar: <A>(
       render: (resolve: (value: A) => void) => React.ReactNode,
-      options?: { readonly kind?: "modal" | "sidebar" },
     ) => Effect.Effect<A>;
-    readonly close: (id: OverlayId) => Effect.Effect<void>;
   }
->()("shared-shell/ShellUI") {}
+>()("shared-shell/ShellUI", { make: /* ... */ }) {}
 ```
 
-One capability, usable identically from a React component or from inside a
-domain's business logic - domain code is explicitly allowed to construct JSX
-here. The only rule is that the overlay _stack state_ itself lives in
-`ShellUI`, not in a React component:
+There's no `close(id)` method - `resolve` itself already removes the entry
+from the stack (see the implementation sketch below), and `Effect.callback`'s
+own interrupt cleanup covers the cancelled-caller case, so a separate
+imperative close was never actually needed.
+
+One capability per kind, usable identically from a React component or from
+inside a domain's business logic - domain code is explicitly allowed to
+construct JSX here. The only rule is that the overlay _stack state_ itself
+lives in `ShellUI`, not in a React component:
 
 ```ts
 // from a component: open a sidebar with arbitrary JSX
-const openSidebar = useShellUI()
+const openSidebar = useShellUI(shellOpenSidebarAtom)
 openSidebar((resolve) => <MySidebarContent onDone={() => resolve(undefined)} />)
 ```
 
 ```tsx
-// from domain business logic: confirm before proceeding
+// from domain business logic: confirm before proceeding (once openModal exists)
 Effect.gen(function* () {
-  const confirmed = yield* shell.open<boolean>((resolve) => (
+  const confirmed = yield* shell.openModal<boolean>((resolve) => (
     <ConfirmDialog
       title="Archive item?"
       onConfirm={() => resolve(true)}
@@ -156,37 +163,49 @@ Implementation sketch (same `ShellUI.ts`, the `make` effect passed inline as
 `Context.Service`'s `make` option, with a `static readonly layer` on the class
 itself deriving the `Layer` from it - mirrors `MemoryDriver` in
 `externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts:828-1036`):
-`open` is built with `Effect.callback` - Effect's equivalent of `new
+a private `open(kind, render)` helper (not on the `Shape`, so not part of the
+public API) is built with `Effect.callback` - Effect's equivalent of `new
 Promise((resolve) => ...)` - which hands the caller a `resume` callback.
-`open` pushes `{ id, kind, render }` onto a single
-`SubscriptionRef<OverlayEntry[]>` stack (the source of truth), and its
-`render` function is called with a `resolve` that both `resume`s the `Effect`
-and removes the entry from the stack. `Effect.callback`'s cleanup callback
-removes the entry too, so an interrupted/cancelled caller (e.g. a route
-navigation away) doesn't leave a stale overlay behind - something the raw
-Promise-based legacy version couldn't express as cleanly.
+`openSidebar` (and later `openModal`) just calls it with their fixed `kind`.
+`open` pushes `{ id, kind, node }` onto a single `SubscriptionRef<OverlayEntry[]>`
+stack (the source of truth) - `render` is called once, up front, with a
+`resolve` that both `resume`s the `Effect` and removes the entry from the
+stack. `Effect.callback`'s cleanup callback removes the entry too, so an
+interrupted/cancelled caller (e.g. a route navigation away) doesn't leave a
+stale overlay behind - something the raw Promise-based legacy version
+couldn't express as cleanly.
 
 React side (`ShellHost.tsx`) - mounted once near the app root, no renderer
-registry needed since the JSX is already inline in each entry:
+registry needed since each entry's `node` was already produced by `render(...)`
+inside `open`, up front, not deferred to render time:
 
 ```tsx
-export function ShellHost() {
-  const entries = useAtomValue(shellStateAtom); // Atom.subscriptionRef bridging ShellUI.state
+export function ShellHost(props: { state: Atom.Atom<AsyncResult.AsyncResult<...>> }) {
+  const entries = AsyncResult.builder(useAtomValue(props.state))
+    .onSuccess((value) => value)
+    .orElse(() => []);
   return (
     <>
       {entries.map((entry) => (
-        <Overlay kind={entry.kind} key={entry.id}>
-          {entry.render(entry.resolve)}
-        </Overlay>
+        <div key={entry.id} data-shell-overlay={entry.kind}>
+          {entry.node}
+        </div>
       ))}
     </>
   );
 }
 ```
 
+`ShellHost` itself is runtime-agnostic - it takes the bridged `state` atom as
+a prop rather than importing an `Atom.runtime` directly, since only the
+composing app owns one (`apps/web/src/runtime/shellAtoms.ts` builds it via
+`runtime.subscriptionRef(...)` and passes it in at the `__root.tsx` mount
+site).
+
 `shared/shell/src/useShellUI.ts` - thin hook pairing `runtime.fn`-style
-dispatch with the same `open(render, opts)` call signature, so components and
-domain code share one mental model.
+dispatch with whichever `open*` atom it's given (`shellOpenSidebarAtom`,
+later `shellOpenModalAtom`), so components and domain code share one mental
+model regardless of overlay kind.
 
 ## 2. Action descriptions: generic shape, per-entity description, implementation, merge
 
@@ -247,7 +266,7 @@ Four layers, each answering a different question:
            isDisabled: (h) => h.archivedAt !== null && "Already archived",
            run: (h) =>
              Effect.gen(function* () {
-               const confirmed = yield* shell.open<boolean>((resolve) => (
+               const confirmed = yield* shell.openModal<boolean>((resolve) => (
                  <ConfirmDialog
                    title={`Archive ${h.name}?`}
                    onConfirm={() => resolve(true)}
@@ -333,13 +352,12 @@ React (or left as-is to surface as a rendered error state). Composing a
 ## 4. React consumption via `@effect/atom-react`
 
 - `useAtomValue(shellStateAtom)` inside `<ShellHost/>` - reactive
-  subscription to the overlay stack; each entry already carries its own
-  JSX-producing `render` function, so `<ShellHost/>` just calls it.
+  subscription to the overlay stack; each entry's `node` was already produced
+  by `render(...)` inside `open`, so `<ShellHost/>` just renders it.
 - `useAtomSet(runtime.fn(...))` for a component-triggered domain action.
-- Domain-triggered `shell.open(...)` calls need no React hook at all - plain
-  `Effect` code (via `Effect.callback`), rendered by whichever
-  `entry.render(entry.resolve)` call `<ShellHost/>` makes for that stack
-  entry.
+- Domain-triggered `shell.openModal(...)`/`openSidebar(...)` calls need no
+  React hook at all - plain `Effect` code (via `Effect.callback`), rendered by
+  whichever `entry.node` `<ShellHost/>` renders for that stack entry.
 
 ## 5. Known gaps intentionally out of scope for this doc
 

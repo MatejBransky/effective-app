@@ -1,4 +1,7 @@
+import { runtime } from "@repo/shared-lib";
 import { useAtomValue } from "@effect/atom-react";
+import { Effect } from "effect";
+import { AsyncResult } from "effect/unstable/reactivity";
 import {
   browserOnlineAtom,
   pendingWritesCountAtom,
@@ -21,6 +24,9 @@ export function StatusBar() {
   // Debounced via syncErrorAtom's grace window - see its comment for why a raw
   // uploadError/downloadError can't be shown the instant it appears.
   const syncError = useAtomValue(syncErrorAtom);
+  // retry has an async step (see syncAtoms.ts) - runFork instead of runSync.
+  const context = useAtomValue(runtime, AsyncResult.getOrThrow);
+  const handleRetry = () => Effect.runFork(Effect.provide(retry, context));
 
   return (
     <div>
@@ -35,7 +41,7 @@ export function StatusBar() {
       {stuck && (
         <p role="alert">
           Failed to save changes to the server.{" "}
-          <button type="button" onClick={retry}>
+          <button type="button" onClick={handleRetry}>
             Try again
           </button>
         </p>

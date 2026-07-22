@@ -1,6 +1,7 @@
 import type { SyncStatus } from "@powersync/web";
+import { AtomRegistryService } from "@repo/shared-lib";
+import { Effect } from "effect";
 import { Atom } from "effect/unstable/reactivity";
-import { registry } from "@repo/shared-lib";
 import { db, reconnect } from "./database.ts";
 
 /** How long an unsynced local write is allowed to sit in PowerSync's upload queue before
@@ -55,11 +56,15 @@ export const stuckAtom: Atom.Atom<boolean> = Atom.make((get) => {
   return false;
 });
 
-/** Forces a fresh connection attempt and gives a stuck write a new grace window. */
-export const retry = (): void => {
+/** Forces a fresh connection attempt and gives a stuck write a new grace window. Requires
+ * `AtomRegistryService` (an ordinary Effect dependency, see `@repo/shared-lib`) instead of
+ * importing a registry constant directly - `StatusBar.tsx` runs it via `Effect.runFork`
+ * against `@repo/shared-lib`'s `runtime` atom, since this has an async step. */
+export const retry: Effect.Effect<void, never, AtomRegistryService> = Effect.gen(function* () {
+  const registry = yield* AtomRegistryService;
   registry.update(retryGenerationAtom, (n) => n + 1);
-  void reconnect();
-};
+  yield* Effect.promise(() => reconnect());
+});
 
 export interface SyncSnapshot {
   readonly connected: boolean;

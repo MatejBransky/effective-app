@@ -135,7 +135,10 @@ Effect.gen(function* () {
 });
 ```
 
-Implementation sketch (same `ShellUI.ts`, the exported `layer`/`ShellUILive`):
+Implementation sketch (same `ShellUI.ts`, the `make` effect passed inline as
+`Context.Service`'s `make` option, with a `static readonly layer` on the class
+itself deriving the `Layer` from it - mirrors `MemoryDriver` in
+`externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts:828-1036`):
 `open` is built with `Effect.callback` - Effect's equivalent of `new
 Promise((resolve) => ...)` - which hands the caller a `resume` callback.
 `open` pushes `{ id, kind, render }` onto a single
@@ -270,7 +273,7 @@ the tag from `shared/entities`, and only `apps/web` ever knows both concrete
 ```
 apps/web/src/
   runtime/
-    MainLayer.ts    # Layer.mergeAll(ShellUILive, ...domain layers)
+    MainLayer.ts    # Layer.mergeAll(ShellUI.layer, ...domain layers)
     runtime.ts      # export const runtime = Atom.runtime(MainLayer)
   main.tsx          # wrap RouterProvider in RegistryProvider
   routes/__root.tsx # mount <ShellHost/> alongside <Outlet/>
@@ -278,12 +281,12 @@ apps/web/src/
 
 ```ts
 // apps/web/src/runtime/MainLayer.ts (illustrative)
-import { ShellUILive } from "@repo/shared-shell";
+import { ShellUI } from "@repo/shared-shell";
 // import real domain layers here as they're built, e.g.:
 // import { HostsLive } from "@repo/domain-hosts"
 
 export const MainLayer = Layer.mergeAll(
-  ShellUILive,
+  ShellUI.layer,
   // HostsLive, MembersLive, ...
 );
 

@@ -69,8 +69,12 @@ Iteration 2 (sidebar management) is done: `shared/shell`
 (`@repo/shared-shell`) - `ShellUI.open` (`Effect.callback` + a
 `SubscriptionRef` stack, `kind: "sidebar"` for now), `ShellHost`
 (runtime-agnostic, takes the bridged state atom as a prop), `useShellUI`
-(dispatches via the app's own `runtime.fn`). `MainLayer` now merges
-`ShellUILive`; the Navbar's "Menu" button opens a sidebar purely to prove
+(dispatches via the app's own `runtime.fn`). `ShellUI`'s `make` effect is
+passed inline via `Context.Service`'s `make` option, with a
+`static readonly layer` on the class itself - mirrors `MemoryDriver` in
+`externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts`
+rather than a separately exported `layer` const. `MainLayer` now merges
+`ShellUI.layer`; the Navbar's "Menu" button opens a sidebar purely to prove
 the open/resolve round trip - scaffolding, not a real feature.
 
 The rest of the design (the `shared/entities`-tag cross-domain action

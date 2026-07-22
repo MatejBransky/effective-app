@@ -23,42 +23,42 @@ export class ShellUI extends Context.Service<
       options?: { readonly kind?: OverlayKind },
     ) => Effect.Effect<A>;
   }
->()("shared-shell/ShellUI") {}
+>()("shared-shell/ShellUI", {
+  make: Effect.gen(function* () {
+    const state = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
+    let nextId = 0;
 
-const make = Effect.gen(function* () {
-  const state = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
-  let nextId = 0;
+    const open = <A>(
+      render: (resolve: (value: A) => void) => React.ReactNode,
+      options?: { readonly kind?: OverlayKind },
+    ): Effect.Effect<A> =>
+      Effect.callback<A>((resume) => {
+        const id = nextId++;
+        // Shared by the caller-triggered resolve and Effect.callback's own interrupt
+        // cleanup, so a cancelled caller (e.g. a route navigation away) never leaves a
+        // stale entry on the stack - resolve already having run it makes this a no-op.
+        const remove = () =>
+          Effect.runSync(
+            SubscriptionRef.update(state, (entries) => entries.filter((entry) => entry.id !== id)),
+          );
 
-  const open = <A>(
-    render: (resolve: (value: A) => void) => React.ReactNode,
-    options?: { readonly kind?: OverlayKind },
-  ): Effect.Effect<A> =>
-    Effect.callback<A>((resume) => {
-      const id = nextId++;
-      // Shared by the caller-triggered resolve and Effect.callback's own interrupt
-      // cleanup, so a cancelled caller (e.g. a route navigation away) never leaves a
-      // stale entry on the stack - resolve already having run it makes this a no-op.
-      const remove = () =>
+        const node = render((value) => {
+          remove();
+          resume(Effect.succeed(value));
+        });
+
         Effect.runSync(
-          SubscriptionRef.update(state, (entries) => entries.filter((entry) => entry.id !== id)),
+          SubscriptionRef.update(state, (entries) => [
+            ...entries,
+            { id, kind: options?.kind ?? "sidebar", node },
+          ]),
         );
 
-      const node = render((value) => {
-        remove();
-        resume(Effect.succeed(value));
+        return Effect.sync(remove);
       });
 
-      Effect.runSync(
-        SubscriptionRef.update(state, (entries) => [
-          ...entries,
-          { id, kind: options?.kind ?? "sidebar", node },
-        ]),
-      );
-
-      return Effect.sync(remove);
-    });
-
-  return { state, open };
-});
-
-export const ShellUILive: Layer.Layer<ShellUI> = Layer.effect(ShellUI, make);
+    return { state, open };
+  }),
+}) {
+  static readonly layer: Layer.Layer<ShellUI> = Layer.effect(this, this.make);
+}

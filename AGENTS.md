@@ -23,6 +23,12 @@ be online, which avoids the merge-conflict problems typical of fully offline-fir
 None of the domain model, auth, RLS, sync loop, or infrastructure is built yet - see
 `docs/roadmap.md` before assuming what's next.
 
+Business/domain vocabulary (what "tenant" vs "customer" vs "admin" actually mean here,
+and what code/docs should call them) lives in `CONTEXT.md` at the repo root - read it
+before assuming what a business term means, and add/update an entry there whenever a new
+business concept is introduced or an existing one's meaning changes. It's a living
+glossary, not a one-time write.
+
 Every app lives under `apps/<name>` and should be independently testable (vitest) via
 Effect `Layer`/`Context` dependency injection - external processes and I/O go through
 swappable services, never called directly, so unit tests never touch the real filesystem,

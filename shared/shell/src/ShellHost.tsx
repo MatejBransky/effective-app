@@ -10,10 +10,9 @@ import type { OverlayEntry } from "./ShellUI.ts";
 export function ShellHost(props: {
   readonly state: Atom.Atom<AsyncResult.AsyncResult<ReadonlyArray<OverlayEntry>, unknown>>;
 }) {
-  const result = useAtomValue(props.state);
-  const entries = AsyncResult.builder(result)
-    .onSuccess((value) => value)
-    .orElse(() => [] as ReadonlyArray<OverlayEntry>);
+  const entries = useAtomValue(props.state, (result) =>
+    AsyncResult.getOrElse(result, () => [] as ReadonlyArray<OverlayEntry>),
+  );
 
   return (
     <>

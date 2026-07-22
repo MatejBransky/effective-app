@@ -31,7 +31,7 @@ the concrete implementation built on top of them is gone.
 - **Postgres logical replication (Phase 1 of `docs/powersync-setup.md`)** -
   `wal_level=logical`, the least-privilege `powersync_replication` role, and a
   `FOR ALL TABLES` publication (`infra/postgres/init-scripts/01-powersync-
-  replication.sql`) - `PS_DATA_SOURCE_URI` in `.env`.
+replication.sql`) - `PS_DATA_SOURCE_URI` in `.env`.
 - **Self-hosted PowerSync instance (Phase 3)** - `infra/powersync/` (CLI-managed:
   `powersync init self-hosted` + `docker configure` + `docker start`), `client_auth`
   wired to Keycloak's JWKS over the shared Docker network, verified replicating
@@ -49,6 +49,16 @@ backend's `uploadData` endpoint doesn't exist yet, and that in turn waits on a
 domain model existing (see "Done" above - `apps/server`'s `/health`/`/me` prove the
 JWKS verification chain, not the data path). A domain model has to come before
 Phase 4 can start.
+
+## Design doc: apps/web Effect bootstrap (app shell + cross-domain actions)
+
+`docs/web-bootstrap-architecture.md` - how `apps/web`'s bootstrap should
+compose domain `Layer`s (via `Layer.mergeAll` + `Atom.runtime`), a
+`shared/shell` package for global modal/sidebar management (`ShellUI.open`,
+mirroring the legacy `openModal((resolve) => jsx)` pattern on top of
+`Effect.async`), and the `shared/entities`-tag convention for cross-domain
+action calls. Design-only so far - not implemented; unblocked to build once
+a first real domain exists (see `docs/implement-domain-model.md`).
 
 ## New idea from a previous conversation: scheduled/async jobs example
 

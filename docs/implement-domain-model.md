@@ -1,42 +1,46 @@
 # Implement the domain model (Host / Member / marketing sequences)
 
+> **Pre-reset context:** this task was written against an implementation that
+> the 2026-07-22 clean-slate reset (see `docs/roadmap.md`) scrapped entirely.
+> `docs/data-model.md` (the field-by-field spec this file deferred to) was
+> deleted along with it, and `apps/client` no longer exists. Nothing below is
+> "ready to build on" - the entity list is preserved only as a sketch of the
+> prior design, not an authoritative spec. Re-derive/re-verify the model
+> before implementing anything against it.
+
 ## Goal
 
-Implement the data model documented in [`docs/data-model.md`](data-model.md)
-as Effect Schema - the first real business-logic code in this repo, building on
-the tooling foundation (`packages/lint-config`, `packages/typescript-config`)
-and the `apps/client` vertical slice already in place.
+Implement the domain model as Effect Schema - the first real business-logic
+code in this repo, building on the tooling foundation (`shared/lint-config`,
+`shared/typescript-config`).
 
-**Read `docs/data-model.md` first.** It has the full field-by-field model,
-entity relationships (with an ER diagram), and the reasoning behind every
-non-obvious decision (why client-generated UUID ids, why snapshots instead of
-event sourcing, why status lives on `MemberHost` not `Member`, why one generic
-`DomainEvent` instead of per-aggregate audit tables, comparison to the Momence
-legacy system, etc.). This task file does not repeat that content - it's the
-implementation punch list, not the design doc.
+The full field-by-field model, entity relationships (ER diagram), and the
+reasoning behind non-obvious decisions (why client-generated UUID ids, why
+snapshots instead of event sourcing, why status lives on `MemberHost` not
+`Member`, why one generic `DomainEvent` instead of per-aggregate audit tables,
+comparison to the Momence legacy system, etc.) lived in `docs/data-model.md`,
+which no longer exists. Recover it from git history if needed
+(`git show cc13c4686^:docs/data-model.md`, i.e. the commit before the reset)
+or redesign it from scratch before treating this file as an implementation
+punch list.
 
-## Open decision to resolve first
+## Where entity schemas live (resolved by the current architecture)
 
-**Where do the entity schemas actually live as packages?** This was never
-explicitly reconciled across the design conversation:
+An earlier version of this task treated this as an open decision between a
+single `packages/schema` package vs. per-slice `packages/entities/*` FSD
+packages. Both are obsolete framings - the repo has since moved to the
+`shared/*` / `domains/*` / `apps/*` / `scripts` layer split described in
+`AGENTS.md`: entity schemas are business-shape code, so they belong in
+`shared/*`'s business-shape tier (one pnpm package per cross-cutting concern,
+per `AGENTS.md`), not in `domains/*` (business *logic* that operates on those
+shapes) or a resurrected `packages/*` tree. Follow `AGENTS.md`'s current
+layer rules, not the FSD `entities`/`features`/`widgets` split it explicitly
+replaced.
 
-- The model was originally planned for a single `packages/schema` package
-  holding all entities (see `README.md`/`AGENTS.md`, written before the FSD
-  package layout was finalized).
-- Later in the same conversation, `packages/entities/*`, `packages/features/*`,
-  and `packages/widgets/*` were decided to each be **separate pnpm packages**,
-  one per slice, using `package.json#exports` as the public API instead of a
-  barrel `index.ts` (see `AGENTS.md`'s FSD section).
+## Entities to implement (unverified sketch from the pre-reset design)
 
-Decide before scaffolding: does `Host`/`Member`/`MarketingSequence`/etc. each
-become its own `packages/entities/<name>` package, or do they all live
-together in one `packages/schema` package? Whichever is chosen, update
-`README.md`'s layout section and `AGENTS.md` to match - both currently
-describe the pre-FSD single-package version.
-
-## Entities to implement
-
-(full field lists and relationships in `docs/data-model.md`)
+Field lists and relationships are not written down anywhere current - this is
+just the entity names from the deleted design, to be re-validated:
 
 - `Host` (incl. `businessType`)
 - `Member`
@@ -51,50 +55,44 @@ describe the pre-FSD single-package version.
 - `SequenceVersion` (snapshot-based undo/revert)
 - `DomainEvent` (generic audit log, incl. per-action execution results via `payload`)
 
-## Implementation notes
+## Implementation notes (still applicable regardless of the reset)
 
 - **Branded/opaque id types** per entity (e.g. `HostId`, `MemberId`,
   `SequenceId`) so different UUID-typed foreign keys can't be mixed up at the
-  type level - standard Effect Schema practice, not yet discussed explicitly
-  but should be applied.
-- **Recursive schema**: `HostFilterSet.rules` (the `FilterRule` tree) needs
-  `Schema.suspend`.
-- **Discriminated unions**: `SequenceAction.config` (by `type`),
-  `DomainEvent.payload` (by `eventType`), `FilterRule` (by `type`).
-- All ids are client-generated UUIDs - hard PowerSync requirement, also what
-  makes `SequenceVersion` revert safe (see `docs/data-model.md`, "Why
-  client-generated UUID ids"). Don't reach for auto-increment/serial ids
-  anywhere in this model.
-- **Effect Schema → Drizzle bridge is an open technical spike**, flagged
-  during design but not resolved: either hand-write Drizzle table definitions
-  alongside the Effect Schema with a test that catches drift between them, or
-  find/build a codegen step that derives one from the other. Decide at the
-  start of this work, don't default to one silently.
+  type level - standard Effect Schema practice.
+- **Recursive schema**: a `FilterRule`-shaped tree needs `Schema.suspend`.
+- **Discriminated unions**: config/payload fields keyed by a `type`/`eventType`
+  discriminant (e.g. `SequenceAction.config`, `DomainEvent.payload`,
+  `FilterRule`) should use Effect Schema's discriminated-union support.
+- If this repo still targets client-generated UUID ids (a PowerSync
+  requirement, when PowerSync sync is rebuilt) - don't reach for
+  auto-increment/serial ids in this model.
+- **Effect Schema → Drizzle bridge is an open technical spike**: either
+  hand-write Drizzle table definitions alongside the Effect Schema with a
+  drift test, or find/build a codegen step that derives one from the other.
+  Decide explicitly at the start of this work, don't default to one silently.
 
 ## Testing
 
 Per `AGENTS.md`: no key mechanism ships without tests. At minimum:
 
 - Schema decode/encode round-trip tests for every entity.
-- Specific coverage for the recursive `FilterRule` schema and the
-  discriminated-union payloads (`SequenceAction.config`, `DomainEvent.payload`,
-  `FilterRule` itself) - these are the parts most likely to have subtle
-  encoding bugs.
+- Specific coverage for the recursive tree schema and any discriminated-union
+  payloads - these are the parts most likely to have subtle encoding bugs.
 
 ## Out of scope for this task (later phases)
 
 - Actual Postgres/Drizzle migrations.
-- `apps/server`, auth (Keycloak via a swappable `AuthService` `Layer`),
-  PowerSync sync rules.
-- Multi-location/franchise structure (explicitly deferred in
-  `docs/data-model.md`).
+- `apps/server` (doesn't exist yet), auth, PowerSync sync rules.
+- Multi-location/franchise structure - deferred in the deleted
+  `docs/data-model.md`; re-confirm this deferral still holds once the model
+  is redesigned.
 
 ## References
 
-- [`docs/data-model.md`](data-model.md) - the model itself, source of truth
-- [`AGENTS.md`](../AGENTS.md) - project conventions (Effect v4, DI via
-  `Layer`/`Context`, FSD package layout)
+- [`AGENTS.md`](../AGENTS.md) - current layer rules (Effect v4, DI via
+  `Layer`/`Context`, `shared`/`domains`/`apps`/`scripts` layout)
+- [`docs/roadmap.md`](roadmap.md) - what was reset and why
 - `externals/effect/` - vendored Effect source, consult before writing Effect code
-- `work/monorepo/view/backend/db/entities/` - legacy reference this model was
-  informed by (see `docs/data-model.md`'s comparison table for what was
-  adopted, simplified, or deliberately not carried over)
+- `work/monorepo/view/backend/db/entities/` - legacy reference the original
+  model was informed by, if that comparison is still useful

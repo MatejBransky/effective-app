@@ -165,8 +165,7 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
   workerd: true
-  # Transitive dep of powersync@0.10.0 (CLI) -> @oclif/plugin-plugins. preinstall.js is
-  # yarn's own official script - only acts when npm_config_global is set (handles a
-  # Corepack/npm-global-install symlink conflict), a no-op for our local workspace
-  # install. Reviewed 2026-07-22.
-  yarn: true
+  # Transitive dep of powersync@0.10.0 (CLI) -> @oclif/plugin-plugins - never invoked
+  # directly, this repo only uses pnpm. Declined on purpose: even though preinstall.js
+  # is a no-op outside a global npm install, we don't run yarn's own scripts here.
+  yarn: false

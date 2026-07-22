@@ -1,0 +1,14 @@
+# Adds YAML Schema support for VSCode users with the YAML extension installed. This enables features like validation and autocompletion based on the provided schema.
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-sync-rules@latest/schema/sync_rules.json
+
+# See https://docs.powersync.com/sync/advanced/compatibility
+config:
+  edition: 3
+
+# Define Sync Streams to control which data is synced to each user
+# Docs: https://docs.powersync.com/sync/streams/overview
+#
+# Deliberately empty - no domain model/tables exist yet (see docs/roadmap.md's "Reset"
+# section). `streams:` itself is required by the service even with none defined; the
+# CLI's own example queried a placeholder "mytable" that doesn't exist in this database.
+streams: {}

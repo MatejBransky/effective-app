@@ -98,29 +98,54 @@ up too.
 8. [x] Added CORS for `apps/web`'s origin (`CLIENT_ORIGIN` env var,
        `HttpMiddleware.cors`).
 
-## Phase 3 - PowerSync self-hosted instance (local dev)
+## Phase 3 - PowerSync self-hosted instance (local dev) — mostly done (2026-07-22)
 
-9. `powersync init self-hosted` → `powersync docker configure` (use
-   `--database external` to point at the existing `infra/postgres` instance
-   instead of provisioning a new one) → `powersync docker start`.
-10. `service.yaml`: `client_auth.jwks_uri` → Keycloak's JWKS URL (container
-    network address), `audience` matching what Keycloak signs, plus a
-    `storage` block (self-hosted needs its own bucket-storage DB - Postgres
-    or MongoDB - unlike Cloud, which manages this for you) and `api.tokens`
-    for `PS_ADMIN_TOKEN`.
-11. `sync-config.yaml`: Sync Streams (`config: edition: 3`) over the Postgres
-    tables that need to sync.
-12. `powersync docker reset` to pick up config changes. Verify with
-    `powersync status` / `powersync validate`.
+9. [x] `powersync` CLI added as a pinned root devDependency. `powersync init
+       self-hosted` → `powersync docker configure --database external
+       --storage postgres` (`infra/powersync/`) - two pre-existing empty
+       placeholder dirs (`infra/powersync/service.yaml`/`sync-config.yaml`,
+       leftover from before this file's own Phase 0-2 work) had to be removed
+       first since the CLI refuses to overwrite existing paths.
+10. [x] `service.yaml`: `client_auth.jwks_uri` → `http://keycloak:8080/realms/
+       app/protocol/openid-connect/certs` (Docker network address, not
+       `localhost`), `audience: [powersync-dev]` (matches the
+       `powersync-audience` mapper in `infra/keycloak/realm-export.json`),
+       `block_local_jwks: false`. `storage` uses the CLI-provisioned
+       `pg-storage` Postgres (own container, not `infra/postgres`) - port
+       changed from the CLI's default 5433 to 5443 (project convention: never
+       3000/1340/1338/5432/5433/8443/6379/1025/80). `api.tokens` keeps the
+       CLI's dev-only defaults, matching `cli.yaml`'s `api_key`.
+    - The generated `infra/powersync/docker/docker-compose.yaml` got its own
+      isolated Docker network by default - added an `effective-app` external
+      network (`effective-app_default`, this repo's own `docker-compose.yml`
+      stack) to the `powersync` service so it can reach `postgres`/`keycloak`
+      by container name. Verified: `docker exec` into the `powersync`
+      container can fetch Keycloak's JWKS (2 keys returned).
+11. [x] `sync-config.yaml`: `config: edition: 3`, `streams: {}` - deliberately
+       empty (`streams:` is required by the service even with none defined -
+       confirmed by a fatal replication error until this was set), since no
+       domain model/tables exist yet. The CLI's own scaffolded example queried
+       a placeholder `mytable` that doesn't exist in this database.
+12. [x] `powersync docker start` (`powersync docker reset` after the
+       `sync-config.yaml` fix). `powersync status` shows the `default`
+       connection `connected`, replicating, 0 bytes lag. `powersync validate`
+       passes all checks (schema, sync config; connection tests aren't
+       supported for self-hosted).
+
+Still open: `PS_ADMIN_TOKEN` / production-grade `api.tokens` (currently the
+CLI's dev-only placeholders - fine for local dev, revisit before any shared
+environment).
 
 ## Readiness gate (before touching apps/web)
 
 - [x] Postgres publication/replication set up
-- [ ] Keycloak realm + JWKS reachable from the PowerSync container
-- [ ] Backend API running (upload endpoint)
-- [ ] PowerSync self-hosted instance up (`powersync docker start`),
+- [x] Keycloak realm + JWKS reachable from the PowerSync container
+- [ ] Backend API running (upload endpoint) - `apps/server` exists and is
+      Keycloak-JWT-verified (Phase 2), but the `uploadData` endpoint itself
+      still waits on a domain model
+- [x] PowerSync self-hosted instance up (`powersync docker start`),
       `client_auth` + `storage` configured
-- [ ] All credentials/URLs in `.env`
+- [x] All credentials/URLs in `.env`
 
 ## Phase 4 - apps/web integration (only after the gate above)
 

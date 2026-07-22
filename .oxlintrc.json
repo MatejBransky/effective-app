@@ -4,6 +4,22 @@
   "plugins": ["react", "unicorn", "typescript", "oxc"],
   "ignorePatterns": ["externals/**"],
   "rules": {
-    "repo/no-type-assertion": "error"
+    "repo/no-type-assertion": "error",
+    // Layer order = allowed import direction (each layer may only import from layers below
+    // it in this list). Matching is by `package.json#name`, not directory - keep patterns
+    // mutually exclusive, and keep this list in sync with shared/lint-config's consistency
+    // test, which cross-checks it against the real workspace packages.
+    "repo/layer-boundaries": [
+      "error",
+      {
+        "layers": [
+          { "layer": "shared", "packages": "@repo/shared-*", "allowSameLayerImports": true },
+          { "layer": "entities", "packages": "@repo/entities", "allowSameLayerImports": true },
+          { "layer": "domains", "packages": "@repo/domain-*" },
+          { "layer": "app", "packages": [] },
+          { "layer": "scripts", "packages": "@repo/scripts" }
+        ]
+      }
+    ]
   }
 }

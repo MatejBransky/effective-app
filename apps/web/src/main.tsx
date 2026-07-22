@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
+import { RegistryProvider } from "@effect/atom-react";
 import "./index.css";
 import { resolveAuth, userManager } from "./lib/auth.ts";
 import { routeTree } from "./routeTree.gen.ts";
@@ -24,6 +25,8 @@ declare module "@tanstack/react-router" {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <RegistryProvider>
+      <RouterProvider router={router} />
+    </RegistryProvider>
   </StrictMode>,
 );

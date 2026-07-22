@@ -290,17 +290,25 @@ export const MainLayer = Layer.mergeAll(
 export const runtime = Atom.runtime(MainLayer);
 ```
 
-The key property: `Atom.runtime` requires a `Layer<never, never, never>` -
-both the Requirements (`R`) and Error (`E`) channels closed. If any merged
-domain `Layer` still needs a service nobody provided, `R` isn't `never` and
-`Atom.runtime(MainLayer)` fails to typecheck exactly at that line - a
-compile-time "you forgot to wire a dependency" signal, at the single
-composition point, before the app ever runs. Likewise, if a `Layer`'s own
-construction `Effect` can fail, `E` isn't `never` and it must be explicitly
-handled (e.g. `Layer.catchAll`) before it can be merged in - surfacing "you
-forgot to handle this error" the same way. Both fall directly out of
-Effect's generator-yield type inference inside each service's `Effect.gen` -
-no custom lint rule required.
+The key property is on the Requirements (`R`) channel only. Per the actual
+`RuntimeFactory` signature
+(`externals/effect/packages/effect/src/unstable/reactivity/Atom.ts:700-715`),
+`Atom.runtime` accepts `Layer.Layer<R, E, AtomRegistry | Reactivity.Reactivity>`
+
+- `R` must reduce to exactly `AtomRegistry | Reactivity.Reactivity`, the two
+  services `Atom.runtime` supplies internally via its own global `Reactivity.layer`
+  merge (`Atom.ts:726-762`), not `never`. If any merged domain `Layer` still
+  needs some other service nobody provided, `R` retains that leftover
+  requirement and `Atom.runtime(MainLayer)` fails to typecheck exactly at that
+  line - a compile-time "you forgot to wire a dependency" signal, at the single
+  composition point, before the app ever runs.
+
+`E` is not required to be `never`, and does **not** need `Layer.catchAll`
+before merging: it simply flows into the `AsyncResult<A, E>` failure state of
+every atom built from that runtime (see `AtomRuntime`'s `atom`/`fn`/etc.
+signatures in the same file), to be handled wherever that atom is consumed in
+React (or left as-is to surface as a rendered error state). Composing a
+`Layer` that can fail is not itself a type error.
 
 ## 4. React consumption via `@effect/atom-react`
 

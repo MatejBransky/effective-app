@@ -1,4 +1,5 @@
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { Navbar } from "../components/Navbar.tsx";
 import type { AuthState } from "../lib/auth.ts";
 
 export interface RouterContext {
@@ -6,5 +7,10 @@ export interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  component: () => <Outlet />,
+  component: () => (
+    <>
+      <Navbar />
+      <Outlet />
+    </>
+  ),
 });

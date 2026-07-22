@@ -6,3 +6,9 @@ test("login page renders the Keycloak login button", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("button", { name: "Log in with Keycloak" })).toBeVisible();
 });
+
+// Proves RegistryProvider + the __root.tsx navbar mount didn't break the login route.
+test("navbar renders on the login page", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByText("Effective")).toBeVisible();
+});

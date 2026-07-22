@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@effect/atom-react':
+      specifier: 4.0.0-beta.100
+      version: 4.0.0-beta.100
     '@effect/platform-node':
       specifier: 4.0.0-beta.100
       version: 4.0.0-beta.100
@@ -118,9 +121,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@effect/atom-react':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.100(effect@4.0.0-beta.100)(react@19.2.7)(scheduler@0.27.0)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.100
       oidc-client-ts:
         specifier: 'catalog:'
         version: 3.5.0
@@ -269,6 +278,13 @@ packages:
   '@babel/types@7.29.7':
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
     engines: {node: '>=6.9.0'}
+
+  '@effect/atom-react@4.0.0-beta.100':
+    resolution: {integrity: sha512-NHi/z3iqNbZWrI078+dHB4m2hFWuEjvDwRXFDwTY6Zp8ycQq/EvQI7Bb32g985l3s5fC+QErzdERekDnZZT/oQ==}
+    peerDependencies:
+      effect: ^4.0.0-beta.100
+      react: ^19.2.4
+      scheduler: '*'
 
   '@effect/platform-node-shared@4.0.0-beta.100':
     resolution: {integrity: sha512-PMsCXQeK2wnlmnqGCc79oqK9CX8ipZvoHxAy/CRojMF+zHIluxh61L3pzWAYEbMb19Be4Bxgqs7gK2hiV8H8Pg==}
@@ -2889,6 +2905,12 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@effect/atom-react@4.0.0-beta.100(effect@4.0.0-beta.100)(react@19.2.7)(scheduler@0.27.0)':
+    dependencies:
+      effect: 4.0.0-beta.100
+      react: 19.2.7
+      scheduler: 0.27.0
 
   '@effect/platform-node-shared@4.0.0-beta.100(effect@4.0.0-beta.100)':
     dependencies:

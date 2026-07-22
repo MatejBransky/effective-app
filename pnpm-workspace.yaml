@@ -133,38 +133,9 @@ onlyBuiltDependencies:
   # current platform, same pattern as better-sqlite3/sharp. Maintained by kriszyp
   # (msgpackr's author). User-approved 2026-07-15.
   - msgpackr-extract
-  # Pulled in by drizzle-kit (and transitively by vite/vitest already). Postinstall
-  # script (node install.js) only fetches esbuild's own prebuilt native binary for the
-  # current platform - same low-risk pattern as msgpackr-extract above. User-approved
-  # 2026-07-16.
-  - esbuild
-  # apps/client's PowerSync peer dep (@powersync/web -> @journeyapps/wa-sqlite).
-  # Postinstall (scripts/download-dynamic-core.js) only downloads PowerSync's own
-  # prebuilt libpowersync[-async].wasm release assets into dist/ - same low-risk
-  # "fetch a prebuilt binary" pattern as esbuild/msgpackr-extract above, from the same
-  # org (JourneyApps/PowerSync) already trusted elsewhere in this task's dependency
-  # additions. User-approved 2026-07-17.
-  - "@journeyapps/wa-sqlite"
-  # Transitive dep of vitest (apps/client's new "test" script). Postinstall
-  # (postinstall.js) only validates its native binary loads and falls back to
-  # @swc/wasm via npm if not - same low-risk "prebuilt binary, verified at install
-  # time" pattern as esbuild/msgpackr-extract above. User-approved 2026-07-17.
-  - "@swc/core"
-  # apps/infrastructure's `alchemy` dependency -> workerd (Cloudflare's own official
-  # Workers runtime, published by the workerd/Cloudflare team, used by `wrangler`/
-  # `alchemy dev` to run Workers locally). Postinstall (node install.js) just selects
-  # the right prebuilt `@cloudflare/workerd-{platform}-{arch}` optional dependency for
-  # the current machine - same low-risk "fetch a prebuilt binary" pattern as
-  # esbuild/msgpackr-extract above. Reviewed 2026-07-17 - flag to the user if this
-  # should instead require explicit sign-off like the entries above.
-  - workerd
 allowBuilds:
   # See onlyBuiltDependencies comments above for the review notes.
-  "@journeyapps/wa-sqlite": true
-  "@swc/core": true
-  esbuild: true
   msgpackr-extract: true
-  workerd: true
   # Transitive dep of powersync@0.10.0 (CLI) -> @oclif/plugin-plugins - never invoked
   # directly, this repo only uses pnpm. Declined on purpose: even though preinstall.js
   # is a no-op outside a global npm install, we don't run yarn's own scripts here.

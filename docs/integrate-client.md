@@ -26,10 +26,10 @@ mandatory, a 4xx from `uploadData` blocks the upload queue permanently).
   through, and `apps/server/src/HostScopedDb.ts` setting `app.host_id` per
   request.
 - Self-hosted Keycloak (`docker-compose.yml`'s `keycloak` service,
-  `keycloak/realm-export.json`) issuing JWTs with a `host_id` claim and a
+  `infra/keycloak/realm-export.json`) issuing JWTs with a `host_id` claim and a
   `powersync-dev` audience.
 - Self-hosted PowerSync (`docker-compose.yml`'s `powersync`/`pg-storage`
-  services, `powersync/sync-config.yaml`'s Sync Streams) with a least-
+  services, `infra/powersync/sync-config.yaml`'s Sync Streams) with a least-
   privilege replication role, and `client_auth` pointed at Keycloak's JWKS.
 - `apps/server`: `GET /health` (public), `GET /me` (protected, returns JWT
   claims), `GET /hosts/me` (protected, real Postgres query through
@@ -65,12 +65,12 @@ Roughly in dependency order:
 5. **Define the PowerSync client-side schema** - PowerSync's JS SDK needs an
    explicit local SQLite schema (tables/columns, `column.text`/
    `column.integer` only, no defined `id` column - PowerSync adds it). This
-   needs to cover the same 12 entities `powersync/sync-config.yaml` streams.
+   needs to cover the same 12 entities `infra/powersync/sync-config.yaml` streams.
    Open question: hand-write it (mirroring how `packages/db`'s Drizzle tables
    are hand-written against `packages/schema`, plus a drift test) or generate
    it - decide explicitly, don't default silently (same framing as the
    original "Effect Schema → Drizzle bridge" decision in
-   `tasks/implement-domain-model.md`).
+   `docs/implement-domain-model.md`).
 6. **Wire the PowerSync client SDK into `apps/client`** - install
    `@powersync/web` (browser/PWA target, not `@powersync/react-native`), the
    Vite config changes `powersync-js-react.md` calls out
@@ -122,7 +122,7 @@ up:
 
 ## References
 
-- [`docs/data-model.md`](../docs/data-model.md) - "Auth: Keycloak +
+- [`docs/data-model.md`](data-model.md) - "Auth: Keycloak +
   apps/server", "Postgres RLS for multi-tenancy", "PowerSync sync streams"
 - The `powersync` skill (`references/sdks/powersync-js-react.md`,
   `references/sdks/powersync-js.md`, `references/custom-backend.md`,
@@ -130,5 +130,5 @@ up:
 - `apps/server/src/JwtVerifier.ts`/`Auth.ts`/`HostScopedDb.ts` - the patterns
   (swappable Layers, no real network/DB in unit tests) to mirror on the
   client side
-- `keycloak/realm-export.json` - `effective-app-client`'s existing
+- `infra/keycloak/realm-export.json` - `effective-app-client`'s existing
   `standardFlowEnabled`/redirect URI config

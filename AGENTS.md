@@ -21,7 +21,7 @@ multi-tenancy, Cloudflare Workers for the API/agent surface). Reads are meant to
 local-first - instant from a PowerSync-replicated SQLite copy. Mutations require the app to
 be online, which avoids the merge-conflict problems typical of fully offline-first apps.
 None of the domain model, auth, RLS, sync loop, or infrastructure is built yet - see
-`tasks/roadmap.md` before assuming what's next.
+`docs/roadmap.md` before assuming what's next.
 
 Every app lives under `apps/<name>` and should be independently testable (vitest) via
 Effect `Layer`/`Context` dependency injection - external processes and I/O go through
@@ -50,7 +50,7 @@ depending on generic code) is fine. There's no lint rule for this, just don't ad
 `package.json` dependency - pnpm only resolves what's explicitly declared, so an accidental
 deep-import fails at both TypeScript resolution and at runtime, the same enforcement the
 domain-import rule below relies on. Neither tier exists yet - added iteratively, read
-`tasks/roadmap.md` before assuming what's next.
+`docs/roadmap.md` before assuming what's next.
 
 `domains/<name>` (e.g. `domains/hosts`, `domains/members`) is where real business logic
 will live, one pnpm package per domain, following [Feature-Sliced

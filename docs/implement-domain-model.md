@@ -2,7 +2,7 @@
 
 ## Goal
 
-Implement the data model documented in [`docs/data-model.md`](../docs/data-model.md)
+Implement the data model documented in [`docs/data-model.md`](data-model.md)
 as Effect Schema - the first real business-logic code in this repo, building on
 the tooling foundation (`packages/lint-config`, `packages/typescript-config`)
 and the `apps/client` vertical slice already in place.
@@ -91,7 +91,7 @@ Per `AGENTS.md`: no key mechanism ships without tests. At minimum:
 
 ## References
 
-- [`docs/data-model.md`](../docs/data-model.md) - the model itself, source of truth
+- [`docs/data-model.md`](data-model.md) - the model itself, source of truth
 - [`AGENTS.md`](../AGENTS.md) - project conventions (Effect v4, DI via
   `Layer`/`Context`, FSD package layout)
 - `externals/effect/` - vendored Effect source, consult before writing Effect code

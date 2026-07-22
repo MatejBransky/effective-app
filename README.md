@@ -13,7 +13,7 @@ Four top-level layers, no `packages/*`:
 
 - `shared/*` - one pnpm package per cross-cutting concern, split into two tiers. The generic
   tier knows nothing about business shapes and must never depend on the business-shape tier
-  - the reverse dependency is fine. Neither tier exists yet - see `tasks/roadmap.md`.
+  - the reverse dependency is fine. Neither tier exists yet - see `docs/roadmap.md`.
 - `domains/*` - one pnpm package per business domain (e.g. `domains/hosts`), not created yet.
   A domain's `package.json#exports` is its public API - no barrel `index.ts` working around
   that. Domains never import each other directly; cross-domain calls (starting with actions)
@@ -35,14 +35,19 @@ inside `shared/*` is enforced without a lint rule).
 
 - `apps/*` - not created yet. Will hold `apps/client` (local-first React PWA),
   `apps/server` (Effect HTTP API on Cloudflare Workers), and `apps/infrastructure`
-  (Alchemy IaC that deploys both) once rebuilt - see `tasks/roadmap.md`
+  (Alchemy IaC that deploys both) once rebuilt - see `docs/roadmap.md`
 - `shared/*` - not created yet. Will hold the business-shape entity definitions and the
   generic cross-cutting FE/BE code (state registry, modal manager, keybindings, ...) - see
   `AGENTS.md` for the two-tier split rule
 - `shared/lint-config`, `shared/typescript-config` - shared tooling config
 - `domains/*` - business-logic packages, not created yet - added iteratively as real
-  business logic lands, see `tasks/roadmap.md`
+  business logic lands, see `docs/roadmap.md`
 - `scripts/` - repo-maintenance scripts/codegen, not created yet
+- `docs/` - architecture diagram plus task write-ups (`docs/roadmap.md`,
+  `docs/implement-domain-model.md`, `docs/integrate-client.md`)
+- `infra/` - local dev config for the self-hosted services in `docs/roadmap.md`
+  (`infra/keycloak`, `infra/postgres`, `infra/powersync`) - placeholders, not wired
+  into `docker-compose.yml` yet
 - `externals/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code; includes `packages/atom/react`, Effect-TS's own official React bindings for `effect/unstable/reactivity`'s Atom (published as `@effect/atom-react` - no separate `externals/effect-atom` subtree needed, that older standalone package still pins `effect@^3.19`)
 - `externals/alchemy-effect` - reference copy of [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) (git subtree), the Effect-native flavor of Alchemy - consulted before writing infrastructure (IaC) code
 - `externals/opencode` - reference copy of [anomalyco/opencode](https://github.com/anomalyco/opencode) (git subtree, `dev` branch), an AI coding agent - consulted for agent/CLI tooling patterns

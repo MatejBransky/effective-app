@@ -5,4 +5,4 @@ One pnpm package per business domain (`domains/<name>`, published as `@repo/doma
 - see AGENTS.md for the layer rules (never import another domain directly; cross-domain
   calls go through a tag defined in `shared/*`).
 
-Empty for now - added iteratively, see `tasks/roadmap.md` before assuming what's next.
+Empty for now - added iteratively, see `docs/roadmap.md` before assuming what's next.

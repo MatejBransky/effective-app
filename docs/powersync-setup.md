@@ -72,14 +72,18 @@ up too.
 4. [x] Populated `infra/keycloak/realm-export.json` for real (was an empty
        placeholder dir) so the realm config is reproducible/committed.
 
-## Phase 1 - Source database (Postgres)
+## Phase 1 - Source database (Postgres) — done (2026-07-22)
 
-5. Set up logical replication / a publication on the existing Postgres
-   instance (`infra/postgres`) for PowerSync's CDC - exact SQL to be pulled
-   from `references/powersync-service.md` § "Source Database Setup" when this
-   phase starts.
-6. Write `PS_DATA_SOURCE_URI` to `.env` (self-hosted's variable name - not
-   `PS_DATABASE_URI`, which is the Cloud one used later in production).
+5. [x] `wal_level=logical` set via `docker-compose.yml`'s `postgres` service
+       `command:` (default is `replica`). `infra/postgres/init-scripts/01-powersync-
+       replication.sql` creates the least-privilege `powersync_replication` role
+       (`REPLICATION` + read-only) and `CREATE PUBLICATION powersync FOR ALL TABLES`
+       (no domain model/tables exist yet - narrow this once one does). Runs
+       automatically on a fresh volume (`docker-entrypoint-initdb.d`); applied
+       manually via `psql` this time since the volume was already initialized.
+6. [x] `PS_DATA_SOURCE_URI` written to `.env`/`.env.example` - uses the `postgres`
+       Docker network service name (not `localhost`), since PowerSync's own
+       container will connect from inside the same network (Phase 3).
 
 ## Phase 2 - Backend API (new app)
 
@@ -111,7 +115,7 @@ up too.
 
 ## Readiness gate (before touching apps/web)
 
-- [ ] Postgres publication/replication set up
+- [x] Postgres publication/replication set up
 - [ ] Keycloak realm + JWKS reachable from the PowerSync container
 - [ ] Backend API running (upload endpoint)
 - [ ] PowerSync self-hosted instance up (`powersync docker start`),

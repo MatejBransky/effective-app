@@ -28,6 +28,10 @@ the concrete implementation built on top of them is gone.
   proving the full browser -> Keycloak -> apps/server chain live in the browser.
 - **`CONTEXT.md`** - business glossary started (Host/Member/Lead/Admin), referenced
   from `AGENTS.md`.
+- **Postgres logical replication (Phase 1 of `docs/powersync-setup.md`)** -
+  `wal_level=logical`, the least-privilege `powersync_replication` role, and a
+  `FOR ALL TABLES` publication (`infra/postgres/init-scripts/01-powersync-
+  replication.sql`) - `PS_DATA_SOURCE_URI` in `.env`.
 
 See `docs/powersync-setup.md` for the full phase breakdown and exactly what's still
 blocked (its own checklist is the source of truth, not this list).
@@ -35,9 +39,10 @@ blocked (its own checklist is the source of truth, not this list).
 ## In progress
 
 Nothing actively in progress. Next up per `docs/powersync-setup.md`'s readiness
-gate: Phase 1 (Postgres logical replication/publication for PowerSync's CDC), then
-Phase 3 (self-hosted PowerSync instance) - both block PowerSync client integration
-in `apps/web` (Phase 4).
+gate: Phase 3 (self-hosted PowerSync instance, self-hosted `powersync init` ->
+`docker configure` -> `docker start`, wiring `client_auth` to Keycloak's JWKS and
+the `PS_DATA_SOURCE_URI` from Phase 1) - blocks PowerSync client integration in
+`apps/web` (Phase 4).
 
 ## New idea from a previous conversation: scheduled/async jobs example
 

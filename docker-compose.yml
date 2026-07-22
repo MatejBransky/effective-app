@@ -2,6 +2,9 @@ services:
   postgres:
     image: postgres:18.4-alpine
     restart: unless-stopped
+    # wal_level=logical (default is 'replica') is required for PowerSync's CDC -
+    # see docs/powersync-setup.md Phase 1.
+    command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_USER: effective_app
       POSTGRES_PASSWORD: local_dev_only
@@ -20,6 +23,11 @@ services:
       # needs to be reinitialized once:
       # `pnpm run dev:infra:down && docker volume rm effective-app_postgres-data`.
       - postgres-data:/var/lib/postgresql
+      # Runs once, only against a fresh/empty volume (docker-entrypoint-initdb.d
+      # semantics) - sets up the powersync_replication role + publication for
+      # PowerSync's CDC (Phase 1). Already-initialized volumes need the same SQL run
+      # manually once - see docs/powersync-setup.md.
+      - ./infra/postgres/init-scripts:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U effective_app"]
       interval: 5s

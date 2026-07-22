@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-router": "catalog:",
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
+    "@playwright/test": "1.61.1",
     "@repo/shared-typescript-config": "workspace:*",
     "@rolldown/plugin-babel": "0.2.3",
     "@tanstack/router-plugin": "catalog:",

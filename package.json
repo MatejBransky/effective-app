@@ -19,6 +19,7 @@
     "update:opencode": "git subtree pull --prefix=externals/opencode https://github.com/anomalyco/opencode.git dev --squash"
   },
   "devDependencies": {
+    "@playwright/cli": "0.1.17",
     "@repo/shared-lint-config": "workspace:*",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",

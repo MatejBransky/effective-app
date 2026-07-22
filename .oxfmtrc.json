@@ -1,4 +1,9 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["externals/**", "**/.alchemy/**", "**/routeTree.gen.ts"]
+  "ignorePatterns": [
+    "externals/**",
+    "**/.alchemy/**",
+    "**/routeTree.gen.ts",
+    ".claude/skills/playwright-cli/**"
+  ]
 }

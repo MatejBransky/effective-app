@@ -107,7 +107,7 @@ shared/shell/
     SidebarService.ts      # Context.Service tag over OverlayStack, `static readonly layer`
     ModalService.ts         # Context.Service tag over OverlayStack, `static readonly layer`
     ShellContext.tsx        # React Context bundling both services' runtime-bound atoms
-    SidebarHost.tsx          # renders the entry at the cursor
+    SidebarHost.tsx          # the sidebar's own chrome - Back/Forward/label/Minimize/Close
     ModalHost.tsx            # renders the entry at the cursor (as a backdrop overlay)
     useSidebar.ts            # hook: { open, close, closeAll, back, forward }
     useSidebarHistory.ts     # read-only preview hook for back/forward controls
@@ -132,6 +132,7 @@ each tag's `make`) rather than duplicating the plumbing:
 // shared/shell/src/OverlayStack.ts
 export interface OverlayEntry {
   readonly id: number;
+  readonly key: string | undefined; // see OverlayOpenOptions.key below
   readonly label: string; // shown by back()/forward() consumers, never used to look anything up
   readonly node: React.ReactNode;
   // Lets close()/closeAll() dismiss an entry from *outside* its own render, not just via
@@ -149,6 +150,13 @@ export interface OverlayHistory {
 
 export interface OverlayOpenOptions {
   readonly label?: string;
+  // Identifies which logical view this is (e.g. "menu"). When it matches the entry
+  // already at the cursor, this open() replaces that entry in place instead of pushing a
+  // new history entry - fixes a real bug where clicking the same trigger twice in a row
+  // (Menu, Menu) pushed a second, indistinguishable entry, and Back just toggled between
+  // two copies of the same view. Omit for one-off overlays with no notion of "the same
+  // view" (most modals).
+  readonly key?: string;
   // Discards the *entire* history first (not just anything ahead of the cursor), so
   // closing this entry reveals nothing. Default (false): "temporary, stacks on top,
   // returns to what was showing before" - discards only anything ahead of the cursor,
@@ -262,20 +270,33 @@ produced by `render(...)` inside `open`, up front, not deferred to render
 time. Only `entries[cursor]` is rendered:
 
 ```tsx
-export function SidebarHost() {
-  const { sidebar } = useShellContext();
-  const { entries, cursor } = useAtomValue(sidebar.history, (result) =>
+export function ModalHost() {
+  const { modal } = useShellContext();
+  const { entries, cursor } = useAtomValue(modal.history, (result) =>
     AsyncResult.getOrElse(result, () => ({ entries: [], cursor: -1 })),
   );
   const current = entries[cursor];
   if (!current) return null;
   return (
-    <div key={current.id} className="shell-sidebar">
-      {current.node}
+    <div className="shell-modal-backdrop">
+      <div key={current.id} className="shell-modal">
+        {current.node}
+      </div>
     </div>
   );
 }
 ```
+
+`SidebarHost` additionally renders the sidebar's **own chrome** - a toolbar
+with Back/Forward (calling `useSidebar()`'s actions, labeled via
+`useSidebarHistory()`'s preview), the current entry's `label`, Minimize (pure
+presentation - local `useState`, never touches `SidebarService`), and Close
+
+- around whatever `current.node` is, not left for every trigger site to
+  rebuild. When minimized, it swaps in a completely different, minimal chrome
+  (just an Expand button) rather than squeezing the full toolbar into a
+  collapsed width - guarantees the way back stays fully visible and clickable
+  regardless of how narrow the collapsed strip is.
 
 `SidebarHost`/`ModalHost`/`useSidebar`/`useModal` are runtime-agnostic -
 none of them imports an `Atom.runtime` directly, since only the composing app

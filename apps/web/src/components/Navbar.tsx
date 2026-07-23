@@ -1,5 +1,5 @@
 import { useAtomSet } from "@effect/atom-react";
-import { useModal, useSidebar, useSidebarHistory } from "@repo/shared-shell";
+import { useModal, useSidebar } from "@repo/shared-shell";
 import { useState } from "react";
 import { DeleteDialog, type DeleteChoice } from "./DeleteDialog.tsx";
 import { NotifyDialog } from "./NotifyDialog.tsx";
@@ -9,10 +9,10 @@ import type { QuestionAnswer } from "./QuestionDialog.tsx";
 // Every button here is scaffolding proving SidebarService/ModalService round-trip end to
 // end through useSidebar()/useModal() (and, for "Ask question", a plain Effect action
 // that never touches React) - not a real feature. A first real domain replaces this once
-// one exists.
+// one exists. Back/Forward/Close/Minimize live in <SidebarHost/>'s own toolbar, not here -
+// they're part of the sidebar UI itself, not something every trigger has to rebuild.
 export function Navbar() {
   const sidebar = useSidebar();
-  const sidebarHistory = useSidebarHistory();
   const modal = useModal();
   const askQuestion = useAtomSet(askQuestionAtom, { mode: "promise" });
   const [lastChoice, setLastChoice] = useState<DeleteChoice | null>(null);
@@ -25,17 +25,9 @@ export function Navbar() {
         <button
           type="button"
           onClick={() => {
-            void sidebar.open<void>(
-              (resolve) => (
-                <div data-testid="sidebar-panel">
-                  <p>Menu</p>
-                  <button type="button" onClick={() => resolve()}>
-                    Close
-                  </button>
-                </div>
-              ),
-              { label: "Menu" },
-            );
+            // key: "menu" - re-clicking while Menu is already the active sidebar entry
+            // replaces it in place instead of pushing a duplicate back/forward stop.
+            void sidebar.open<void>(() => <p>Menu</p>, { label: "Menu", key: "menu" });
           }}
         >
           Menu
@@ -44,38 +36,11 @@ export function Navbar() {
           type="button"
           onClick={() => {
             // Opened on top of whatever's already showing (e.g. Menu's sidebar) - closing
-            // this one (or navigating back to Menu) reveals it again automatically.
-            void sidebar.open<void>(
-              (resolve) => (
-                <div data-testid="sidebar-panel">
-                  <p>Details</p>
-                  <button type="button" onClick={() => resolve()}>
-                    Close
-                  </button>
-                </div>
-              ),
-              { label: "Details" },
-            );
+            // this one (or navigating back via the sidebar's own toolbar) reveals it again.
+            void sidebar.open<void>(() => <p>Details</p>, { label: "Details", key: "details" });
           }}
         >
           Details
-        </button>
-        <button
-          type="button"
-          disabled={!sidebarHistory.canGoBack}
-          onClick={() => void sidebar.back()}
-        >
-          Back{sidebarHistory.backLabel ? ` (${sidebarHistory.backLabel})` : ""}
-        </button>
-        <button
-          type="button"
-          disabled={!sidebarHistory.canGoForward}
-          onClick={() => void sidebar.forward()}
-        >
-          Forward{sidebarHistory.forwardLabel ? ` (${sidebarHistory.forwardLabel})` : ""}
-        </button>
-        <button type="button" onClick={() => void sidebar.close()}>
-          Close sidebar
         </button>
         <button type="button" onClick={() => void sidebar.closeAll()}>
           Close all sidebars

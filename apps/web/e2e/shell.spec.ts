@@ -1,36 +1,50 @@
 import { expect, test } from "@playwright/test";
 
 // Proves SidebarService/ModalService round-trip end to end: SubscriptionRef push on
-// open, Effect.callback resume + entry removal on resolve. The Navbar's buttons are
-// scaffolding only (see apps/web/src/components/Navbar.tsx) - they exist purely to
-// exercise this wiring before a first real domain consumer replaces them.
+// open, Effect.callback resume + entry removal on resolve. The Navbar's buttons and
+// <SidebarHost/>'s own toolbar (Back/Forward/label/Minimize/Close) are scaffolding only
+// (see apps/web/src/components/Navbar.tsx) - they exist purely to exercise this wiring
+// before a first real domain consumer replaces them.
 
 test("Menu opens a sidebar via SidebarService, Close resolves and removes it", async ({ page }) => {
   await page.goto("/login");
 
   await page.getByRole("button", { name: "Menu" }).click();
-  const panel = page.getByTestId("sidebar-panel");
-  await expect(panel).toContainText("Menu");
+  const toolbar = page.getByTestId("sidebar-toolbar");
+  await expect(page.getByTestId("sidebar-label")).toHaveText("Menu");
 
-  await panel.getByRole("button", { name: "Close" }).click();
-  await expect(panel).not.toBeVisible();
+  await toolbar.getByRole("button", { name: "Close" }).click();
+  await expect(toolbar).not.toBeVisible();
 });
 
 test("Details opens on top of Menu; closing it reveals Menu again", async ({ page }) => {
   await page.goto("/login");
 
   await page.getByRole("button", { name: "Menu" }).click();
-  const panel = page.getByTestId("sidebar-panel");
-  await expect(panel).toContainText("Menu");
+  const label = page.getByTestId("sidebar-label");
+  await expect(label).toHaveText("Menu");
 
   await page.getByRole("button", { name: "Details" }).click();
   // Only the entry at the cursor renders - Menu's content is replaced by Details's, not
   // shown alongside it.
-  await expect(panel).toContainText("Details");
+  await expect(label).toHaveText("Details");
 
-  await panel.getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("sidebar-toolbar").getByRole("button", { name: "Close" }).click();
   // Details closed, Menu (still on the history underneath) reappears unprompted.
-  await expect(panel).toContainText("Menu");
+  await expect(label).toHaveText("Menu");
+});
+
+test("Re-opening the already-active sidebar (same key) replaces it in place, no duplicate history stop", async ({
+  page,
+}) => {
+  await page.goto("/login");
+
+  // Menu clicked twice in a row - both opens carry key: "menu", so the second must not
+  // push a duplicate "Menu" entry behind the first.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByTestId("sidebar-label")).toHaveText("Menu");
+  await expect(page.getByRole("button", { name: "Back" })).toBeDisabled();
 });
 
 test("Back/Forward navigate sidebar history without closing anything, showing target labels", async ({
@@ -40,38 +54,47 @@ test("Back/Forward navigate sidebar history without closing anything, showing ta
 
   const backButton = page.getByRole("button", { name: "Back" });
   const forwardButton = page.getByRole("button", { name: "Forward" });
-  await expect(backButton).toBeDisabled();
-  await expect(forwardButton).toBeDisabled();
+  await expect(backButton).not.toBeVisible();
+  await expect(forwardButton).not.toBeVisible();
 
   await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("button", { name: "Details" }).click();
-  const panel = page.getByTestId("sidebar-panel");
-  await expect(panel).toContainText("Details");
+  const label = page.getByTestId("sidebar-label");
+  await expect(label).toHaveText("Details");
 
   // Now positioned on Details, with Menu behind it - Back should say what it goes to.
   await expect(backButton).toHaveText("Back (Menu)");
   await expect(forwardButton).toBeDisabled();
 
   await backButton.click();
-  await expect(panel).toContainText("Menu");
+  await expect(label).toHaveText("Menu");
   // Details wasn't closed, just navigated away from - Forward reaches it again.
   await expect(forwardButton).toHaveText("Forward (Details)");
 
   await forwardButton.click();
-  await expect(panel).toContainText("Details");
+  await expect(label).toHaveText("Details");
 });
 
-test("Close sidebar closes whichever sidebar is open, from outside its own content", async ({
+test("Minimize collapses the sidebar without closing it - content stays mounted", async ({
   page,
 }) => {
   await page.goto("/login");
 
   await page.getByRole("button", { name: "Menu" }).click();
-  const panel = page.getByTestId("sidebar-panel");
-  await expect(panel).toContainText("Menu");
+  const content = page.getByTestId("sidebar-content");
+  await expect(content).toBeVisible();
 
-  await page.getByRole("button", { name: "Close sidebar" }).click();
-  await expect(panel).not.toBeVisible();
+  await page.getByRole("button", { name: "Minimize" }).click();
+  // Minimized swaps in a completely different, minimal chrome (just Expand) - the
+  // toolbar/label aren't rendered at all while collapsed, not just visually hidden.
+  await expect(content).not.toBeVisible();
+  await expect(page.getByTestId("sidebar-toolbar")).not.toBeVisible();
+  const expandButton = page.getByRole("button", { name: "Expand" });
+  await expect(expandButton).toBeVisible();
+
+  await expandButton.click();
+  await expect(content).toBeVisible();
+  await expect(page.getByTestId("sidebar-label")).toHaveText("Menu");
 });
 
 test("Close all sidebars clears the whole history, not just the current entry", async ({
@@ -81,15 +104,11 @@ test("Close all sidebars clears the whole history, not just the current entry", 
 
   await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("button", { name: "Details" }).click();
-  const panel = page.getByTestId("sidebar-panel");
-  await expect(panel).toContainText("Details");
+  await expect(page.getByTestId("sidebar-label")).toHaveText("Details");
   await expect(page.getByRole("button", { name: "Back" })).toHaveText("Back (Menu)");
 
   await page.getByRole("button", { name: "Close all sidebars" }).click();
-  await expect(panel).not.toBeVisible();
-  // Nothing left to navigate to either, in either direction.
-  await expect(page.getByRole("button", { name: "Back" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Forward" })).toBeDisabled();
+  await expect(page.getByTestId("sidebar-toolbar")).not.toBeVisible();
 });
 
 test("Delete opens a modal via ModalService and resolves to the chosen non-boolean result", async ({
@@ -131,7 +150,11 @@ test("Notify (replaces) discards an open modal permanently - dismissing it revea
   await page.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText("Delete this item?")).toBeVisible();
 
-  await page.getByRole("button", { name: "Notify (replaces)" }).click();
+  // Triggered from a button *inside* Delete's own dialog, not the Navbar - once a modal's
+  // backdrop is up it correctly blocks clicks to anything behind it (real modal
+  // semantics), so a realistic "something external replaces this" trigger can't be a
+  // covered Navbar button; it has to run from inside, same as Help does above.
+  await page.getByRole("button", { name: "Simulate notification" }).click();
   await expect(page.getByText("New activity on this item.")).toBeVisible();
   // Delete's confirm dialog was discarded, not stacked underneath.
   await expect(page.getByText("Delete this item?")).not.toBeVisible();
@@ -139,6 +162,16 @@ test("Notify (replaces) discards an open modal permanently - dismissing it revea
   await page.getByRole("button", { name: "Dismiss" }).click();
   // Unlike Help, closing this does not bring anything back.
   await expect(page.getByText("Delete this item?")).not.toBeVisible();
+  await expect(page.getByText("New activity on this item.")).not.toBeVisible();
+});
+
+test("Navbar's Notify (replaces) opens the same modal from a clean slate", async ({ page }) => {
+  await page.goto("/login");
+
+  await page.getByRole("button", { name: "Notify (replaces)" }).click();
+  await expect(page.getByText("New activity on this item.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Dismiss" }).click();
   await expect(page.getByText("New activity on this item.")).not.toBeVisible();
 });
 

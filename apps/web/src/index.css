@@ -70,7 +70,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  height: 64px;
+  padding: 0 24px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
 }
@@ -89,19 +91,57 @@ body {
 
 .shell-sidebar {
   position: fixed;
-  top: 0;
+  z-index: 5;
+  top: 64px;
   right: 0;
   bottom: 0;
   width: 320px;
   max-width: 100%;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow);
+  transition: width 150ms ease;
+}
+
+.shell-sidebar--minimized {
+  width: 48px;
+}
+
+.shell-sidebar-expand {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.shell-sidebar-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shell-sidebar-label {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-sidebar-content {
+  padding: 24px;
+  overflow: auto;
 }
 
 .shell-modal-backdrop {
   position: fixed;
+  z-index: 10;
   inset: 0;
   display: flex;
   align-items: center;

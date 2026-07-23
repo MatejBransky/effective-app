@@ -1,4 +1,5 @@
 import { useModal } from "@repo/shared-shell";
+import { NotifyDialog } from "./NotifyDialog.tsx";
 
 export type DeleteChoice = "cancel" | "archive" | "deleteForever";
 
@@ -33,6 +34,23 @@ export function DeleteDialog(props: { readonly onChoice: (choice: DeleteChoice) 
         }}
       >
         Help
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          // { replace: true } - discards this whole dialog (not stacked underneath) rather
+          // than returning to it once dismissed, unlike Help above. Triggered from inside
+          // this dialog's own content since a real trigger (e.g. a pushed notification)
+          // would fire from outside React entirely - a modal's backdrop correctly blocks
+          // clicks to anything behind it, so an *external* trigger can't be a covered
+          // button; it has to be something like this, run from wherever the real event
+          // arrives.
+          void modal.open<void>((resolve) => <NotifyDialog onDismiss={() => resolve()} />, {
+            replace: true,
+          });
+        }}
+      >
+        Simulate notification
       </button>
     </div>
   );

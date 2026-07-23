@@ -3,6 +3,7 @@ import type * as React from "react";
 
 export interface OverlayEntry {
   readonly id: number;
+  readonly key: string | undefined;
   readonly label: string;
   readonly node: React.ReactNode;
   // Lets close()/closeAll() dismiss an entry from *outside* its own render (e.g. a Navbar
@@ -31,6 +32,12 @@ export interface OverlayOpenOptions {
   // Shown by back()/forward() consumers (e.g. Navbar's "Back (Menu)" button) - purely
   // descriptive, never used to identify or look up an entry.
   readonly label?: string;
+  // Identifies which logical view this is (e.g. "menu", "details"). When it matches the
+  // entry currently at the cursor, this open() replaces that entry in place instead of
+  // pushing a new history entry - re-opening the view you're already looking at (a Navbar
+  // button clicked twice in a row, say) doesn't create a duplicate back/forward stop.
+  // Omit for one-off overlays (most modals) where there's no notion of "the same view".
+  readonly key?: string;
   // Discards the *entire* history (not just anything ahead of the cursor) before adding
   // this entry, so closing it reveals nothing rather than whatever it superseded. Use for
   // "this action's dialog replaces whatever was open, permanently" - the default (false)
@@ -68,7 +75,8 @@ export interface OverlayStackService {
  * Only the entry at the cursor is ever rendered (see SidebarHost/ModalHost). Opening a new
  * entry discards anything ahead of the cursor (a genuinely new navigation, same as a
  * browser tab discarding forward history) and appends after it - unless `replace` is set,
- * which discards the *whole* history first instead.
+ * which discards the *whole* history first instead. Re-opening the same `key` as the entry
+ * already at the cursor replaces it in place rather than pushing another entry.
  */
 export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(function* () {
   const history = yield* SubscriptionRef.make<OverlayHistory>({ entries: [], cursor: -1 });
@@ -104,23 +112,38 @@ export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(f
       const node = render(resolve);
       const entry: OverlayEntry = {
         id,
+        key: options?.key,
         label: options?.label ?? `Overlay ${id}`,
         node,
         resolve: resolve as (value: unknown) => void,
       };
 
       const current = Effect.runSync(SubscriptionRef.get(history));
-      const survivors = options?.replace ? [] : current.entries.slice(0, current.cursor + 1);
-      const superseded = options?.replace
-        ? current.entries
-        : current.entries.slice(current.cursor + 1);
-      const nextEntries = [...survivors, entry];
-      Effect.runSync(
-        SubscriptionRef.set(history, { entries: nextEntries, cursor: nextEntries.length - 1 }),
-      );
-      // Already excluded from the state set above, so each of these resolve() calls'
-      // own removeById() runs against an id that's no longer present - a harmless no-op.
-      superseded.forEach((supersededEntry) => supersededEntry.resolve(undefined));
+      const activeEntry = current.entries[current.cursor];
+      const reopeningActiveView = options?.key !== undefined && activeEntry?.key === options.key;
+
+      if (reopeningActiveView) {
+        // Same logical view as what's already showing - replace it in place instead of
+        // pushing a duplicate back/forward stop.
+        const nextEntries = current.entries.slice();
+        nextEntries[current.cursor] = entry;
+        Effect.runSync(
+          SubscriptionRef.set(history, { entries: nextEntries, cursor: current.cursor }),
+        );
+        activeEntry.resolve(undefined);
+      } else {
+        const survivors = options?.replace ? [] : current.entries.slice(0, current.cursor + 1);
+        const superseded = options?.replace
+          ? current.entries
+          : current.entries.slice(current.cursor + 1);
+        const nextEntries = [...survivors, entry];
+        Effect.runSync(
+          SubscriptionRef.set(history, { entries: nextEntries, cursor: nextEntries.length - 1 }),
+        );
+        // Already excluded from the state set above, so each of these resolve() calls'
+        // own removeById() runs against an id that's no longer present - a harmless no-op.
+        superseded.forEach((supersededEntry) => supersededEntry.resolve(undefined));
+      }
 
       return Effect.sync(remove);
     });

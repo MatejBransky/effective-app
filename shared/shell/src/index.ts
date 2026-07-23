@@ -1,5 +1,6 @@
-export type { OverlayEntry, OverlayKind } from "./ShellUI.ts";
+export type { OverlayEntry, OverlayKind, ShellUIOpenRender } from "./ShellUI.ts";
 export { ShellUI } from "./ShellUI.ts";
+export type { ShellRuntime } from "./ShellRuntimeContext.tsx";
+export { ShellRuntimeProvider } from "./ShellRuntimeContext.tsx";
 export { ShellHost } from "./ShellHost.tsx";
-export type { ShellUIOpenRender } from "./useShellUI.ts";
 export { useShellUI } from "./useShellUI.ts";

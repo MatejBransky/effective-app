@@ -1,16 +1,13 @@
 import { useAtomValue } from "@effect/atom-react";
-import { AsyncResult, type Atom } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/unstable/reactivity";
+import { useShellRuntime } from "./ShellRuntimeContext.tsx";
 import type { OverlayEntry } from "./ShellUI.ts";
 
-/**
- * Renders whatever is on the overlay stack. Runtime-agnostic on purpose - `shared/shell`
- * doesn't own an `Atom.runtime` (only the composing app does, per AGENTS.md), so the
- * bridged `state` atom (built via that app's `runtime.subscriptionRef(...)`) is passed in.
- */
-export function ShellHost(props: {
-  readonly state: Atom.Atom<AsyncResult.AsyncResult<ReadonlyArray<OverlayEntry>, unknown>>;
-}) {
-  const entries = useAtomValue(props.state, (result) =>
+/** Renders whatever is on the overlay stack. Reads the runtime-bound state atom from
+ * `<ShellRuntimeProvider/>` (see ShellRuntimeContext.ts) - mount once near the app root. */
+export function ShellHost() {
+  const { state } = useShellRuntime();
+  const entries = useAtomValue(state, (result) =>
     AsyncResult.getOrElse(result, () => [] as ReadonlyArray<OverlayEntry>),
   );
 

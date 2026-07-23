@@ -101,11 +101,12 @@ has, though - two established idioms in this repo, pick whichever fits:
 
 ```
 shared/shell/
-  package.json          # @repo/shared-shell
+  package.json               # @repo/shared-shell
   src/
-    ShellUI.ts           # Context.Service tag, its `make` inline, `static readonly layer`
-    ShellHost.tsx         # React component rendering the overlay stack
-    useShellUI.ts         # hook for components
+    ShellUI.ts                # Context.Service tag, its `make` inline, `static readonly layer`
+    ShellRuntimeContext.tsx    # React Context bundling the app's runtime-bound atoms
+    ShellHost.tsx              # React component rendering the overlay stack
+    useShellUI.ts              # hook for components
 ```
 
 Core service shape - one explicit method per overlay kind (`openSidebar` now,
@@ -141,7 +142,7 @@ lives in `ShellUI`, not in a React component:
 
 ```ts
 // from a component: open a sidebar with arbitrary JSX
-const openSidebar = useShellUI(shellOpenSidebarAtom)
+const openSidebar = useShellUI()
 openSidebar((resolve) => <MySidebarContent onDone={() => resolve(undefined)} />)
 ```
 
@@ -180,10 +181,9 @@ registry needed since each entry's `node` was already produced by `render(...)`
 inside `open`, up front, not deferred to render time:
 
 ```tsx
-export function ShellHost(props: { state: Atom.Atom<AsyncResult.AsyncResult<...>> }) {
-  const entries = AsyncResult.builder(useAtomValue(props.state))
-    .onSuccess((value) => value)
-    .orElse(() => []);
+export function ShellHost() {
+  const { state } = useShellRuntime();
+  const entries = useAtomValue(state, (result) => AsyncResult.getOrElse(result, () => []));
   return (
     <>
       {entries.map((entry) => (
@@ -196,16 +196,42 @@ export function ShellHost(props: { state: Atom.Atom<AsyncResult.AsyncResult<...>
 }
 ```
 
-`ShellHost` itself is runtime-agnostic - it takes the bridged `state` atom as
-a prop rather than importing an `Atom.runtime` directly, since only the
-composing app owns one (`apps/web/src/runtime/shellAtoms.ts` builds it via
-`runtime.subscriptionRef(...)` and passes it in at the `__root.tsx` mount
-site).
+`ShellHost`/`useShellUI` are runtime-agnostic - neither imports an
+`Atom.runtime` directly, since only the composing app owns one. But they
+also take no atom as an explicit prop/argument: `ShellRuntimeContext.tsx`
+bundles the app's runtime-bound atoms (`shellStateAtom`, `shellOpenSidebarAtom`
 
-`shared/shell/src/useShellUI.ts` - thin hook pairing `runtime.fn`-style
-dispatch with whichever `open*` atom it's given (`shellOpenSidebarAtom`,
-later `shellOpenModalAtom`), so components and domain code share one mental
-model regardless of overlay kind.
+- built in `apps/web/src/runtime/shellAtoms.ts` via `runtime.subscriptionRef(...)`
+  /`runtime.fn(...)`) behind one `ShellRuntime` React Context, provided **once**
+  at the app root:
+
+```tsx
+// apps/web/src/routes/__root.tsx
+<ShellRuntimeProvider runtime={{ state: shellStateAtom, openSidebar: shellOpenSidebarAtom }}>
+  <Navbar />
+  <Outlet />
+  <ShellHost />
+</ShellRuntimeProvider>
+```
+
+This is the same shape `@effect/atom-react`'s own `ScopedAtom.make`
+(`externals/effect/packages/atom/react/src/ScopedAtom.ts:120-151`) uses
+internally - `createContext` + a `use()` that throws outside its provider -
+just bundling more than the single atom `ScopedAtom` is built around, and
+providing one global instance rather than a fresh one per subtree (`ScopedAtom`
+solves the opposite problem: per-instance isolation for a component reused
+many times on a page). Passing the atom explicitly as a prop one level (root
+→ `<ShellHost/>`) was fine for Iteration 2's single mount point, but doesn't
+scale once other components - anywhere in the tree, at any depth, including a
+future domain widget - need to reach `useShellUI()` too: threading an atom
+through every intermediate component's props for that would be real prop
+drilling. Context avoids it the same way `RegistryContext` already avoids
+threading the `AtomRegistry` itself.
+
+`shared/shell/src/useShellUI.ts` - thin hook reading the dispatch atom
+(`openSidebar`, later `openModal`) off `useShellRuntime()` and pairing it
+with `runtime.fn`-style dispatch, so components and domain code share one
+mental model regardless of overlay kind.
 
 ## 2. Action descriptions: generic shape, per-entity description, implementation, merge
 
@@ -351,9 +377,10 @@ React (or left as-is to surface as a rendered error state). Composing a
 
 ## 4. React consumption via `@effect/atom-react`
 
-- `useAtomValue(shellStateAtom)` inside `<ShellHost/>` - reactive
-  subscription to the overlay stack; each entry's `node` was already produced
-  by `render(...)` inside `open`, so `<ShellHost/>` just renders it.
+- `useAtomValue(state, ...)` inside `<ShellHost/>` (`state` from
+  `useShellRuntime()`) - reactive subscription to the overlay stack; each
+  entry's `node` was already produced by `render(...)` inside `open`, so
+  `<ShellHost/>` just renders it.
 - `useAtomSet(runtime.fn(...))` for a component-triggered domain action.
 - Domain-triggered `shell.openModal(...)`/`openSidebar(...)` calls need no
   React hook at all - plain `Effect` code (via `Effect.callback`), rendered by

@@ -9,6 +9,11 @@ export interface OverlayEntry {
   readonly node: React.ReactNode;
 }
 
+// Type-erased at this boundary on purpose: one render/resolve shape is shared by every
+// open* dispatch atom (shellOpenSidebarAtom, later shellOpenModalAtom, ...), regardless of
+// which concrete `A` a given useShellUI() call site resolves.
+export type ShellUIOpenRender = (resolve: (value: unknown) => void) => React.ReactNode;
+
 /**
  * Global overlay stack (modals/sidebars), openable from anywhere - a React component or a
  * domain's business logic - via a Promise-like `openSidebar` built on `Effect.callback`.

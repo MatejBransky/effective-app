@@ -150,12 +150,13 @@ export interface OverlayHistory {
 
 export interface OverlayOpenOptions {
   readonly label?: string;
-  // Identifies which logical view this is (e.g. "menu"). When it matches the entry
-  // already at the cursor, this open() replaces that entry in place instead of pushing a
-  // new history entry - fixes a real bug where clicking the same trigger twice in a row
-  // (Menu, Menu) pushed a second, indistinguishable entry, and Back just toggled between
-  // two copies of the same view. Omit for one-off overlays with no notion of "the same
-  // view" (most modals).
+  // Identifies which logical view this is (e.g. "menu"). Matching an existing entry
+  // *anywhere* in the history (not just at the cursor) navigates to it - discarding
+  // whatever's ahead of it, refreshing its content with this render - instead of pushing
+  // a second copy elsewhere. Fixes a real bug: Menu -> Details -> Menu again used to push
+  // a second, indistinguishable "Menu" past Details, so Back/Forward showed two separate
+  // stops for the same view. Omit for one-off overlays with no notion of "the same view"
+  // (most modals).
   readonly key?: string;
   // Discards the *entire* history first (not just anything ahead of the cursor), so
   // closing this entry reveals nothing. Default (false): "temporary, stacks on top,

@@ -7,7 +7,7 @@ import type { OverlayEntry } from "./OverlayStack.ts";
  * panel should appear in the app's layout. */
 export function SidebarHost() {
   const { sidebar } = useShellContext();
-  const entries = useAtomValue(sidebar.state, (result) =>
+  const entries = useAtomValue(sidebar.stack, (result) =>
     AsyncResult.getOrElse(result, () => [] as ReadonlyArray<OverlayEntry>),
   );
 

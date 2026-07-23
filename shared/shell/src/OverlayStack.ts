@@ -11,7 +11,7 @@ export interface OverlayEntry {
 export type OverlayOpenRender = (resolve: (value: unknown) => void) => React.ReactNode;
 
 export interface OverlayStackService {
-  readonly state: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
+  readonly stack: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
   readonly open: <A>(render: (resolve: (value: A) => void) => React.ReactNode) => Effect.Effect<A>;
 }
 
@@ -25,7 +25,7 @@ export interface OverlayStackService {
  * one shared stack (that was the earlier, more ambiguous design).
  */
 export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(function* () {
-  const state = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
+  const stack = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
   let nextId = 0;
 
   const open = <A>(render: (resolve: (value: A) => void) => React.ReactNode): Effect.Effect<A> =>
@@ -36,7 +36,7 @@ export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(f
       // stale entry on the stack - resolve already having run it makes this a no-op.
       const remove = () =>
         Effect.runSync(
-          SubscriptionRef.update(state, (entries) => entries.filter((entry) => entry.id !== id)),
+          SubscriptionRef.update(stack, (entries) => entries.filter((entry) => entry.id !== id)),
         );
 
       const node = render((value) => {
@@ -44,10 +44,10 @@ export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(f
         resume(Effect.succeed(value));
       });
 
-      Effect.runSync(SubscriptionRef.update(state, (entries) => [...entries, { id, node }]));
+      Effect.runSync(SubscriptionRef.update(stack, (entries) => [...entries, { id, node }]));
 
       return Effect.sync(remove);
     });
 
-  return { state, open };
+  return { stack, open };
 });

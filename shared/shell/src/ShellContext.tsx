@@ -6,7 +6,7 @@ import { SidebarService } from "./SidebarService.ts";
 import type { OverlayEntry, OverlayOpenRender } from "./OverlayStack.ts";
 
 export interface OverlayRuntime {
-  readonly state: Atom.Atom<AsyncResult.AsyncResult<ReadonlyArray<OverlayEntry>, unknown>>;
+  readonly stack: Atom.Atom<AsyncResult.AsyncResult<ReadonlyArray<OverlayEntry>, unknown>>;
   readonly open: Atom.AtomResultFn<OverlayOpenRender, unknown, unknown>;
 }
 
@@ -29,7 +29,7 @@ function makeShellRuntime<E>(
 ): ShellRuntime {
   return {
     sidebar: {
-      state: runtime.subscriptionRef(Effect.map(SidebarService, (service) => service.state)),
+      stack: runtime.subscriptionRef(Effect.map(SidebarService, (service) => service.stack)),
       open: runtime.fn((render: OverlayOpenRender) =>
         Effect.gen(function* () {
           const sidebar = yield* SidebarService;
@@ -38,7 +38,7 @@ function makeShellRuntime<E>(
       ),
     },
     modal: {
-      state: runtime.subscriptionRef(Effect.map(ModalService, (service) => service.state)),
+      stack: runtime.subscriptionRef(Effect.map(ModalService, (service) => service.stack)),
       open: runtime.fn((render: OverlayOpenRender) =>
         Effect.gen(function* () {
           const modal = yield* ModalService;

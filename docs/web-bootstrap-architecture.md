@@ -65,11 +65,11 @@ Two scope notes for this pass:
 ## 1. `shared/shell` - the app-shell package
 
 Home for global, cross-cutting UI-adjacent state with no business shapes,
-starting with modal/sidebar overlay management. Package `@repo/shared-shell`.
+starting with sidebar/modal overlay management. Package `@repo/shared-shell`.
 
-This is a normal package: it holds **both** the Effect service and whatever
-React it needs to render itself (`<ShellHost/>`, the base `<Overlay/>`
-wrapper, hooks). There's no rule forcing React out of this package, or out of
+This is a normal package: it holds **both** the Effect services and whatever
+React they need to render themselves (`<SidebarHost/>`, `<ModalHost/>`,
+hooks). There's no rule forcing React out of this package, or out of
 `domains/*` either - a layer holds whatever belongs to it. The actual
 principle this architecture is built around is narrower: **business logic
 (decisions, orchestration, state) gets modeled in Effect, independent of
@@ -86,10 +86,10 @@ The concrete shape differs by how many concrete implementations a service
 has, though - two established idioms in this repo, pick whichever fits:
 
 - **Exactly one Live implementation, no config/swappable backend** (e.g.
-  `ShellUI` - one in-memory overlay stack, nothing to fake in tests): pass
-  `make` inline as `Context.Service`'s `make` option, and add a
-  `static readonly layer` on the class itself deriving the `Layer` from
-  `this.make` - see `shared/shell/src/ShellUI.ts`. This isn't a repo-specific
+  `SidebarService`/`ModalService` below - both just an in-memory overlay
+  stack, nothing to fake in tests): pass `make` inline as `Context.Service`'s
+  `make` option, and add a `static readonly layer` on the class itself
+  deriving the `Layer` from `this.make`. This isn't a repo-specific
   invention: it's what the vendored Effect source itself does for an
   equivalently-shaped service (`MemoryDriver` in
   `externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts:828-1036`).
@@ -101,55 +101,106 @@ has, though - two established idioms in this repo, pick whichever fits:
 
 ```
 shared/shell/
-  package.json               # @repo/shared-shell
+  package.json           # @repo/shared-shell
   src/
-    ShellUI.ts                # Context.Service tag, its `make` inline, `static readonly layer`
-    ShellRuntimeContext.tsx    # React Context bundling the app's runtime-bound atoms
-    ShellHost.tsx              # React component rendering the overlay stack
-    useShellUI.ts              # hook for components
+    OverlayStack.ts        # shared stack/Effect.callback implementation, no tag of its own
+    SidebarService.ts      # Context.Service tag over OverlayStack, `static readonly layer`
+    ModalService.ts         # Context.Service tag over OverlayStack, `static readonly layer`
+    ShellContext.tsx        # React Context bundling both services' runtime-bound atoms
+    SidebarHost.tsx          # renders the sidebar stack
+    ModalHost.tsx            # renders the modal stack (each entry as a backdrop overlay)
+    useSidebar.ts            # hook dispatching SidebarService.open
+    useModal.ts              # hook dispatching ModalService.open
+    useOverlayOpen.ts        # dispatch logic shared by useSidebar/useModal
 ```
 
-Core service shape - one explicit method per overlay kind (`openSidebar` now,
-`openModal` once a concrete modal example lands), each mirroring the legacy
-Promise-based `openModal((resolve) => jsx)` pattern, built on `Effect.callback`
-instead of `new Promise(...)`. Deliberately **not** a single `open(render, {
-kind? })`: an optional `kind` with a silent default reads ambiguously at the
-call site - was `open(render)` a sidebar or a modal? - so require it
-structurally instead, one method per kind:
+**Two separate `Context.Service` tags, not one service with a `kind`
+parameter.** An earlier iteration had one `ShellUI` tag with `open(render, {
+kind? })` - an optional `kind` with a silent default read ambiguously at the
+call site (was `open(render)` a sidebar or a modal?). Splitting into
+`SidebarService`/`ModalService` resolves that structurally: `yield*
+SidebarService` vs. `yield* ModalService` already says which kind, no
+parameter needed, and each gets its own independent stack instead of sharing
+one array keyed by `kind`. Since both are otherwise identical (a stack of
+Promise-like `open` calls built on `Effect.callback`, resolving whatever
+value the caller's `render` passes to `resolve`), they share one
+implementation (`OverlayStack.ts`'s `makeOverlayStack`, an `Effect` reused as
+each tag's `make`) rather than duplicating the plumbing:
 
 ```ts
-// shared/shell/src/ShellUI.ts
-export class ShellUI extends Context.Service<
-  ShellUI,
-  {
-    readonly state: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
-    readonly openSidebar: <A>(
-      render: (resolve: (value: A) => void) => React.ReactNode,
-    ) => Effect.Effect<A>;
-  }
->()("shared-shell/ShellUI", { make: /* ... */ }) {}
+// shared/shell/src/OverlayStack.ts
+export interface OverlayStackService {
+  readonly stack: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
+  readonly open: <A>(render: (resolve: (value: A) => void) => React.ReactNode) => Effect.Effect<A>;
+}
+
+export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(function* () {
+  const state = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
+  let nextId = 0;
+  const open = <A>(render: (resolve: (value: A) => void) => React.ReactNode): Effect.Effect<A> =>
+    Effect.callback<A>((resume) => {
+      const id = nextId++;
+      const remove = () =>
+        Effect.runSync(
+          SubscriptionRef.update(state, (entries) => entries.filter((e) => e.id !== id)),
+        );
+      const node = render((value) => {
+        remove();
+        resume(Effect.succeed(value));
+      });
+      Effect.runSync(SubscriptionRef.update(state, (entries) => [...entries, { id, node }]));
+      return Effect.sync(remove);
+    });
+  return { state, open };
+});
 ```
 
-There's no `close(id)` method - `resolve` itself already removes the entry
-from the stack (see the implementation sketch below), and `Effect.callback`'s
-own interrupt cleanup covers the cancelled-caller case, so a separate
-imperative close was never actually needed.
+```ts
+// shared/shell/src/SidebarService.ts
+export class SidebarService extends Context.Service<SidebarService, OverlayStackService>()(
+  "shared-shell/SidebarService",
+  { make: makeOverlayStack },
+) {
+  static readonly layer: Layer.Layer<SidebarService> = Layer.effect(this, this.make);
+}
 
-One capability per kind, usable identically from a React component or from
-inside a domain's business logic - domain code is explicitly allowed to
-construct JSX here. The only rule is that the overlay _stack state_ itself
-lives in `ShellUI`, not in a React component:
+// shared/shell/src/ModalService.ts - identical shape, different tag
+export class ModalService extends Context.Service<ModalService, OverlayStackService>()(
+  "shared-shell/ModalService",
+  { make: makeOverlayStack },
+) {
+  static readonly layer: Layer.Layer<ModalService> = Layer.effect(this, this.make);
+}
+```
+
+Reusing the same `makeOverlayStack` Effect value for both tags is safe and
+gives each its own independent state: `Effect.gen(...)` only _describes_ the
+computation, so `Layer.effect(this, this.make)` runs it fresh per Layer
+build, and `SubscriptionRef.make`/`let nextId = 0` inside execute once per
+run - `SidebarService` and `ModalService` never share a `SubscriptionRef`
+even though they share the code that builds one.
+
+There's no `close(id)` method - `resolve` itself already removes the entry
+from the stack, and `Effect.callback`'s own interrupt cleanup covers the
+cancelled-caller case, so a separate imperative close was never actually
+needed.
+
+Usable identically from a React component or from inside a domain's business
+logic - domain code is explicitly allowed to construct JSX here. The only
+rule is that the overlay _stack state_ itself lives in the service, not in a
+React component:
 
 ```ts
 // from a component: open a sidebar with arbitrary JSX
-const openSidebar = useShellUI()
+const openSidebar = useSidebar()
 openSidebar((resolve) => <MySidebarContent onDone={() => resolve(undefined)} />)
 ```
 
 ```tsx
-// from domain business logic: confirm before proceeding (once openModal exists)
+// from domain business logic: confirm before proceeding, resolving to a plain boolean...
 Effect.gen(function* () {
-  const confirmed = yield* shell.openModal<boolean>((resolve) => (
+  const modal = yield* ModalService;
+  const confirmed = yield* modal.open<boolean>((resolve) => (
     <ConfirmDialog
       title="Archive item?"
       onConfirm={() => resolve(true)}
@@ -160,34 +211,25 @@ Effect.gen(function* () {
 });
 ```
 
-Implementation sketch (same `ShellUI.ts`, the `make` effect passed inline as
-`Context.Service`'s `make` option, with a `static readonly layer` on the class
-itself deriving the `Layer` from it - mirrors `MemoryDriver` in
-`externals/effect/packages/effect/src/unstable/cluster/MessageStorage.ts:828-1036`):
-a private `open(kind, render)` helper (not on the `Shape`, so not part of the
-public API) is built with `Effect.callback` - Effect's equivalent of `new
-Promise((resolve) => ...)` - which hands the caller a `resume` callback.
-`openSidebar` (and later `openModal`) just calls it with their fixed `kind`.
-`open` pushes `{ id, kind, node }` onto a single `SubscriptionRef<OverlayEntry[]>`
-stack (the source of truth) - `render` is called once, up front, with a
-`resolve` that both `resume`s the `Effect` and removes the entry from the
-stack. `Effect.callback`'s cleanup callback removes the entry too, so an
-interrupted/cancelled caller (e.g. a route navigation away) doesn't leave a
-stale overlay behind - something the raw Promise-based legacy version
-couldn't express as cleanly.
+```tsx
+// ...or to a richer, non-boolean result - open<A> is generic, not tied to yes/no
+type DeleteChoice = "cancel" | "archive" | "deleteForever";
+const choice = yield * modal.open<DeleteChoice>((resolve) => <DeleteDialog onChoice={resolve} />);
+```
 
-React side (`ShellHost.tsx`) - mounted once near the app root, no renderer
-registry needed since each entry's `node` was already produced by `render(...)`
-inside `open`, up front, not deferred to render time:
+React side - `<SidebarHost/>`/`<ModalHost/>`, each mounted once near the app
+root, no renderer registry needed since each entry's `node` was already
+produced by `render(...)` inside `open`, up front, not deferred to render
+time:
 
 ```tsx
-export function ShellHost() {
-  const { state } = useShellRuntime();
-  const entries = useAtomValue(state, (result) => AsyncResult.getOrElse(result, () => []));
+export function SidebarHost() {
+  const { sidebar } = useShellContext();
+  const entries = useAtomValue(sidebar.stack, (result) => AsyncResult.getOrElse(result, () => []));
   return (
     <>
       {entries.map((entry) => (
-        <div key={entry.id} data-shell-overlay={entry.kind}>
+        <div key={entry.id} className="shell-sidebar">
           {entry.node}
         </div>
       ))}
@@ -196,30 +238,33 @@ export function ShellHost() {
 }
 ```
 
-`ShellHost`/`useShellUI` are runtime-agnostic - neither imports an
-`Atom.runtime` directly, since only the composing app owns one. But they
-also take no atom as an explicit prop/argument: `<ShellRuntimeProvider/>`
-takes the app's raw `runtime` (from `apps/web/src/runtime/runtime.ts`) and
-derives `state`/`openSidebar` internally (`makeShellRuntime`, in
-`ShellRuntimeContext.tsx`, via `runtime.subscriptionRef(...)`/`runtime.fn(...)`),
-memoized once per `runtime` identity (`useMemo`, keyed on the app's
-module-scope-singleton `runtime` reference) so the atoms stay stable across
-renders - then exposes the result through one `ShellRuntime` React Context,
-provided **once** at the app root:
+`SidebarHost`/`ModalHost`/`useSidebar`/`useModal` are runtime-agnostic -
+none of them imports an `Atom.runtime` directly, since only the composing app
+owns one. But they also take no atom as an explicit prop/argument:
+`<ShellProvider/>` takes the app's raw `runtime` (from
+`apps/web/src/runtime/runtime.ts`) and derives both services' `state`/`open`
+atoms internally (`makeShellRuntime`, in `ShellContext.tsx`, via
+`runtime.subscriptionRef(...)`/`runtime.fn(...)`), memoized once per
+`runtime` identity (`useMemo`, keyed on the app's module-scope-singleton
+`runtime` reference) so the atoms stay stable across renders - then exposes
+the result through one `ShellRuntime` React Context, provided **once** at
+the app root:
 
 ```tsx
 // apps/web/src/routes/__root.tsx
-<ShellRuntimeProvider runtime={runtime}>
+<ShellProvider runtime={runtime}>
   <Navbar />
   <Outlet />
-  <ShellHost />
-</ShellRuntimeProvider>
+  <SidebarHost />
+  <ModalHost />
+</ShellProvider>
 ```
 
 `shared/shell` owns the "how to derive these atoms from a runtime" logic, not
-`apps/web` - there's no `apps/web/src/runtime/shellAtoms.ts` bridging file to
-hand-maintain per capability; adding `openModal` later only touches
-`ShellRuntimeContext.tsx`.
+`apps/web` - adding a future Shell capability (a view-mode toggle, say) means
+a new `Context.Service` + a field in `ShellRuntime`/`makeShellRuntime` (both
+in `ShellContext.tsx`) + a `useXxx()` hook, nothing to hand-wire in
+`apps/web`.
 
 This is the same shape `@effect/atom-react`'s own `ScopedAtom.make`
 (`externals/effect/packages/atom/react/src/ScopedAtom.ts:120-151`) uses
@@ -227,18 +272,23 @@ internally - `createContext` + a `use()` that throws outside its provider -
 just bundling more than the single atom `ScopedAtom` is built around, and
 providing one global instance rather than a fresh one per subtree (`ScopedAtom`
 solves the opposite problem: per-instance isolation for a component reused
-many times on a page). Passing the atom explicitly as a prop one level (root
-→ `<ShellHost/>`) was fine for Iteration 2's single mount point, but doesn't
-scale once other components - anywhere in the tree, at any depth, including a
-future domain widget - need to reach `useShellUI()` too: threading an atom
-through every intermediate component's props for that would be real prop
-drilling. Context avoids it the same way `RegistryContext` already avoids
-threading the `AtomRegistry` itself.
+many times on a page). Passing an atom explicitly as a prop one level (root
+→ one host component) is fine for a single mount point, but doesn't scale
+once other components - anywhere in the tree, at any depth, including a
+future domain widget - need to reach `useSidebar()`/`useModal()` too:
+threading an atom through every intermediate component's props for that
+would be real prop drilling. Context avoids it the same way `RegistryContext`
+already avoids threading the `AtomRegistry` itself - and matters concretely
+here, not just hypothetically: `domains/*` packages must never import from
+`apps/web` (per `AGENTS.md`), so a domain widget calling `useSidebar()` has no
+way to reach an app-specific atom directly; it can only reach whatever
+`shared/shell` exposes through this Context.
 
-`shared/shell/src/useShellUI.ts` - thin hook reading the dispatch atom
-(`openSidebar`, later `openModal`) off `useShellRuntime()` and pairing it
-with `runtime.fn`-style dispatch, so components and domain code share one
-mental model regardless of overlay kind.
+`shared/shell/src/useOverlayOpen.ts` - the dispatch logic shared by
+`useSidebar()`/`useModal()` (each just this bound to a different slice of
+`ShellRuntime`), pairing the exposed atom with `useAtomSet(..., { mode:
+"promise" })`-style dispatch so components and domain code share one mental
+model regardless of which service they're calling.
 
 ## 2. Action descriptions: generic shape, per-entity description, implementation, merge
 

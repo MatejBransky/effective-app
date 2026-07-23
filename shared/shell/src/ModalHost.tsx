@@ -7,7 +7,7 @@ import type { OverlayEntry } from "./OverlayStack.ts";
  * Mount once near the app root - modals should float above everything else. */
 export function ModalHost() {
   const { modal } = useShellContext();
-  const entries = useAtomValue(modal.state, (result) =>
+  const entries = useAtomValue(modal.stack, (result) =>
     AsyncResult.getOrElse(result, () => [] as ReadonlyArray<OverlayEntry>),
   );
 

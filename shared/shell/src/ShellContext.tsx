@@ -8,6 +8,9 @@ import type { OverlayEntry, OverlayOpenRender } from "./OverlayStack.ts";
 export interface OverlayRuntime {
   readonly stack: Atom.Atom<AsyncResult.AsyncResult<ReadonlyArray<OverlayEntry>, unknown>>;
   readonly open: Atom.AtomResultFn<OverlayOpenRender, unknown, unknown>;
+  // Always closes whichever entry is currently on top - a generic "dismiss" callable from
+  // anywhere (a Navbar button, say), not tied to a specific entry's own render.
+  readonly close: Atom.AtomResultFn<void, void, unknown>;
 }
 
 /**
@@ -30,19 +33,38 @@ function makeShellRuntime<E>(
   return {
     sidebar: {
       stack: runtime.subscriptionRef(Effect.map(SidebarService, (service) => service.stack)),
-      open: runtime.fn((render: OverlayOpenRender) =>
+      // concurrent: true - open() stays pending the whole time its entry is displayed, so
+      // Atom.fn's default (a new call interrupts the previous one) would silently drop
+      // whichever sidebar was already open the moment a second one is opened on top of it.
+      open: runtime.fn(
+        (render: OverlayOpenRender) =>
+          Effect.gen(function* () {
+            const sidebar = yield* SidebarService;
+            return yield* sidebar.open(render);
+          }),
+        { concurrent: true },
+      ),
+      close: runtime.fn(() =>
         Effect.gen(function* () {
           const sidebar = yield* SidebarService;
-          return yield* sidebar.open(render);
+          yield* sidebar.close();
         }),
       ),
     },
     modal: {
       stack: runtime.subscriptionRef(Effect.map(ModalService, (service) => service.stack)),
-      open: runtime.fn((render: OverlayOpenRender) =>
+      open: runtime.fn(
+        (render: OverlayOpenRender) =>
+          Effect.gen(function* () {
+            const modal = yield* ModalService;
+            return yield* modal.open(render);
+          }),
+        { concurrent: true },
+      ),
+      close: runtime.fn(() =>
         Effect.gen(function* () {
           const modal = yield* ModalService;
-          return yield* modal.open(render);
+          yield* modal.close();
         }),
       ),
     },

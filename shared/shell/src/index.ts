@@ -5,5 +5,6 @@ export type { OverlayRuntime, ShellRuntime } from "./ShellContext.tsx";
 export { ShellProvider } from "./ShellContext.tsx";
 export { SidebarHost } from "./SidebarHost.tsx";
 export { ModalHost } from "./ModalHost.tsx";
+export type { OverlayActions } from "./useOverlayActions.ts";
 export { useSidebar } from "./useSidebar.ts";
 export { useModal } from "./useModal.ts";

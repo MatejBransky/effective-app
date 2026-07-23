@@ -47,6 +47,25 @@ test("Re-opening the already-active sidebar (same key) replaces it in place, no 
   await expect(page.getByRole("button", { name: "Back" })).toBeDisabled();
 });
 
+test("Menu -> Details -> Menu again lands on the single Menu entry, not a second copy", async ({
+  page,
+}) => {
+  await page.goto("/login");
+
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await expect(page.getByTestId("sidebar-label")).toHaveText("Details");
+
+  // Re-opening "menu" navigates back to the existing entry - Details (ahead of it) is
+  // discarded - rather than pushing a second, indistinguishable "Menu" past Details. The
+  // Navbar's plain "Menu" button is name-ambiguous with the toolbar's "Back (Menu)" once
+  // that's showing, hence `exact: true`.
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect(page.getByTestId("sidebar-label")).toHaveText("Menu");
+  await expect(page.getByRole("button", { name: "Back" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Forward" })).toBeDisabled();
+});
+
 test("Back/Forward navigate sidebar history without closing anything, showing target labels", async ({
   page,
 }) => {

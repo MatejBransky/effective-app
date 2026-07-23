@@ -32,11 +32,12 @@ export interface OverlayOpenOptions {
   // Shown by back()/forward() consumers (e.g. Navbar's "Back (Menu)" button) - purely
   // descriptive, never used to identify or look up an entry.
   readonly label?: string;
-  // Identifies which logical view this is (e.g. "menu", "details"). When it matches the
-  // entry currently at the cursor, this open() replaces that entry in place instead of
-  // pushing a new history entry - re-opening the view you're already looking at (a Navbar
-  // button clicked twice in a row, say) doesn't create a duplicate back/forward stop.
-  // Omit for one-off overlays (most modals) where there's no notion of "the same view".
+  // Identifies which logical view this is (e.g. "menu", "details"). Open() with a `key`
+  // that already exists *anywhere* in the history navigates to that entry (discarding
+  // whatever's ahead of it, refreshing its content with this render) instead of pushing a
+  // second copy elsewhere - e.g. Menu -> Details -> Menu again ends up back at the single
+  // "menu" entry, not with two indistinguishable "Menu" stops in back/forward. Omit for
+  // one-off overlays (most modals) where there's no notion of "the same view".
   readonly key?: string;
   // Discards the *entire* history (not just anything ahead of the cursor) before adding
   // this entry, so closing it reveals nothing rather than whatever it superseded. Use for
@@ -75,8 +76,8 @@ export interface OverlayStackService {
  * Only the entry at the cursor is ever rendered (see SidebarHost/ModalHost). Opening a new
  * entry discards anything ahead of the cursor (a genuinely new navigation, same as a
  * browser tab discarding forward history) and appends after it - unless `replace` is set,
- * which discards the *whole* history first instead. Re-opening the same `key` as the entry
- * already at the cursor replaces it in place rather than pushing another entry.
+ * which discards the *whole* history first instead. Re-opening the same `key` as an entry
+ * already anywhere in the history navigates to it instead of pushing another copy.
  */
 export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(function* () {
   const history = yield* SubscriptionRef.make<OverlayHistory>({ entries: [], cursor: -1 });
@@ -119,18 +120,25 @@ export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(f
       };
 
       const current = Effect.runSync(SubscriptionRef.get(history));
-      const activeEntry = current.entries[current.cursor];
-      const reopeningActiveView = options?.key !== undefined && activeEntry?.key === options.key;
+      const existingIndex =
+        options?.key !== undefined ? current.entries.findIndex((e) => e.key === options.key) : -1;
 
-      if (reopeningActiveView) {
-        // Same logical view as what's already showing - replace it in place instead of
-        // pushing a duplicate back/forward stop.
-        const nextEntries = current.entries.slice();
-        nextEntries[current.cursor] = entry;
+      if (existingIndex !== -1) {
+        // Same logical view already exists somewhere in the history (not necessarily at
+        // the cursor - e.g. Menu -> Details -> Menu again) - navigate to it, refreshing
+        // its content with this render, rather than pushing a second copy elsewhere.
+        // Anything "ahead" of it (Details, in that example) is discarded, same as taking
+        // a fresh navigation from a point back in a browser's history.
+        const existingEntry = current.entries[existingIndex]!;
+        const superseded = current.entries.slice(existingIndex + 1);
+        const nextEntries = [...current.entries.slice(0, existingIndex), entry];
         Effect.runSync(
-          SubscriptionRef.set(history, { entries: nextEntries, cursor: current.cursor }),
+          SubscriptionRef.set(history, { entries: nextEntries, cursor: nextEntries.length - 1 }),
         );
-        activeEntry.resolve(undefined);
+        existingEntry.resolve(undefined);
+        // Already excluded from the state set above, so each of these resolve() calls'
+        // own removeById() runs against an id that's no longer present - a harmless no-op.
+        superseded.forEach((supersededEntry) => supersededEntry.resolve(undefined));
       } else {
         const survivors = options?.replace ? [] : current.entries.slice(0, current.cursor + 1);
         const superseded = options?.replace
@@ -140,8 +148,6 @@ export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(f
         Effect.runSync(
           SubscriptionRef.set(history, { entries: nextEntries, cursor: nextEntries.length - 1 }),
         );
-        // Already excluded from the state set above, so each of these resolve() calls'
-        // own removeById() runs against an id that's no longer present - a harmless no-op.
         superseded.forEach((supersededEntry) => supersededEntry.resolve(undefined));
       }
 

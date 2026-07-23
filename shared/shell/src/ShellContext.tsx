@@ -3,14 +3,22 @@ import { AsyncResult, type Atom } from "effect/unstable/reactivity";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { ModalService } from "./ModalService.ts";
 import { SidebarService } from "./SidebarService.ts";
-import type { OverlayEntry, OverlayOpenRender } from "./OverlayStack.ts";
+import type { OverlayHistory, OverlayOpenOptions, OverlayOpenRender } from "./OverlayStack.ts";
+
+export interface OverlayOpenDispatch {
+  readonly render: OverlayOpenRender;
+  readonly options?: OverlayOpenOptions;
+}
 
 export interface OverlayRuntime {
-  readonly stack: Atom.Atom<AsyncResult.AsyncResult<ReadonlyArray<OverlayEntry>, unknown>>;
-  readonly open: Atom.AtomResultFn<OverlayOpenRender, unknown, unknown>;
-  // Always closes whichever entry is currently on top - a generic "dismiss" callable from
+  readonly history: Atom.Atom<AsyncResult.AsyncResult<OverlayHistory, unknown>>;
+  readonly open: Atom.AtomResultFn<OverlayOpenDispatch, unknown, unknown>;
+  // Always closes whichever entry is at the cursor - a generic "dismiss" callable from
   // anywhere (a Navbar button, say), not tied to a specific entry's own render.
   readonly close: Atom.AtomResultFn<void, void, unknown>;
+  readonly closeAll: Atom.AtomResultFn<void, void, unknown>;
+  readonly back: Atom.AtomResultFn<void, void, unknown>;
+  readonly forward: Atom.AtomResultFn<void, void, unknown>;
 }
 
 /**
@@ -32,15 +40,15 @@ function makeShellRuntime<E>(
 ): ShellRuntime {
   return {
     sidebar: {
-      stack: runtime.subscriptionRef(Effect.map(SidebarService, (service) => service.stack)),
+      history: runtime.subscriptionRef(Effect.map(SidebarService, (service) => service.history)),
       // concurrent: true - open() stays pending the whole time its entry is displayed, so
       // Atom.fn's default (a new call interrupts the previous one) would silently drop
       // whichever sidebar was already open the moment a second one is opened on top of it.
       open: runtime.fn(
-        (render: OverlayOpenRender) =>
+        (input: OverlayOpenDispatch) =>
           Effect.gen(function* () {
             const sidebar = yield* SidebarService;
-            return yield* sidebar.open(render);
+            return yield* sidebar.open(input.render, input.options);
           }),
         { concurrent: true },
       ),
@@ -50,14 +58,32 @@ function makeShellRuntime<E>(
           yield* sidebar.close();
         }),
       ),
+      closeAll: runtime.fn(() =>
+        Effect.gen(function* () {
+          const sidebar = yield* SidebarService;
+          yield* sidebar.closeAll();
+        }),
+      ),
+      back: runtime.fn(() =>
+        Effect.gen(function* () {
+          const sidebar = yield* SidebarService;
+          yield* sidebar.back();
+        }),
+      ),
+      forward: runtime.fn(() =>
+        Effect.gen(function* () {
+          const sidebar = yield* SidebarService;
+          yield* sidebar.forward();
+        }),
+      ),
     },
     modal: {
-      stack: runtime.subscriptionRef(Effect.map(ModalService, (service) => service.stack)),
+      history: runtime.subscriptionRef(Effect.map(ModalService, (service) => service.history)),
       open: runtime.fn(
-        (render: OverlayOpenRender) =>
+        (input: OverlayOpenDispatch) =>
           Effect.gen(function* () {
             const modal = yield* ModalService;
-            return yield* modal.open(render);
+            return yield* modal.open(input.render, input.options);
           }),
         { concurrent: true },
       ),
@@ -65,6 +91,24 @@ function makeShellRuntime<E>(
         Effect.gen(function* () {
           const modal = yield* ModalService;
           yield* modal.close();
+        }),
+      ),
+      closeAll: runtime.fn(() =>
+        Effect.gen(function* () {
+          const modal = yield* ModalService;
+          yield* modal.closeAll();
+        }),
+      ),
+      back: runtime.fn(() =>
+        Effect.gen(function* () {
+          const modal = yield* ModalService;
+          yield* modal.back();
+        }),
+      ),
+      forward: runtime.fn(() =>
+        Effect.gen(function* () {
+          const modal = yield* ModalService;
+          yield* modal.forward();
         }),
       ),
     },

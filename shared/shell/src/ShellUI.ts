@@ -10,8 +10,8 @@ export interface OverlayEntry {
 }
 
 // Type-erased at this boundary on purpose: one render/resolve shape is shared by every
-// open* dispatch atom (shellOpenSidebarAtom, later shellOpenModalAtom, ...), regardless of
-// which concrete `A` a given useShellUI() call site resolves.
+// open* dispatch atom ShellRuntimeContext.ts builds (openSidebar now, openModal later),
+// regardless of which concrete `A` a given useShellUI() call site resolves.
 export type ShellUIOpenRender = (resolve: (value: unknown) => void) => React.ReactNode;
 
 /**

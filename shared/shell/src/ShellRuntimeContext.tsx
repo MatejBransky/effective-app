@@ -1,32 +1,47 @@
+import { Effect } from "effect";
 import { AsyncResult, type Atom } from "effect/unstable/reactivity";
-import { createContext, useContext, type ReactNode } from "react";
-import type { OverlayEntry, ShellUIOpenRender } from "./ShellUI.ts";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { ShellUI, type OverlayEntry, type ShellUIOpenRender } from "./ShellUI.ts";
 
 /**
- * The runtime-bound atoms `shared/shell`'s components need - built once by whichever app
- * composes `ShellUI.layer` into its own `Atom.runtime(MainLayer)` (only it owns that
- * runtime, per AGENTS.md), then provided here once at the app root. Lets `<ShellHost/>`,
- * `useShellUI()`, and any future deeply-nested consumer (a domain widget, say) reach them
- * without threading an atom through every intermediate component's props.
- *
- * Same shape `@effect/atom-react`'s own `ScopedAtom.make` uses internally (`createContext`
- * + a `use()` that throws outside its provider) - just bundling more than the one atom
- * `ScopedAtom` is built around, and providing a single global instance rather than a fresh
- * one per subtree.
+ * The runtime-bound atoms `shared/shell`'s components need. Only the composing app owns an
+ * `Atom.runtime(MainLayer)` (per AGENTS.md), so `<ShellRuntimeProvider/>` takes that raw
+ * runtime and derives these atoms internally (`makeShellRuntime` below) - shared/shell owns
+ * the "how", the app just supplies its runtime once at the root. Reachable from
+ * `<ShellHost/>`, `useShellUI()`, and any future deeply-nested consumer (a domain widget,
+ * say) without threading an atom through every intermediate component's props.
  */
 export interface ShellRuntime {
   readonly state: Atom.Atom<AsyncResult.AsyncResult<ReadonlyArray<OverlayEntry>, unknown>>;
   readonly openSidebar: Atom.AtomResultFn<ShellUIOpenRender, unknown, unknown>;
 }
 
+function makeShellRuntime<E>(runtime: Atom.AtomRuntime<ShellUI, E>): ShellRuntime {
+  return {
+    state: runtime.subscriptionRef(Effect.map(ShellUI, (shell) => shell.state)),
+    openSidebar: runtime.fn((render: ShellUIOpenRender) =>
+      Effect.gen(function* () {
+        const shell = yield* ShellUI;
+        return yield* shell.openSidebar(render);
+      }),
+    ),
+  };
+}
+
 const ShellRuntimeContext = createContext<ShellRuntime | undefined>(undefined);
 
-export function ShellRuntimeProvider(props: {
-  readonly runtime: ShellRuntime;
+export function ShellRuntimeProvider<E>(props: {
+  readonly runtime: Atom.AtomRuntime<ShellUI, E>;
   readonly children?: ReactNode;
 }) {
+  // Built once per `runtime` identity - the composing app creates its runtime exactly once
+  // at module scope (apps/web/src/runtime/runtime.ts), so this memo never recomputes for
+  // the lifetime of the app. Atoms must stay referentially stable across renders (a fresh
+  // atom object every render breaks useAtomValue's subscription/caching), so this can't be
+  // built inline in ShellHost/useShellUI on every call.
+  const shellRuntime = useMemo(() => makeShellRuntime(props.runtime), [props.runtime]);
   return (
-    <ShellRuntimeContext.Provider value={props.runtime}>
+    <ShellRuntimeContext.Provider value={shellRuntime}>
       {props.children}
     </ShellRuntimeContext.Provider>
   );

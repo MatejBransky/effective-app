@@ -198,21 +198,28 @@ export function ShellHost() {
 
 `ShellHost`/`useShellUI` are runtime-agnostic - neither imports an
 `Atom.runtime` directly, since only the composing app owns one. But they
-also take no atom as an explicit prop/argument: `ShellRuntimeContext.tsx`
-bundles the app's runtime-bound atoms (`shellStateAtom`, `shellOpenSidebarAtom`
-
-- built in `apps/web/src/runtime/shellAtoms.ts` via `runtime.subscriptionRef(...)`
-  /`runtime.fn(...)`) behind one `ShellRuntime` React Context, provided **once**
-  at the app root:
+also take no atom as an explicit prop/argument: `<ShellRuntimeProvider/>`
+takes the app's raw `runtime` (from `apps/web/src/runtime/runtime.ts`) and
+derives `state`/`openSidebar` internally (`makeShellRuntime`, in
+`ShellRuntimeContext.tsx`, via `runtime.subscriptionRef(...)`/`runtime.fn(...)`),
+memoized once per `runtime` identity (`useMemo`, keyed on the app's
+module-scope-singleton `runtime` reference) so the atoms stay stable across
+renders - then exposes the result through one `ShellRuntime` React Context,
+provided **once** at the app root:
 
 ```tsx
 // apps/web/src/routes/__root.tsx
-<ShellRuntimeProvider runtime={{ state: shellStateAtom, openSidebar: shellOpenSidebarAtom }}>
+<ShellRuntimeProvider runtime={runtime}>
   <Navbar />
   <Outlet />
   <ShellHost />
 </ShellRuntimeProvider>
 ```
+
+`shared/shell` owns the "how to derive these atoms from a runtime" logic, not
+`apps/web` - there's no `apps/web/src/runtime/shellAtoms.ts` bridging file to
+hand-maintain per capability; adding `openModal` later only touches
+`ShellRuntimeContext.tsx`.
 
 This is the same shape `@effect/atom-react`'s own `ScopedAtom.make`
 (`externals/effect/packages/atom/react/src/ScopedAtom.ts:120-151`) uses

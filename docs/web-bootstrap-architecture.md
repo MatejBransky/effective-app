@@ -103,14 +103,15 @@ has, though - two established idioms in this repo, pick whichever fits:
 shared/shell/
   package.json           # @repo/shared-shell
   src/
-    OverlayStack.ts        # shared stack/Effect.callback implementation, no tag of its own
+    OverlayStack.ts        # shared history/Effect.callback implementation, no tag of its own
     SidebarService.ts      # Context.Service tag over OverlayStack, `static readonly layer`
     ModalService.ts         # Context.Service tag over OverlayStack, `static readonly layer`
     ShellContext.tsx        # React Context bundling both services' runtime-bound atoms
-    SidebarHost.tsx          # renders the top-of-stack sidebar entry
-    ModalHost.tsx            # renders the top-of-stack modal entry (as a backdrop overlay)
-    useSidebar.ts            # hook: { open, close } for SidebarService
-    useModal.ts              # hook: { open, close } for ModalService
+    SidebarHost.tsx          # renders the entry at the cursor
+    ModalHost.tsx            # renders the entry at the cursor (as a backdrop overlay)
+    useSidebar.ts            # hook: { open, close, closeAll, back, forward }
+    useSidebarHistory.ts     # read-only preview hook for back/forward controls
+    useModal.ts              # hook: { open, close, closeAll } (no navigation UI)
     useOverlayActions.ts     # dispatch logic shared by useSidebar/useModal
 ```
 
@@ -131,47 +132,41 @@ each tag's `make`) rather than duplicating the plumbing:
 // shared/shell/src/OverlayStack.ts
 export interface OverlayEntry {
   readonly id: number;
+  readonly label: string; // shown by back()/forward() consumers, never used to look anything up
   readonly node: React.ReactNode;
-  // Lets close() dismiss an entry from *outside* its own render, not just via a callback
-  // the entry's own JSX chose to wire up.
+  // Lets close()/closeAll() dismiss an entry from *outside* its own render, not just via
+  // a callback the entry's own JSX chose to wire up.
   readonly resolve: (value: unknown) => void;
 }
 
-export interface OverlayStackService {
-  readonly stack: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
-  readonly open: <A>(render: (resolve: (value: A) => void) => React.ReactNode) => Effect.Effect<A>;
-  readonly close: (id?: number) => Effect.Effect<void>; // no id = whichever is on top
+// Browser-history-shaped: entries never disappear just because you navigated away from
+// them (back()/forward() only move `cursor`) - only close()/opening a genuinely new entry
+// actually removes one.
+export interface OverlayHistory {
+  readonly entries: ReadonlyArray<OverlayEntry>;
+  readonly cursor: number; // -1 when entries is empty
 }
 
-export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(function* () {
-  const stack = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
-  let nextId = 0;
-  const open = <A>(render: (resolve: (value: A) => void) => React.ReactNode): Effect.Effect<A> =>
-    Effect.callback<A>((resume) => {
-      const id = nextId++;
-      const remove = () =>
-        Effect.runSync(
-          SubscriptionRef.update(stack, (entries) => entries.filter((e) => e.id !== id)),
-        );
-      const resolve = (value: A) => {
-        remove();
-        resume(Effect.succeed(value));
-      };
-      const node = render(resolve);
-      Effect.runSync(
-        SubscriptionRef.update(stack, (entries) => [...entries, { id, node, resolve }]),
-      );
-      return Effect.sync(remove);
-    });
-  const close = (id?: number): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      const entries = yield* SubscriptionRef.get(stack);
-      const target =
-        id === undefined ? entries[entries.length - 1] : entries.find((e) => e.id === id);
-      target?.resolve(undefined);
-    });
-  return { stack, open, close };
-});
+export interface OverlayOpenOptions {
+  readonly label?: string;
+  // Discards the *entire* history first (not just anything ahead of the cursor), so
+  // closing this entry reveals nothing. Default (false): "temporary, stacks on top,
+  // returns to what was showing before" - discards only anything ahead of the cursor,
+  // same as a browser tab navigating away from its own forward history.
+  readonly replace?: boolean;
+}
+
+export interface OverlayStackService {
+  readonly history: SubscriptionRef.SubscriptionRef<OverlayHistory>;
+  readonly open: <A>(
+    render: (resolve: (value: A) => void) => React.ReactNode,
+    options?: OverlayOpenOptions,
+  ) => Effect.Effect<A>;
+  readonly close: (id?: number) => Effect.Effect<void>; // no id = whichever is at the cursor
+  readonly closeAll: () => Effect.Effect<void>; // clears the whole history, not just the cursor
+  readonly back: () => Effect.Effect<void>; // moves the cursor without closing anything
+  readonly forward: () => Effect.Effect<void>;
+}
 ```
 
 ```ts
@@ -193,37 +188,43 @@ export class ModalService extends Context.Service<ModalService, OverlayStackServ
 ```
 
 Reusing the same `makeOverlayStack` Effect value for both tags is safe and
-gives each its own independent state: `Effect.gen(...)` only _describes_ the
-computation, so `Layer.effect(this, this.make)` runs it fresh per Layer
+gives each its own independent history: `Effect.gen(...)` only _describes_
+the computation, so `Layer.effect(this, this.make)` runs it fresh per Layer
 build, and `SubscriptionRef.make`/`let nextId = 0` inside execute once per
 run - `SidebarService` and `ModalService` never share a `SubscriptionRef`
 even though they share the code that builds one.
 
-`resolve` itself already removes the entry from the stack, and
-`Effect.callback`'s own interrupt cleanup covers the cancelled-caller case -
-so `close(id?)` is only needed for dismissing an overlay from somewhere that
-isn't the overlay's own render (a Navbar button, say). It resolves with
+`resolve` itself already removes the entry, and `Effect.callback`'s own
+interrupt cleanup covers the cancelled-caller case - so `close(id?)` is only
+needed for dismissing an overlay from somewhere that isn't the overlay's own
+render (a Navbar button, say), and `closeAll()` for clearing the whole
+history at once rather than just the entry at the cursor. Both resolve with
 `undefined` - the "went away, no specific outcome" case; a caller that needs
 a specific outcome (Cancel vs. Confirm) should still resolve via the entry's
 own JSX.
 
-**Only the top-of-stack entry is ever rendered** (`SidebarHost`/`ModalHost`
-below) - opening a second entry while one is already open doesn't close the
-first, it just becomes the new top. Closing the second one reveals the first
-again, unprompted, since it's still on the (now shorter) stack. This is what
-gives a temporary overlay (a help dialog opened on top of a form, say) its
-"return to what was showing before" behavior, for free, with no separate
-"replace" concept needed.
+**Only the entry at the cursor is ever rendered** (`SidebarHost`/`ModalHost`
+below). Opening a new entry discards anything _ahead_ of the cursor (a
+genuinely new navigation, same as a browser tab discarding its forward
+history) and appends after it, moving the cursor to it - unless `{ replace:
+true }` is passed, which discards the _whole_ history first instead. Closing
+the entry at the cursor reveals whatever's now the last one, unprompted -
+this is what gives a temporary overlay (a help dialog opened from within a
+confirm dialog, say) its "return to what was showing before" behavior, using
+the default (non-replace) `open()`, no separate concept needed. `back()`/
+`forward()` move the cursor the same way, but _without_ closing anything -
+the entry moved away from stays alive (still pending its own `resolve`),
+reachable again via the other direction.
 
 Usable identically from a React component or from inside a domain's business
 logic - domain code is explicitly allowed to construct JSX here. The only
-rule is that the overlay _stack state_ itself lives in the service, not in a
-React component:
+rule is that the overlay _history state_ itself lives in the service, not in
+a React component:
 
 ```ts
 // from a component: open a sidebar with arbitrary JSX, or close whatever's showing
-const sidebar = useSidebar() // { open, close } - actions only, no stack/state here
-sidebar.open((resolve) => <MySidebarContent onDone={() => resolve(undefined)} />)
+const sidebar = useSidebar() // { open, close, closeAll, back, forward } - actions only
+sidebar.open((resolve) => <MySidebarContent onDone={() => resolve(undefined)} />, { label: "Details" })
 sidebar.close()
 ```
 
@@ -248,20 +249,29 @@ type DeleteChoice = "cancel" | "archive" | "deleteForever";
 const choice = yield * modal.open<DeleteChoice>((resolve) => <DeleteDialog onChoice={resolve} />);
 ```
 
+```tsx
+// { replace: true } - discards whatever was open (permanently) instead of stacking on
+// top of it, e.g. a notification that supersedes any dialog currently showing
+yield *
+  modal.open<void>((resolve) => <NotifyDialog onDismiss={() => resolve()} />, { replace: true });
+```
+
 React side - `<SidebarHost/>`/`<ModalHost/>`, each mounted once near the app
 root, no renderer registry needed since each entry's `node` was already
 produced by `render(...)` inside `open`, up front, not deferred to render
-time. Only `entries[entries.length - 1]` (the top of the stack) is rendered:
+time. Only `entries[cursor]` is rendered:
 
 ```tsx
 export function SidebarHost() {
   const { sidebar } = useShellContext();
-  const entries = useAtomValue(sidebar.stack, (result) => AsyncResult.getOrElse(result, () => []));
-  const top = entries[entries.length - 1];
-  if (!top) return null;
+  const { entries, cursor } = useAtomValue(sidebar.history, (result) =>
+    AsyncResult.getOrElse(result, () => ({ entries: [], cursor: -1 })),
+  );
+  const current = entries[cursor];
+  if (!current) return null;
   return (
-    <div key={top.id} className="shell-sidebar">
-      {top.node}
+    <div key={current.id} className="shell-sidebar">
+      {current.node}
     </div>
   );
 }
@@ -271,13 +281,16 @@ export function SidebarHost() {
 none of them imports an `Atom.runtime` directly, since only the composing app
 owns one. But they also take no atom as an explicit prop/argument:
 `<ShellProvider/>` takes the app's raw `runtime` (from
-`apps/web/src/runtime/runtime.ts`) and derives both services' `stack`/`open`/
-`close` atoms internally (`makeShellRuntime`, in `ShellContext.tsx`, via
+`apps/web/src/runtime/runtime.ts`) and derives both services' `history`/
+`open`/`close`/`closeAll`/`back`/`forward` atoms internally
+(`makeShellRuntime`, in `ShellContext.tsx`, via
 `runtime.subscriptionRef(...)`/`runtime.fn(...)`), memoized once per
 `runtime` identity (`useMemo`, keyed on the app's module-scope-singleton
 `runtime` reference) so the atoms stay stable across renders - then exposes
 the result through one `ShellRuntime` React Context, provided **once** at
-the app root.
+the app root. `useSidebarHistory()` is a separate, deliberately read-only
+hook (not part of `useSidebar()`'s actions) giving a back/forward control the
+neighboring entry's `label` to preview, e.g. "Back (Menu)".
 
 `open`'s dispatch atom passes `runtime.fn(..., { concurrent: true })` -
 `Atom.fn`'s default (a new call interrupts the previous in-flight one) would
@@ -322,14 +335,17 @@ way to reach an app-specific atom directly; it can only reach whatever
 
 `shared/shell/src/useOverlayActions.ts` - the dispatch logic shared by
 `useSidebar()`/`useModal()` (each just this bound to a different slice of
-`ShellRuntime`), pairing the exposed `open`/`close` atoms with
+`ShellRuntime`), pairing the exposed `open`/`close`/`closeAll` atoms with
 `useAtomSet(..., { mode: "promise" })`-style dispatch so components and
 domain code share one mental model regardless of which service they're
-calling. Deliberately returns only `{ open, close }` - actions, not the
-stack/state - so a component reading `useSidebar()`/`useModal()` never
-mistakes it for a place to read what's currently open; a component that
-needs that reads the stack through `<SidebarHost/>`/`<ModalHost/>`'s own
-internal access instead.
+calling. Deliberately returns only actions, not the history/state - so a
+component reading `useSidebar()`/`useModal()` never mistakes it for a place
+to read what's currently open. `useSidebar()` layers `back()`/`forward()` on
+top (`ModalService` has no navigation UI, so `useModal()` doesn't); a
+component that needs to read history - `<SidebarHost/>`/`<ModalHost/>`
+rendering the current entry, or a back/forward control previewing the next
+one - uses its own internal access (`useShellContext()`) or the dedicated
+`useSidebarHistory()` instead.
 
 ## 2. Action descriptions: generic shape, per-entity description, implementation, merge
 

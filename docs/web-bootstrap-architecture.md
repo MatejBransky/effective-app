@@ -107,11 +107,11 @@ shared/shell/
     SidebarService.ts      # Context.Service tag over OverlayStack, `static readonly layer`
     ModalService.ts         # Context.Service tag over OverlayStack, `static readonly layer`
     ShellContext.tsx        # React Context bundling both services' runtime-bound atoms
-    SidebarHost.tsx          # renders the sidebar stack
-    ModalHost.tsx            # renders the modal stack (each entry as a backdrop overlay)
-    useSidebar.ts            # hook dispatching SidebarService.open
-    useModal.ts              # hook dispatching ModalService.open
-    useOverlayOpen.ts        # dispatch logic shared by useSidebar/useModal
+    SidebarHost.tsx          # renders the top-of-stack sidebar entry
+    ModalHost.tsx            # renders the top-of-stack modal entry (as a backdrop overlay)
+    useSidebar.ts            # hook: { open, close } for SidebarService
+    useModal.ts              # hook: { open, close } for ModalService
+    useOverlayActions.ts     # dispatch logic shared by useSidebar/useModal
 ```
 
 **Two separate `Context.Service` tags, not one service with a `kind`
@@ -129,29 +129,48 @@ each tag's `make`) rather than duplicating the plumbing:
 
 ```ts
 // shared/shell/src/OverlayStack.ts
+export interface OverlayEntry {
+  readonly id: number;
+  readonly node: React.ReactNode;
+  // Lets close() dismiss an entry from *outside* its own render, not just via a callback
+  // the entry's own JSX chose to wire up.
+  readonly resolve: (value: unknown) => void;
+}
+
 export interface OverlayStackService {
   readonly stack: SubscriptionRef.SubscriptionRef<ReadonlyArray<OverlayEntry>>;
   readonly open: <A>(render: (resolve: (value: A) => void) => React.ReactNode) => Effect.Effect<A>;
+  readonly close: (id?: number) => Effect.Effect<void>; // no id = whichever is on top
 }
 
 export const makeOverlayStack: Effect.Effect<OverlayStackService> = Effect.gen(function* () {
-  const state = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
+  const stack = yield* SubscriptionRef.make<ReadonlyArray<OverlayEntry>>([]);
   let nextId = 0;
   const open = <A>(render: (resolve: (value: A) => void) => React.ReactNode): Effect.Effect<A> =>
     Effect.callback<A>((resume) => {
       const id = nextId++;
       const remove = () =>
         Effect.runSync(
-          SubscriptionRef.update(state, (entries) => entries.filter((e) => e.id !== id)),
+          SubscriptionRef.update(stack, (entries) => entries.filter((e) => e.id !== id)),
         );
-      const node = render((value) => {
+      const resolve = (value: A) => {
         remove();
         resume(Effect.succeed(value));
-      });
-      Effect.runSync(SubscriptionRef.update(state, (entries) => [...entries, { id, node }]));
+      };
+      const node = render(resolve);
+      Effect.runSync(
+        SubscriptionRef.update(stack, (entries) => [...entries, { id, node, resolve }]),
+      );
       return Effect.sync(remove);
     });
-  return { state, open };
+  const close = (id?: number): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const entries = yield* SubscriptionRef.get(stack);
+      const target =
+        id === undefined ? entries[entries.length - 1] : entries.find((e) => e.id === id);
+      target?.resolve(undefined);
+    });
+  return { stack, open, close };
 });
 ```
 
@@ -180,10 +199,21 @@ build, and `SubscriptionRef.make`/`let nextId = 0` inside execute once per
 run - `SidebarService` and `ModalService` never share a `SubscriptionRef`
 even though they share the code that builds one.
 
-There's no `close(id)` method - `resolve` itself already removes the entry
-from the stack, and `Effect.callback`'s own interrupt cleanup covers the
-cancelled-caller case, so a separate imperative close was never actually
-needed.
+`resolve` itself already removes the entry from the stack, and
+`Effect.callback`'s own interrupt cleanup covers the cancelled-caller case -
+so `close(id?)` is only needed for dismissing an overlay from somewhere that
+isn't the overlay's own render (a Navbar button, say). It resolves with
+`undefined` - the "went away, no specific outcome" case; a caller that needs
+a specific outcome (Cancel vs. Confirm) should still resolve via the entry's
+own JSX.
+
+**Only the top-of-stack entry is ever rendered** (`SidebarHost`/`ModalHost`
+below) - opening a second entry while one is already open doesn't close the
+first, it just becomes the new top. Closing the second one reveals the first
+again, unprompted, since it's still on the (now shorter) stack. This is what
+gives a temporary overlay (a help dialog opened on top of a form, say) its
+"return to what was showing before" behavior, for free, with no separate
+"replace" concept needed.
 
 Usable identically from a React component or from inside a domain's business
 logic - domain code is explicitly allowed to construct JSX here. The only
@@ -191,9 +221,10 @@ rule is that the overlay _stack state_ itself lives in the service, not in a
 React component:
 
 ```ts
-// from a component: open a sidebar with arbitrary JSX
-const openSidebar = useSidebar()
-openSidebar((resolve) => <MySidebarContent onDone={() => resolve(undefined)} />)
+// from a component: open a sidebar with arbitrary JSX, or close whatever's showing
+const sidebar = useSidebar() // { open, close } - actions only, no stack/state here
+sidebar.open((resolve) => <MySidebarContent onDone={() => resolve(undefined)} />)
+sidebar.close()
 ```
 
 ```tsx
@@ -220,20 +251,18 @@ const choice = yield * modal.open<DeleteChoice>((resolve) => <DeleteDialog onCho
 React side - `<SidebarHost/>`/`<ModalHost/>`, each mounted once near the app
 root, no renderer registry needed since each entry's `node` was already
 produced by `render(...)` inside `open`, up front, not deferred to render
-time:
+time. Only `entries[entries.length - 1]` (the top of the stack) is rendered:
 
 ```tsx
 export function SidebarHost() {
   const { sidebar } = useShellContext();
   const entries = useAtomValue(sidebar.stack, (result) => AsyncResult.getOrElse(result, () => []));
+  const top = entries[entries.length - 1];
+  if (!top) return null;
   return (
-    <>
-      {entries.map((entry) => (
-        <div key={entry.id} className="shell-sidebar">
-          {entry.node}
-        </div>
-      ))}
-    </>
+    <div key={top.id} className="shell-sidebar">
+      {top.node}
+    </div>
   );
 }
 ```
@@ -242,13 +271,20 @@ export function SidebarHost() {
 none of them imports an `Atom.runtime` directly, since only the composing app
 owns one. But they also take no atom as an explicit prop/argument:
 `<ShellProvider/>` takes the app's raw `runtime` (from
-`apps/web/src/runtime/runtime.ts`) and derives both services' `state`/`open`
-atoms internally (`makeShellRuntime`, in `ShellContext.tsx`, via
+`apps/web/src/runtime/runtime.ts`) and derives both services' `stack`/`open`/
+`close` atoms internally (`makeShellRuntime`, in `ShellContext.tsx`, via
 `runtime.subscriptionRef(...)`/`runtime.fn(...)`), memoized once per
 `runtime` identity (`useMemo`, keyed on the app's module-scope-singleton
 `runtime` reference) so the atoms stay stable across renders - then exposes
 the result through one `ShellRuntime` React Context, provided **once** at
-the app root:
+the app root.
+
+`open`'s dispatch atom passes `runtime.fn(..., { concurrent: true })` -
+`Atom.fn`'s default (a new call interrupts the previous in-flight one) would
+silently drop whichever overlay was already open the moment a second one
+opened, since `open`'s Effect stays pending the whole time its entry is
+displayed (it only completes on `resolve`/`close`/interrupt), not on the
+next tick like a typical query/mutation atom.
 
 ```tsx
 // apps/web/src/routes/__root.tsx
@@ -284,11 +320,16 @@ here, not just hypothetically: `domains/*` packages must never import from
 way to reach an app-specific atom directly; it can only reach whatever
 `shared/shell` exposes through this Context.
 
-`shared/shell/src/useOverlayOpen.ts` - the dispatch logic shared by
+`shared/shell/src/useOverlayActions.ts` - the dispatch logic shared by
 `useSidebar()`/`useModal()` (each just this bound to a different slice of
-`ShellRuntime`), pairing the exposed atom with `useAtomSet(..., { mode:
-"promise" })`-style dispatch so components and domain code share one mental
-model regardless of which service they're calling.
+`ShellRuntime`), pairing the exposed `open`/`close` atoms with
+`useAtomSet(..., { mode: "promise" })`-style dispatch so components and
+domain code share one mental model regardless of which service they're
+calling. Deliberately returns only `{ open, close }` - actions, not the
+stack/state - so a component reading `useSidebar()`/`useModal()` never
+mistakes it for a place to read what's currently open; a component that
+needs that reads the stack through `<SidebarHost/>`/`<ModalHost/>`'s own
+internal access instead.
 
 ## 2. Action descriptions: generic shape, per-entity description, implementation, merge
 

@@ -1,28 +1,62 @@
-import { useShellUI } from "@repo/shared-shell";
+import { useModal, useSidebar } from "@repo/shared-shell";
+import { useState } from "react";
 
-// Menu button + sidebar content are a minimal proof that ShellUI/ShellHost/useShellUI
-// round-trip end to end (SubscriptionRef push, Effect.callback resume, resolve-closes-entry) -
-// not a real feature. Iteration 3 replaces this with a concrete confirm dialog example.
+type DeleteChoice = "cancel" | "archive" | "deleteForever";
+
+function DeleteDialog(props: { readonly onChoice: (choice: DeleteChoice) => void }) {
+  return (
+    <div className="shell-modal-content">
+      <p>Delete this item?</p>
+      <button type="button" onClick={() => props.onChoice("cancel")}>
+        Cancel
+      </button>
+      <button type="button" onClick={() => props.onChoice("archive")}>
+        Archive instead
+      </button>
+      <button type="button" onClick={() => props.onChoice("deleteForever")}>
+        Delete forever
+      </button>
+    </div>
+  );
+}
+
+// Menu/Delete buttons + their dialog content are a minimal proof that
+// SidebarService/ModalService round-trip end to end through useSidebar()/useModal() -
+// not a real feature. A first real domain replaces this once one exists.
 export function Navbar() {
-  const openSidebar = useShellUI();
+  const openSidebar = useSidebar();
+  const openModal = useModal();
+  const [lastChoice, setLastChoice] = useState<DeleteChoice | null>(null);
 
   return (
     <nav className="navbar">
       <span className="navbar-brand">Effective</span>
-      <button
-        type="button"
-        onClick={() => {
-          void openSidebar<void>((resolve) => (
-            <div className="shell-sidebar">
+      <div className="navbar-actions">
+        <button
+          type="button"
+          onClick={() => {
+            void openSidebar<void>((resolve) => (
               <button type="button" onClick={() => resolve()}>
                 Close
               </button>
-            </div>
-          ));
-        }}
-      >
-        Menu
-      </button>
+            ));
+          }}
+        >
+          Menu
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            const choice = await openModal<DeleteChoice>((resolve) => (
+              <DeleteDialog onChoice={resolve} />
+            ));
+            setLastChoice(choice);
+          }}
+        >
+          Delete
+        </button>
+        {lastChoice && <span data-testid="last-choice">{lastChoice}</span>}
+      </div>
     </nav>
   );
 }

@@ -1,6 +1,9 @@
-export type { OverlayEntry, OverlayKind, ShellUIOpenRender } from "./ShellUI.ts";
-export { ShellUI } from "./ShellUI.ts";
-export type { ShellRuntime } from "./ShellRuntimeContext.tsx";
-export { ShellRuntimeProvider } from "./ShellRuntimeContext.tsx";
-export { ShellHost } from "./ShellHost.tsx";
-export { useShellUI } from "./useShellUI.ts";
+export type { OverlayEntry, OverlayOpenRender, OverlayStackService } from "./OverlayStack.ts";
+export { SidebarService } from "./SidebarService.ts";
+export { ModalService } from "./ModalService.ts";
+export type { OverlayRuntime, ShellRuntime } from "./ShellContext.tsx";
+export { ShellProvider } from "./ShellContext.tsx";
+export { SidebarHost } from "./SidebarHost.tsx";
+export { ModalHost } from "./ModalHost.tsx";
+export { useSidebar } from "./useSidebar.ts";
+export { useModal } from "./useModal.ts";

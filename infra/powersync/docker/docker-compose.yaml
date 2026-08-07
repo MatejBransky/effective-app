@@ -3,13 +3,13 @@
 # Relative paths: . = powersync/docker, .. = powersync.
 # Include syntax requires Docker Compose v2.20.3+
 
-include: [ modules/storage-postgres/postgres.storage.compose.yaml ]
+include: [modules/storage-postgres/postgres.storage.compose.yaml]
 
 services:
   powersync:
     restart: unless-stopped
     image: journeyapps/powersync-service:latest
-    command: [ 'start', '-r', 'unified' ]
+    command: ["start", "-r", "unified"]
     env_file:
       - .env
     volumes:
@@ -20,9 +20,9 @@ services:
       NODE_OPTIONS: --max-old-space-size=1000
     healthcheck:
       test:
-        - 'CMD'
-        - 'node'
-        - '-e'
+        - "CMD"
+        - "node"
+        - "-e"
         - "fetch('http://localhost:${PS_PORT:-8080}/probes/liveness').then(r =>
           r.ok ? process.exit(0) : process.exit(1)).catch(() =>
           process.exit(1))"
@@ -30,7 +30,7 @@ services:
       timeout: 1s
       retries: 15
     ports:
-      - '${PS_PORT:-8080}:${PS_PORT:-8080}'
+      - "${PS_PORT:-8080}:${PS_PORT:-8080}"
     depends_on: { pg-storage: { condition: service_healthy } }
     networks:
       - default

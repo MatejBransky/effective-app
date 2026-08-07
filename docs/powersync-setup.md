@@ -76,7 +76,7 @@ up too.
 
 5. [x] `wal_level=logical` set via `docker-compose.yml`'s `postgres` service
        `command:` (default is `replica`). `infra/postgres/init-scripts/01-powersync-
-       replication.sql` creates the least-privilege `powersync_replication` role
+ replication.sql` creates the least-privilege `powersync_replication` role
        (`REPLICATION` + read-only) and `CREATE PUBLICATION powersync FOR ALL TABLES`
        (no domain model/tables exist yet - narrow this once one does). Runs
        automatically on a fresh volume (`docker-entrypoint-initdb.d`); applied
@@ -101,20 +101,20 @@ up too.
 ## Phase 3 - PowerSync self-hosted instance (local dev) — mostly done (2026-07-22)
 
 9. [x] `powersync` CLI added as a pinned root devDependency. `powersync init
-       self-hosted` → `powersync docker configure --database external
-       --storage postgres` (`infra/powersync/`) - two pre-existing empty
+ self-hosted` → `powersync docker configure --database external
+ --storage postgres` (`infra/powersync/`) - two pre-existing empty
        placeholder dirs (`infra/powersync/service.yaml`/`sync-config.yaml`,
        leftover from before this file's own Phase 0-2 work) had to be removed
        first since the CLI refuses to overwrite existing paths.
 10. [x] `service.yaml`: `client_auth.jwks_uri` → `http://keycloak:8080/realms/
-       app/protocol/openid-connect/certs` (Docker network address, not
-       `localhost`), `audience: [powersync-dev]` (matches the
-       `powersync-audience` mapper in `infra/keycloak/realm-export.json`),
-       `block_local_jwks: false`. `storage` uses the CLI-provisioned
-       `pg-storage` Postgres (own container, not `infra/postgres`) - port
-       changed from the CLI's default 5433 to 5443 (project convention: never
-       3000/1340/1338/5432/5433/8443/6379/1025/80). `api.tokens` keeps the
-       CLI's dev-only defaults, matching `cli.yaml`'s `api_key`.
+   app/protocol/openid-connect/certs` (Docker network address, not
+        `localhost`), `audience: [powersync-dev]` (matches the
+        `powersync-audience` mapper in `infra/keycloak/realm-export.json`),
+        `block_local_jwks: false`. `storage` uses the CLI-provisioned
+        `pg-storage` Postgres (own container, not `infra/postgres`) - port
+        changed from the CLI's default 5433 to 5443 (project convention: never
+        3000/1340/1338/5432/5433/8443/6379/1025/80). `api.tokens` keeps the
+        CLI's dev-only defaults, matching `cli.yaml`'s `api_key`.
     - The generated `infra/powersync/docker/docker-compose.yaml` got its own
       isolated Docker network by default - added an `effective-app` external
       network (`effective-app_default`, this repo's own `docker-compose.yml`
@@ -122,15 +122,15 @@ up too.
       by container name. Verified: `docker exec` into the `powersync`
       container can fetch Keycloak's JWKS (2 keys returned).
 11. [x] `sync-config.yaml`: `config: edition: 3`, `streams: {}` - deliberately
-       empty (`streams:` is required by the service even with none defined -
-       confirmed by a fatal replication error until this was set), since no
-       domain model/tables exist yet. The CLI's own scaffolded example queried
-       a placeholder `mytable` that doesn't exist in this database.
+        empty (`streams:` is required by the service even with none defined -
+        confirmed by a fatal replication error until this was set), since no
+        domain model/tables exist yet. The CLI's own scaffolded example queried
+        a placeholder `mytable` that doesn't exist in this database.
 12. [x] `powersync docker start` (`powersync docker reset` after the
-       `sync-config.yaml` fix). `powersync status` shows the `default`
-       connection `connected`, replicating, 0 bytes lag. `powersync validate`
-       passes all checks (schema, sync config; connection tests aren't
-       supported for self-hosted).
+        `sync-config.yaml` fix). `powersync status` shows the `default`
+        connection `connected`, replicating, 0 bytes lag. `powersync validate`
+        passes all checks (schema, sync config; connection tests aren't
+        supported for self-hosted).
 
 Still open: `PS_ADMIN_TOKEN` / production-grade `api.tokens` (currently the
 CLI's dev-only placeholders - fine for local dev, revisit before any shared

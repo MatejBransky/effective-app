@@ -18,44 +18,47 @@ catalog:
   # 24) - already the latest 24.x release; the 26.x line tracks a newer Node major we don't
   # run yet.
   "@types/node": 24.13.3
-  oxlint: 1.77.0
-  oxfmt: 0.62.0
-  turbo: 2.10.8
-  vitest: 4.1.10
-  "@effect/vitest": 4.0.0-beta.104
-  # Effect v4 ("effect smol") - beta, but this is what externals/effect (vendored from the
-  # Effect-TS/effect main branch) is already on, so we're tracking the same line.
-  effect: 4.0.0-beta.104
+  oxlint: 1.86.0
+  oxfmt: 0.71.0
+  turbo: 2.11.7
+  vitest: 5.0.3
+  "@effect/vitest": 4.0.0
+  # Effect v4 stable. Upstream main is already at 4.0.1, but that release is still within
+  # minimumReleaseAge; use the latest mature release and keep adapters on the same version.
+  effect: 4.0.0
   drizzle-orm: 0.45.2
   drizzle-kit: 0.31.10
-  # Node runtime adapter for effect/unstable/httpapi - a separate package from `effect`
-  # itself in this v4 line. Pinned to the exact same beta as `effect` above.
-  "@effect/platform-node": 4.0.0-beta.104
-  # React bindings for effect/unstable/reactivity's Atom/AtomRegistry - Effect-TS's own
+  # Node runtime adapter for Effect HTTP APIs - a separate package from `effect` itself.
+  # Keep it on the exact same v4 release as `effect` above.
+  "@effect/platform-node": 4.0.0
+  # React bindings for effect/reactivity's Atom/AtomRegistry - Effect-TS's own
   # official package (externals/effect/packages/atom/react in the effect monorepo itself,
   # published under the `@effect` scope), not the older standalone `@effect-atom/atom-react`
   # (still pins effect@^3.19 - checked directly against npm, incompatible with this repo's v4
   # pin - no separate `externals/effect-atom` subtree needed once this was found). Pinned to
-  # the exact same beta as `effect` above, matching its own peerDependencies.
-  "@effect/atom-react": 4.0.0-beta.104
+  # the exact same v4 release as `effect` above, matching its own peerDependencies.
+  "@effect/atom-react": 4.0.0
   # JWT/JWKS verification for apps/server's AuthService - vendored Effect v4 has no
   # built-in JWT support (HttpApiSecurity only extracts the raw credential string).
-  jose: 6.2.8
+  jose: 6.2.12
   # node-postgres, not postgres.js - matches the driver @effect/sql-pg wraps, so a later
   # Effect-based query layer shares the same driver/connection-pool conventions.
   pg: 8.22.0
   "@types/pg": 8.20.0
-  react: 19.2.8
-  react-dom: 19.2.8
-  "@types/react": 19.2.18
-  "@types/react-dom": 19.2.4
-  "@tanstack/react-router": 1.170.21
+  react: 19.3.0
+  react-dom: 19.3.0
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  "@tanstack/react-router": 1.170.41
   # Not version-locked to @tanstack/react-router above - this monorepo's packages don't
   # share version numbers in lockstep, just compatible peer ranges.
-  "@tanstack/router-plugin": 1.168.26
+  "@tanstack/router-plugin": 1.168.42
   # OIDC client for apps/web's Keycloak login (Authorization Code + PKCE) - mature,
   # framework-agnostic, avoids hand-rolling PKCE/token-refresh logic.
   "oidc-client-ts": 3.5.0
+  # Shared contract API for the auth domain (docs: yielded.dev/auth/guide/getting-started).
+  # beta.19 was still inside minimumReleaseAge when added; use the latest mature beta.
+  "@yielded/auth": 0.1.0-beta.17
 
 # Force patched versions for transitive dev-only vulnerabilities that the direct
 # dependency hasn't bumped past yet (flagged by `pnpm audit`, part of CI's security

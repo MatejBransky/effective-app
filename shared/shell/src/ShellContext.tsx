@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { AsyncResult, type Atom } from "effect/unstable/reactivity";
+import { AsyncResult, type Atom } from "effect/reactivity";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { ModalService } from "./ModalService.ts";
 import { SidebarService } from "./SidebarService.ts";

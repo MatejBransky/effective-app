@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { useShellContext } from "./ShellContext.tsx";
 import type { OverlayHistory } from "./OverlayStack.ts";
 

@@ -14,11 +14,10 @@ import type {
 import * as zeroTrust from "@distilled.cloud/cloudflare/zero-trust";
 import * as Effect from "effect/Effect";
 import * as Binding from "../../Binding.ts";
-import type { Worker } from "../Workers/Worker.ts";
-import type { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { RuntimeContext } from "../../RuntimeContext.ts";
-import { type Token } from "./TunnelBinding.ts";
-import { authorizeWith } from "../HttpClientUtils.ts";
+import type { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { Worker } from "../Workers/Worker.ts";
+import { type TunnelAuth } from "./TunnelBinding.ts";
 
 /**
  * Binding that lets a Worker create, update, and delete Cloudflare Tunnels at
@@ -28,26 +27,24 @@ import { authorizeWith } from "../HttpClientUtils.ts";
  * Write` permission and binds its outputs into the Worker (the token value as a
  * `secret_text` binding) so runtime code can authenticate.
  *
- * @binding
- * @product Tunnels
- * @category Cloudflare One (Zero Trust)
+ * @remarks
  *
  * `WriteTunnel` is a single identifier that is simultaneously the binding's
  * Context tag, its type, and the callable — `yield* Cloudflare.Tunnel.WriteTunnel()`.
  *
- * @section Mutating tunnels at runtime
- * @example Bind the write client
+ * ### Mutating tunnels at runtime
+ * **Example:** Bind the write client
  * Bind once in the Init phase; every method is available on the returned client.
  * ```typescript
  * const tunnels = yield* Cloudflare.Tunnel.WriteTunnel();
  * ```
  *
- * @example Create a tunnel
+ * **Example:** Create a tunnel
  * ```typescript
  * const tunnel = yield* tunnels.create({ name: "on-demand-tunnel" });
  * ```
  *
- * @example Push ingress configuration
+ * **Example:** Push ingress configuration
  * ```typescript
  * yield* tunnels.putConfiguration(tunnel.id!, {
  *   ingress: [
@@ -57,17 +54,21 @@ import { authorizeWith } from "../HttpClientUtils.ts";
  * });
  * ```
  *
- * @example Rename and delete a tunnel
+ * **Example:** Rename and delete a tunnel
  * ```typescript
  * yield* tunnels.update(tunnel.id!, { name: "renamed-tunnel" });
  * yield* tunnels.delete(tunnel.id!);
  * ```
  *
- * @section Runtime Layer
+ * ### Runtime Layer
  * Provide {@link WriteTunnelBinding} in the Worker's runtime layer.
  * ```typescript
  * Effect.provide(Cloudflare.Tunnel.WriteTunnelBinding)
  * ```
+ *
+ * @binding
+ * @product Tunnels
+ * @category Cloudflare One (Zero Trust)
  */
 export interface WriteTunnel extends Binding.Service<
   WriteTunnel,
@@ -75,26 +76,16 @@ export interface WriteTunnel extends Binding.Service<
   () => Effect.Effect<WriteTunnelClient, never, Worker | CloudflareEnvironment>
 > {}
 
-export const WriteTunnel = Binding.Service<WriteTunnel>(
-  "Cloudflare.Tunnel.WriteTunnel",
-);
+export const WriteTunnel = Binding.Service<WriteTunnel>("Cloudflare.Tunnel.WriteTunnel");
 
 /** Create-tunnel request, minus the account id (supplied by the binding). */
-export type CreateTunnelRequest = Omit<
-  CreateTunnelCloudflaredRequest,
-  "accountId"
->;
+export type CreateTunnelRequest = Omit<CreateTunnelCloudflaredRequest, "accountId">;
 
 /** Update-tunnel request, minus the account id and tunnel id (positional). */
-export type UpdateTunnelRequest = Omit<
-  PatchTunnelCloudflaredRequest,
-  "accountId" | "tunnelId"
->;
+export type UpdateTunnelRequest = Omit<PatchTunnelCloudflaredRequest, "accountId" | "tunnelId">;
 
 /** Tunnel configuration body, minus the account id and tunnel id (positional). */
-export type ConfigurationBody = NonNullable<
-  PutTunnelCloudflaredConfigurationRequest["config"]
->;
+export type ConfigurationBody = NonNullable<PutTunnelCloudflaredConfigurationRequest["config"]>;
 
 /**
  * Mutating tunnel operations. Backed by the `Cloudflare Tunnel Write`
@@ -104,28 +95,16 @@ export interface WriteTunnelClient {
   /** Create a new tunnel. */
   create(
     request: CreateTunnelRequest,
-  ): Effect.Effect<
-    CreateTunnelCloudflaredResponse,
-    CreateTunnelCloudflaredError,
-    RuntimeContext
-  >;
+  ): Effect.Effect<CreateTunnelCloudflaredResponse, CreateTunnelCloudflaredError, RuntimeContext>;
   /** Update a tunnel's mutable fields (name, secret). */
   update(
     tunnelId: string,
     request: UpdateTunnelRequest,
-  ): Effect.Effect<
-    PatchTunnelCloudflaredResponse,
-    PatchTunnelCloudflaredError,
-    RuntimeContext
-  >;
+  ): Effect.Effect<PatchTunnelCloudflaredResponse, PatchTunnelCloudflaredError, RuntimeContext>;
   /** Delete a tunnel by id. */
   delete(
     tunnelId: string,
-  ): Effect.Effect<
-    DeleteTunnelCloudflaredResponse,
-    DeleteTunnelCloudflaredError,
-    RuntimeContext
-  >;
+  ): Effect.Effect<DeleteTunnelCloudflaredResponse, DeleteTunnelCloudflaredError, RuntimeContext>;
   /** Replace the remotely-managed configuration (ingress rules) for a tunnel. */
   putConfiguration(
     tunnelId: string,
@@ -137,41 +116,33 @@ export interface WriteTunnelClient {
   >;
 }
 
-/** Build the write client over a bound token. */
-export const writeClient = (token: Token): WriteTunnelClient => {
-  const authorize = authorizeWith(token);
+/** Build the write client over an injectable {@link TunnelAuth}. */
+export const writeClient = (auth: TunnelAuth): WriteTunnelClient => {
+  const { authorize } = auth;
   return {
     create: Effect.fn("Cloudflare.Tunnel.create")(function* (request) {
-      const accountId = yield* token.accountId;
+      const accountId = yield* auth.accountId;
+      return yield* authorize(zeroTrust.createTunnelCloudflared({ accountId, ...request }));
+    }),
+    update: Effect.fn("Cloudflare.Tunnel.update")(function* (tunnelId, request) {
+      const accountId = yield* auth.accountId;
       return yield* authorize(
-        zeroTrust.createTunnelCloudflared({ accountId, ...request }),
+        zeroTrust.patchTunnelCloudflared({ accountId, tunnelId, ...request }),
       );
     }),
-    update: Effect.fn("Cloudflare.Tunnel.update")(
-      function* (tunnelId, request) {
-        const accountId = yield* token.accountId;
-        return yield* authorize(
-          zeroTrust.patchTunnelCloudflared({ accountId, tunnelId, ...request }),
-        );
-      },
-    ),
     delete: Effect.fn("Cloudflare.Tunnel.delete")(function* (tunnelId) {
-      const accountId = yield* token.accountId;
+      const accountId = yield* auth.accountId;
+      return yield* authorize(zeroTrust.deleteTunnelCloudflared({ accountId, tunnelId }));
+    }),
+    putConfiguration: Effect.fn("Cloudflare.Tunnel.putConfiguration")(function* (tunnelId, config) {
+      const accountId = yield* auth.accountId;
       return yield* authorize(
-        zeroTrust.deleteTunnelCloudflared({ accountId, tunnelId }),
+        zeroTrust.putTunnelCloudflaredConfiguration({
+          accountId,
+          tunnelId,
+          config,
+        }),
       );
     }),
-    putConfiguration: Effect.fn("Cloudflare.Tunnel.putConfiguration")(
-      function* (tunnelId, config) {
-        const accountId = yield* token.accountId;
-        return yield* authorize(
-          zeroTrust.putTunnelCloudflaredConfiguration({
-            accountId,
-            tunnelId,
-            config,
-          }),
-        );
-      },
-    ),
   };
 };

@@ -15,7 +15,7 @@ it all down.
 You'll need a Docker daemon reachable from your CLI and the provider
 registered — see [Setup](/docker/setup) and the
 [Docker overview](/docker). The full program below is the checked-in
-[`examples/docker-postgres`](https://github.com/alchemy-run/alchemy-effect/tree/main/examples/docker-postgres).
+[`examples/docker-postgres`](https://github.com/alchemy-run/alchemy/tree/main/examples/docker-postgres).
 
 ## Pin the image
 
@@ -68,7 +68,7 @@ fixed once it holds data you care about.
 import * as Config from "effect/Config";
 import * as Option from "effect/Option";
 
-const configuredPassword = yield* Config.redacted("POSTGRES_PASSWORD").pipe(
+const configuredPassword = yield* Config.Redacted("POSTGRES_PASSWORD").pipe(
   Config.option,
 );
 const password = yield* Option.match(configuredPassword, {

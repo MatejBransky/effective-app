@@ -9,15 +9,10 @@ import {
   makeR2HttpScope,
   toR2Error,
   type HttpMetadata,
-  type HttpToken,
+  type R2Auth,
 } from "./BucketHttp.ts";
+import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.ts";
 import { ReadBucket, type ReadBucketClient } from "./ReadBucket.ts";
-import {
-  R2Error,
-  type GetOptions,
-  type ListOptions,
-  type Objects,
-} from "./BucketTypes.ts";
 
 /**
  * HTTP-backed implementation of the {@link ReadBucket} binding.
@@ -29,18 +24,23 @@ export const ReadBucketHttp = Layer.effect(
   Effect.suspend(() =>
     makeHttpBucketBinding({
       permissionGroups: ["Workers R2 Storage Read"],
-      makeClient: makeReadR2HttpClient,
+      makeClient: (token, bucketName, jurisdiction) =>
+        makeReadR2HttpClient(
+          { authorize: authorizeWith(token), accountId: token.accountId },
+          bucketName,
+          jurisdiction,
+        ),
     }),
   ),
 );
 
 export const makeReadR2HttpClient = (
-  token: HttpToken,
+  auth: R2Auth,
   bucketName: Effect.Effect<string>,
   jurisdiction: Effect.Effect<string>,
 ): ReadBucketClient => {
-  const authorize = authorizeWith(token);
-  const scope = makeR2HttpScope(token, bucketName, jurisdiction);
+  const authorize = auth.authorize;
+  const scope = makeR2HttpScope(auth.accountId, bucketName, jurisdiction);
 
   return {
     raw: Effect.die(
@@ -120,9 +120,7 @@ export const makeReadR2HttpClient = (
                 etag: o.etag ?? undefined,
                 uploaded: o.lastModified ? new Date(o.lastModified) : undefined,
                 storageClass: o.storageClass ?? undefined,
-                customMetadata:
-                  (o.customMetadata as Record<string, string> | null) ??
-                  undefined,
+                customMetadata: (o.customMetadata as Record<string, string> | null) ?? undefined,
               },
             ),
           );
@@ -137,19 +135,13 @@ export const makeReadR2HttpClient = (
   };
 };
 
-const objectBodyFromResponse = (
-  key: string,
-  res: r2.GetObjectResponse,
-): R2ObjectBody => {
+const objectBodyFromResponse = (key: string, res: r2.GetObjectResponse): R2ObjectBody => {
   const meta = httpMetadataOf(res);
   // The HTTP body is a single-consumption stream — expose it both as a Stream
   // and via the buffering accessors, but the caller may only read it once.
   let response: Response | undefined;
-  const getResponse = () =>
-    (response ??= new Response(Stream.toReadableStream(res.body) as any));
-  const consume = <T>(
-    fn: (r: Response) => Promise<T>,
-  ): Effect.Effect<T, R2Error> =>
+  const getResponse = () => (response ??= new Response(Stream.toReadableStream(res.body) as any));
+  const consume = <T>(fn: (r: Response) => Promise<T>): Effect.Effect<T, R2Error> =>
     Effect.tryPromise({ try: () => fn(getResponse()), catch: toR2Error });
   return {
     ...baseObject(key, meta, {

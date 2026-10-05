@@ -10,7 +10,7 @@ import {
   readHttpMetadata,
   toBody,
   toR2Error,
-  type HttpToken,
+  type R2Auth,
 } from "./BucketHttp.ts";
 import { R2Error, type PutOptions } from "./BucketTypes.ts";
 import { WriteBucket, type WriteBucketClient } from "./WriteBucket.ts";
@@ -25,19 +25,24 @@ export const WriteBucketHttp = Layer.effect(
   Effect.suspend(() =>
     makeHttpBucketBinding({
       permissionGroups: ["Workers R2 Storage Write"],
-      makeClient: makeWriteR2HttpClient,
+      makeClient: (token, bucketName, jurisdiction) =>
+        makeWriteR2HttpClient(
+          { authorize: authorizeWith(token), accountId: token.accountId },
+          bucketName,
+          jurisdiction,
+        ),
     }),
   ),
 );
 
 /** Build the write half of the HTTP-backed {@link ReadWrite} client. */
 export const makeWriteR2HttpClient = (
-  token: HttpToken,
+  auth: R2Auth,
   bucketName: Effect.Effect<string>,
   jurisdiction: Effect.Effect<string>,
 ): WriteBucketClient => {
-  const authorize = authorizeWith(token);
-  const scope = makeR2HttpScope(token, bucketName, jurisdiction);
+  const authorize = auth.authorize;
+  const scope = makeR2HttpScope(auth.accountId, bucketName, jurisdiction);
 
   return {
     put: ((
@@ -75,22 +80,17 @@ export const makeWriteR2HttpClient = (
                       : contentLength != null
                         ? String(contentLength)
                         : undefined,
-                  cfR2StorageClass: (
-                    options as { storageClass?: string } | undefined
-                  )?.storageClass,
+                  cfR2StorageClass: (options as { storageClass?: string } | undefined)
+                    ?.storageClass,
                 }),
               ).pipe(
                 Effect.map(() =>
                   baseObject(key, meta ?? {}, {
                     size: contentLength,
                     customMetadata: (
-                      options as
-                        | { customMetadata?: Record<string, string> }
-                        | undefined
+                      options as { customMetadata?: Record<string, string> } | undefined
                     )?.customMetadata,
-                    storageClass: (
-                      options as { storageClass?: string } | undefined
-                    )?.storageClass,
+                    storageClass: (options as { storageClass?: string } | undefined)?.storageClass,
                     uploaded: new Date(),
                   }),
                 ),
@@ -111,7 +111,7 @@ export const makeWriteR2HttpClient = (
                   cfR2Jurisdiction,
                   body: keys,
                 }),
-              )
+              ).pipe(Effect.asVoid, Effect.mapError(toR2Error))
             : authorize(
                 r2.deleteObject({
                   accountId,
@@ -119,24 +119,27 @@ export const makeWriteR2HttpClient = (
                   objectName: keys,
                   cfR2Jurisdiction,
                 }),
+              ).pipe(
+                Effect.asVoid,
+                // The native binding's `delete` is idempotent — deleting a
+                // key that isn't there resolves. Keep the HTTP client at
+                // parity instead of surfacing R2's `NoSuchKey`.
+                Effect.catchTag("NoSuchKey", () => Effect.void),
+                Effect.mapError(toR2Error),
               ),
         ),
-        Effect.mapError(toR2Error),
-        Effect.asVoid,
       ),
     createMultipartUpload: () =>
       Effect.die(
         new R2Error({
-          message:
-            "R2BucketBindingHttp does not support multipart uploads over the HTTP API.",
+          message: "R2BucketBindingHttp does not support multipart uploads over the HTTP API.",
           cause: new Error("unsupported"),
         }),
       ),
     resumeMultipartUpload: () =>
       Effect.die(
         new R2Error({
-          message:
-            "R2BucketBindingHttp does not support multipart uploads over the HTTP API.",
+          message: "R2BucketBindingHttp does not support multipart uploads over the HTTP API.",
           cause: new Error("unsupported"),
         }),
       ),

@@ -2,8 +2,11 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
-import fg from "fast-glob";
+import { convertPathToPattern, glob } from "tinyglobby";
+import { dotAlchemyDirectory } from "../AlchemyContext.ts";
 import { gitignoreRulesToGlobs } from "../Util/gitignore-rules-to-globs.ts";
+import { isPathWithin } from "../Util/isPathWithin.ts";
+import { initialCwd } from "../Util/Node.ts";
 import { sha256, sha256Object } from "../Util/sha256.ts";
 
 /**
@@ -16,10 +19,18 @@ import { sha256, sha256Object } from "../Util/sha256.ts";
  */
 export interface MemoOptions {
   /**
-   * Glob patterns of files to hash. Paths are relative to the working directory.
+   * Glob patterns of files to hash. Paths are relative to the working
+   * directory and may reach outside it with `../` segments — useful in a
+   * monorepo where the build consumes sibling workspace packages that the
+   * default (files under the working directory) does not cover.
+   *
+   * Note: providing `include` (or `exclude`) flips the {@link lockfile}
+   * default to `false` — pair it with `lockfile: true` to keep rebuilding
+   * when dependencies change.
    *
    * @default ["**\/*"] (all files, filtered by `exclude`)
    * @example ["src/**", "package.json", "tsconfig.json"]
+   * @example ["**\/*", "../env/src/**"] (also rebuild when a sibling workspace package changes)
    */
   include?: string[];
   /**
@@ -53,6 +64,8 @@ interface ResolvedMemoOptions {
 const Memo = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+  const runtimeBase = process.cwd();
+  const dotAlchemy = yield* dotAlchemyDirectory;
 
   const findUp = Effect.fn(function* (
     cwd: string,
@@ -79,8 +92,7 @@ const Memo = Effect.gen(function* () {
     const rules = yield* fs.readFileString(path.join(cwd, ".gitignore")).pipe(
       Effect.map((file) => file.split("\n")),
       Effect.catchIf(
-        (error) =>
-          error._tag === "PlatformError" && error.reason._tag === "NotFound",
+        (error) => error._tag === "PlatformError" && error.reason._tag === "NotFound",
         () => Effect.succeed([]),
       ),
     );
@@ -95,10 +107,19 @@ const Memo = Effect.gen(function* () {
     cwd: string | undefined,
     options: MemoOptions,
   ): Effect.fn.Return<ResolvedMemoOptions, PlatformError> {
-    const resolvedCwd = cwd ? path.resolve(cwd) : process.cwd();
+    // Anchored: a live `process.cwd()` read can race a concurrent tool's
+    // transient chdir (see Util/Node.ts `initialCwd`).
+    const resolvedCwd = path.resolve(initialCwd, cwd ?? ".");
     return {
       cwd: resolvedCwd,
-      include: options.include ?? ["**/*"],
+      // Normalize absolute include patterns to cwd-relative ones so matched
+      // keys (and therefore the memo hash) stay free of machine-specific
+      // path prefixes.
+      include: (options.include ?? ["**/*"]).map((pattern) =>
+        path.isAbsolute(pattern)
+          ? path.relative(resolvedCwd, pattern).replaceAll("\\", "/")
+          : pattern,
+      ),
       exclude:
         options.exclude ??
         (yield* readGitIgnoreRules(resolvedCwd).pipe(
@@ -112,13 +133,21 @@ const Memo = Effect.gen(function* () {
   const listFiles = Effect.fn(function* (
     options: ResolvedMemoOptions,
   ): Effect.fn.Return<string[], PlatformError> {
+    // Explicitly hashing a generated artifact still hashes its contents.
+    const excludeRuntime = !isPathWithin(dotAlchemy, options.cwd, runtimeBase);
     const [files, lockfile] = yield* Effect.all(
       [
         Effect.promise(() =>
-          fg.glob(options.include, {
+          glob(options.include, {
             cwd: options.cwd,
-            ignore: options.exclude,
+            ignore: [
+              ...options.exclude,
+              ...(excludeRuntime
+                ? [`${convertPathToPattern(path.resolve(runtimeBase, dotAlchemy))}/**`]
+                : []),
+            ],
             onlyFiles: true,
+            expandDirectories: false,
             dot: true,
           }),
         ),
@@ -141,7 +170,17 @@ const Memo = Effect.gen(function* () {
     if (lockfile && !files.includes(lockfile)) {
       files.push(lockfile);
     }
-    return files.sort();
+    // Absolute include patterns produce absolute matches; normalize them to
+    // cwd-relative (like the lockfile above) so `hashFiles` resolves them
+    // correctly and machine-specific path prefixes never leak into the hash.
+    return files
+      .filter(
+        (file) =>
+          !excludeRuntime ||
+          !isPathWithin(dotAlchemy, path.resolve(options.cwd, file), runtimeBase),
+      )
+      .map((file) => (path.isAbsolute(file) ? path.relative(options.cwd, file) : file))
+      .sort();
   });
 
   const hashFiles = Effect.fn(function* (
@@ -177,10 +216,7 @@ export const hashDirectory = Effect.fn(function* (props: {
   memo?: MemoOptions;
 }): Effect.fn.Return<string, PlatformError, FileSystem.FileSystem | Path.Path> {
   const service = yield* Memo;
-  const resolvedOptions = yield* service.resolveMemoOptions(
-    props.cwd,
-    props.memo ?? {},
-  );
+  const resolvedOptions = yield* service.resolveMemoOptions(props.cwd, props.memo ?? {});
   const files = yield* service.listFiles(resolvedOptions);
   const hash = yield* service.hashFiles(resolvedOptions.cwd, files);
   return hash;

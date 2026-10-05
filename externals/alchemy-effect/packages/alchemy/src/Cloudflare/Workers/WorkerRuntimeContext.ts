@@ -2,12 +2,14 @@ import type * as cf from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Redacted from "effect/Redacted";
 import type { HttpEffect } from "../../Http.ts";
 import * as Output from "../../Output.ts";
+import { packEnvValueKeepRedacted, unpackEnvValue } from "../../RuntimeContext.ts";
 import type * as Serverless from "../../Serverless/index.ts";
+import type { WorkflowExport } from "../Workflows/Workflow.ts";
 import type { DurableObjectExport } from "./DurableObject.ts";
 import { makeRequestHandler } from "./HttpServer.ts";
+import type { SqlMigrationsExport } from "./SqlMigrationsRuntime.ts";
 import {
   ExportedHandlerMethods,
   WorkerEnvironment,
@@ -15,8 +17,9 @@ import {
   WorkerTypeId,
   deferredExecutionContext,
   type WorkerEvent,
-} from "./Worker.ts";
-import type { WorkflowExport } from "../Workflows/Workflow.ts";
+} from "./WorkerRuntime.ts";
+
+export type WorkerExport = DurableObjectExport | WorkflowExport | SqlMigrationsExport;
 
 export interface WorkerRuntimeContext extends Serverless.FunctionContext {
   export(name: string, value: any): Effect.Effect<void>;
@@ -25,7 +28,7 @@ export interface WorkerRuntimeContext extends Serverless.FunctionContext {
 
 export const makeWorkerRuntimeContext = (id: string): WorkerRuntimeContext => {
   const listeners: Effect.Effect<Serverless.FunctionListener>[] = [];
-  const exports: Record<string, DurableObjectExport | WorkflowExport> = {};
+  const exports: Record<string, WorkerExport> = {};
   const env: Record<string, any> = {};
   let userShape: Record<string, unknown> | undefined;
 
@@ -37,53 +40,19 @@ export const makeWorkerRuntimeContext = (id: string): WorkerRuntimeContext => {
     get: (key: string) =>
       Effect.serviceOption(WorkerEnvironment).pipe(
         Effect.map(Option.getOrUndefined),
-        // Key is already canonical (see RuntimeContext.sanitizeKey).
-        Effect.map((env) => env?.[key]),
-        Effect.map((json) => {
-          if (json === undefined) {
-            return undefined;
-          }
-          try {
-            const value = JSON.parse(json);
-            // The `set` path serializes Redacted values as
-            // `{_tag: "Redacted", value: ...}`. After JSON.parse the
-            // result is a plain object — `Redacted.isRedacted` would
-            // always return `false` on it — so detect the marker shape
-            // and rebuild the Redacted wrapper. Plain values pass
-            // through unchanged.
-            if (
-              typeof value === "object" &&
-              value?._tag === "Redacted" &&
-              "value" in value
-            ) {
-              return Redacted.make((value as { value: unknown }).value);
-            }
-            return value;
-          } catch {
-            return json;
-          }
-        }),
+        // Key is already canonical (see RuntimeContext.sanitizeKey). Read
+        // straight from `WorkerEnvironment` — see `unpackEnvValue` for why
+        // this must never resolve through `Config.String`.
+        Effect.map((env) => unpackEnvValue(env?.[key])),
       ) as any,
     set: (key: string, output: Output.Output) =>
       Effect.sync(() => {
-        // Preserve `Redacted`-ness across the Output → env → Cloudflare
-        // binding boundary so the put-worker loop can deploy secrets via
-        // `secret_text` instead of leaking them as `plain_text`. The JSON
-        // payload still carries the `{_tag: "Redacted", …}` marker so the
-        // runtime `get` accessor can rebuild the wrapper after Cloudflare
-        // hands the binding back as a plain string.
-        env[key] = output.pipe(
-          Output.map((value) =>
-            Redacted.isRedacted(value)
-              ? Redacted.make(
-                  JSON.stringify({
-                    _tag: "Redacted",
-                    value: Redacted.value(value),
-                  }),
-                )
-              : JSON.stringify(value),
-          ),
-        );
+        // `packEnvValueKeepRedacted` keeps the Redacted wrapper on the
+        // outside so the put-worker loop can deploy secrets via
+        // `secret_text` instead of leaking them as `plain_text`, while the
+        // inner marker lets the runtime `get` accessor rebuild the wrapper
+        // after Cloudflare hands the binding back as a plain string.
+        env[key] = output.pipe(Output.map(packEnvValueKeepRedacted));
         return key;
       }),
     serve: <Req = never>(
@@ -96,11 +65,7 @@ export const makeWorkerRuntimeContext = (id: string): WorkerRuntimeContext => {
       if (options?.shape) userShape = options.shape;
       return ctx.listen(makeRequestHandler(handler));
     },
-    listen: ((
-      handler:
-        | Serverless.FunctionListener
-        | Effect.Effect<Serverless.FunctionListener>,
-    ) =>
+    listen: ((handler: Serverless.FunctionListener | Effect.Effect<Serverless.FunctionListener>) =>
       Effect.sync(() =>
         Effect.isEffect(handler)
           ? listeners.push(handler)
@@ -145,17 +110,19 @@ export const makeWorkerRuntimeContext = (id: string): WorkerRuntimeContext => {
           }
           if (effects.length > 1) {
             return [
-              Effect.all(effects, {
-                concurrency: "unbounded",
-                discard: true,
-              }),
+              Effect.all(effects, { concurrency: "unbounded" }).pipe(
+                Effect.map((results) => {
+                  for (const result of results) {
+                    if (result instanceof Response) return result;
+                  }
+                  return results[results.length - 1];
+                }),
+              ),
               services,
             ];
           }
           return [
-            Effect.die(
-              new Error(`No event handler found for event type '${type}'`),
-            ),
+            Effect.die(new Error(`No event handler found for event type '${type}'`)),
             services,
           ];
         };

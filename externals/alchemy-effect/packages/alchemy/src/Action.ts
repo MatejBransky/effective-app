@@ -2,10 +2,12 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { Pipeable } from "effect/Pipeable";
+import { makeCaptureContext } from "./ActionRuntimeContext.ts";
 import { toFqn } from "./FQN.ts";
 import type { Input } from "./Input.ts";
 import { CurrentNamespace, type NamespaceNode } from "./Namespace.ts";
 import * as Output from "./Output.ts";
+import { RuntimeContext } from "./RuntimeContext.ts";
 import { Stack } from "./Stack.ts";
 
 /**
@@ -35,6 +37,14 @@ export interface ActionLike<
   readonly Type: Type;
   readonly LogicalId: string;
   readonly Input: In;
+  /**
+   * Resource Outputs referenced via `yield* output` inside the init Effect,
+   * keyed by the Output's sanitized key. They become dependency edges (the
+   * Action waits for these upstreams) and are resolved against the tracker at
+   * apply time, then exposed to the body through the resolve
+   * {@link RuntimeContext}. Empty when the Action captures nothing.
+   */
+  readonly Captures: Record<string, Output.Output>;
   /** Resolved runner — populated by the init effect (if any). */
   readonly Run: (input: In) => Effect.Effect<Out, any, any>;
   /** @internal phantom */
@@ -83,24 +93,22 @@ export type ActionInit<In extends object | undefined, Out, Req> = Effect.Effect<
 //   const rows = yield* Sync({ table: bucket.name });
 //   // rows: Output<{ rows: number }, never>
 //
-// Tagged form for split contract/implementation:
+// Tagged form for split contract/implementation — declare the type with an
+// interface, build the value with the no-arg overload, then supply the runner
+// via `.make` (add the returned Layer to the stack's `providers`, or provide it
+// locally with `Effect.provide`). The init passed to `.make` runs under the
+// same capture context as the inline form, so `yield* output` accessors work:
 //
-//   class Sync extends Action<Sync, { table: string }, { rows: number }>()("Sync") {}
+//   interface Sync extends Action<"Sync", { table: string }, { rows: number }> {}
+//   const Sync = Action<Sync, { table: string }, { rows: number }>()("Sync");
 //   const SyncLive = Sync.make(Effect.gen(function* () { /* ... */ }));
 
-export function Action<
-  Type extends string,
-  In extends object | undefined,
-  Out,
-  Req = never,
->(
+export function Action<Type extends string, In extends object | undefined, Out, Req = never>(
   type: Type,
   initOrRun: ActionRunner<In, Out, Req> | ActionInit<In, Out, Req>,
 ): ActionClass<never, Type, In, Out, Req>;
 
-export function Action<Self, In extends object | undefined, Out>(): <
-  Type extends string,
->(
+export function Action<Self, In extends object | undefined, Out>(): <Type extends string>(
   type: Type,
 ) => ActionClass<Self, Type, In, Out, Self>;
 
@@ -117,13 +125,7 @@ export function Action(...args: any[]): any {
   return makeActionClass(type, initOrRun);
 }
 
-export interface ActionClass<
-  Self,
-  Type extends string,
-  In extends object | undefined,
-  Out,
-  Req,
-> {
+export interface ActionClass<Self, Type extends string, In extends object | undefined, Out, Req> {
   readonly Type: Type;
   /**
    * Default form — uses `Type` as the LogicalId. One instance per Action
@@ -153,9 +155,7 @@ export interface ActionClass<
         init: ActionRunner<In, Out, R> | ActionInit<In, Out, R>,
       ) => Layer.Layer<Self, never, R>;
   /** Tagged-only: the Context tag holding the resolved runner. */
-  readonly Self: [Self] extends [never]
-    ? never
-    : Context.Service<Self, ActionRunner<In, Out, any>>;
+  readonly Self: [Self] extends [never] ? never : Context.Service<Self, ActionRunner<In, Out, any>>;
 }
 
 const isRunnerEffect = (
@@ -170,9 +170,7 @@ const makeActionClass = (
   // Effect.cached so the init's body runs at most once per process — every
   // action instance after the first reuses the resolved runner without paying
   // the init cost (or re-yielding its dependencies).
-  let resolveRunner:
-    | Effect.Effect<ActionRunner<any, any, any>, any, any>
-    | undefined;
+  let resolveRunner: Effect.Effect<ActionRunner<any, any, any>, any, any> | undefined;
   if (baked !== undefined) {
     resolveRunner = isRunnerEffect(baked)
       ? Effect.runSync(Effect.cached(baked))
@@ -183,18 +181,22 @@ const makeActionClass = (
   // through a Layer. Inline form bakes the runner in and skips the tag.
   const SelfTag = baked
     ? undefined
-    : Context.Service<any, ActionRunner<any, any, any>>(
-        `alchemy/Action<${type}>`,
-      );
+    : Context.Service<any, ActionRunner<any, any, any>>(`alchemy/Action<${type}>`);
+
+  // Outputs referenced via `yield* output` inside the init Effect land here,
+  // recorded by the capture RuntimeContext. Shared per definition — the init
+  // runs at most once (Effect.cached), so captures are inherently
+  // per-definition, matching how the init's `Req` bubbles per definition.
+  const captures: Record<string, Output.Output> = {};
+  const captureContext = makeCaptureContext(captures);
 
   const constructor = (...args: [any] | [string, any]) => {
-    const [id, input] =
-      args.length === 1 ? [type, args[0]] : (args as [string, any]);
+    const [id, input] = args.length === 1 ? [type, args[0]] : (args as [string, any]);
     return Effect.gen(function* () {
       const run = resolveRunner
-        ? yield* resolveRunner
+        ? yield* resolveRunner.pipe(Effect.provideService(RuntimeContext, captureContext))
         : ((yield* SelfTag!) as ActionRunner<any, any, any>);
-      return yield* registerAction(type, id, input, run);
+      return yield* registerAction(type, id, input, run, captures);
     });
   };
 
@@ -203,26 +205,28 @@ const makeActionClass = (
     extra.Self = SelfTag;
     // `.make(initOrRun)` — accepts either a direct runner or an init Effect.
     // For init form we use `Layer.effect` so the init's Req surfaces on the
-    // Layer; for runners we use `Layer.succeed`.
-    extra.make = <R>(
-      initOrRun: ActionRunner<any, any, R> | ActionInit<any, any, R>,
-    ) =>
+    // Layer, and run it under the capture RuntimeContext so `yield* output`
+    // accessors are recorded just like the inline form; for runners we use
+    // `Layer.succeed` (nothing to capture).
+    extra.make = <R>(initOrRun: ActionRunner<any, any, R> | ActionInit<any, any, R>) =>
       isRunnerEffect(initOrRun)
-        ? Layer.effect(SelfTag, initOrRun as any)
+        ? Layer.effect(
+            SelfTag,
+            (initOrRun as ActionInit<any, any, R>).pipe(
+              Effect.provideService(RuntimeContext, captureContext),
+            ),
+          )
         : Layer.succeed(SelfTag, initOrRun as ActionRunner<any, any, any>);
   }
   return Object.assign(constructor, extra);
 };
 
-const registerAction = <
-  Type extends string,
-  In extends object | undefined,
-  Out,
->(
+const registerAction = <Type extends string, In extends object | undefined, Out>(
   type: Type,
   id: string,
   input: any,
   run: ActionRunner<In, Out, any>,
+  captures: Record<string, Output.Output>,
 ): Effect.Effect<Output.ToOutput<Out, never>, never, Stack> =>
   Effect.gen(function* () {
     const stack = yield* Stack;
@@ -231,20 +235,14 @@ const registerAction = <
 
     const actions = (stack.actions ??= {});
     const existing = actions[fqn];
-    if (existing)
-      return Output.of(existing as any) as unknown as Output.ToOutput<
-        Out,
-        never
-      >;
+    if (existing) return Output.of(existing as any) as unknown as Output.ToOutput<Out, never>;
 
     // FQN collision check: actions share the same FQN namespace as resources
     // so the dependency graph stays unified. Rejecting overlaps here makes
     // the constraint obvious at registration time.
     if (stack.resources[fqn]) {
       return yield* Effect.die(
-        new Error(
-          `Action '${fqn}' collides with a Resource of the same logical id`,
-        ),
+        new Error(`Action '${fqn}' collides with a Resource of the same logical id`),
       );
     }
 
@@ -255,6 +253,7 @@ const registerAction = <
       FQN: fqn,
       LogicalId: id,
       Input: input,
+      Captures: captures,
       Run: run,
       Output: undefined as any,
     };

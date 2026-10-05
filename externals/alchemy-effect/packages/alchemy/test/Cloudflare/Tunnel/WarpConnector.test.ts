@@ -1,23 +1,20 @@
+import * as zeroTrust from "@distilled.cloud/cloudflare/zero-trust";
+import { expect } from "alchemy-test";
+import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
+import { MinimumLogLevel } from "effect/References";
 import { adopt } from "@/AdoptPolicy";
 import * as Cloudflare from "@/Cloudflare";
 import { CloudflareEnvironment } from "@/Cloudflare/CloudflareEnvironment";
 import * as Provider from "@/Provider";
-import * as Test from "@/Test/Vitest";
-import * as zeroTrust from "@distilled.cloud/cloudflare/zero-trust";
-import { expect } from "@effect/vitest";
-import * as Effect from "effect/Effect";
-import * as Redacted from "effect/Redacted";
-import { MinimumLogLevel } from "effect/References";
+import * as Test from "@/Test/Alchemy";
 
 const { test } = Test.make({
   providers: Cloudflare.providers(),
   state: Cloudflare.state(),
 });
 
-const logLevel = Effect.provideService(
-  MinimumLogLevel,
-  process.env.DEBUG ? "Debug" : "Info",
-);
+const logLevel = Effect.provideService(MinimumLogLevel, process.env.DEBUG ? "Debug" : "Info");
 
 // Read a WARP Connector tunnel out-of-band, mapping "gone" (TunnelNotFound)
 // and soft-deleted tunnels to undefined.
@@ -28,7 +25,7 @@ const getLiveConnector = (accountId: string, tunnelId: string) =>
   );
 
 test.provider(
-  "create, rename in place, and destroy a WARP Connector tunnel",
+  "create, rename by replacement, and destroy a WARP Connector tunnel",
   (stack) =>
     Effect.gen(function* () {
       const { accountId } = yield* yield* CloudflareEnvironment;
@@ -54,7 +51,8 @@ test.provider(
       expect(live?.id).toEqual(connector.tunnelId);
       expect(live?.name).toEqual("alchemy-test-warp-connector");
 
-      // Rename converges in place — same tunnelId, no replacement.
+      // Cloudflare returns TunnelNotFound from the documented PATCH endpoint
+      // for a live connector, so changing the name replaces the tunnel.
       const renamed = yield* stack.deploy(
         Effect.gen(function* () {
           return yield* Cloudflare.Tunnel.WarpConnector("SiteA", {
@@ -62,25 +60,22 @@ test.provider(
           }).pipe(adopt(true));
         }),
       );
-      expect(renamed.tunnelId).toEqual(connector.tunnelId);
+      expect(renamed.tunnelId).not.toEqual(connector.tunnelId);
       expect(renamed.name).toEqual("alchemy-test-warp-connector-v2");
 
-      const renamedLive = yield* getLiveConnector(
-        accountId,
-        connector.tunnelId,
-      );
+      const renamedLive = yield* getLiveConnector(accountId, renamed.tunnelId);
       expect(renamedLive?.name).toEqual("alchemy-test-warp-connector-v2");
 
       yield* stack.destroy();
 
       // Cloudflare soft-deletes tunnels; gone = 404 or deletedAt set.
-      const afterDestroy = yield* getLiveConnector(
-        accountId,
-        connector.tunnelId,
-      );
+      const afterDestroy = yield* getLiveConnector(accountId, renamed.tunnelId);
       expect(afterDestroy).toBeUndefined();
     }).pipe(logLevel),
-  { timeout: 90_000 },
+  {
+    tags: ["provider:cloudflare", "provider:cloudflare:tunnel", "live"],
+    timeout: 90_000,
+  },
 );
 
 // Canonical `list()` test (account collection): deploy a WARP Connector
@@ -100,9 +95,7 @@ test.provider(
         }),
       );
 
-      const provider = yield* Provider.findProvider(
-        Cloudflare.Tunnel.WarpConnector,
-      );
+      const provider = yield* Provider.findProvider(Cloudflare.Tunnel.WarpConnector);
       const all = yield* provider.list();
 
       const found = all.find((t) => t.tunnelId === connector.tunnelId);
@@ -113,5 +106,8 @@ test.provider(
 
       yield* stack.destroy();
     }).pipe(logLevel),
-  { timeout: 90_000 },
+  {
+    tags: ["provider:cloudflare", "provider:cloudflare:tunnel", "live"],
+    timeout: 90_000,
+  },
 );

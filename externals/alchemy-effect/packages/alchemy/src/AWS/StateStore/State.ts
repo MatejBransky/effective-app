@@ -2,10 +2,10 @@ import type { Credentials } from "@distilled.cloud/aws/Credentials";
 import type { Region } from "@distilled.cloud/aws/Region";
 import * as s3 from "@distilled.cloud/aws/s3";
 import * as Effect from "effect/Effect";
+import type { HttpClient } from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import type { HttpClient } from "effect/unstable/http/HttpClient";
 import { CredentialsStoreLive } from "../../Auth/Credentials.ts";
 import { decodeFqn, encodeFqn } from "../../FQN.ts";
 import { STATE_STORE_VERSION } from "../../State/HttpStateApi.ts";
@@ -20,11 +20,9 @@ import { recordStateStoreInit } from "../../Telemetry/Metrics.ts";
 import { AwsAuth } from "../AuthProvider.ts";
 import * as AwsCredentials from "../Credentials.ts";
 import * as Endpoint from "../Endpoint.ts";
-import {
-  AWSEnvironment,
-  Default as DefaultEnvironment,
-} from "../Environment.ts";
+import { AWSEnvironment, Default as DefaultEnvironment } from "../Environment.ts";
 import * as AwsRegion from "../Region.ts";
+import { syncBucketEncryption, type BucketEncryption } from "../S3/Bucket.ts";
 
 /**
  * The bookkeeping object that stores a stack's resolved output. Lives
@@ -55,6 +53,15 @@ export interface S3StateOptions {
    * @default "" (bucket root)
    */
   prefix?: string;
+  /**
+   * Default encryption enforced on every fresh state-service initialization.
+   * Omission restores AES256, no KMS key, bucket keys disabled, and no blocked
+   * encryption types. Set `blockedEncryptionTypes: ["SSE-C"]` to block
+   * customer-provided keys. Existing encrypted state objects are not rewritten.
+   *
+   * @default `{ sseAlgorithm: "AES256", bucketKeyEnabled: false, blockedEncryptionTypes: [] }`
+   */
+  encryption?: BucketEncryption;
 }
 
 /** Context required by the distilled S3 operations. */
@@ -77,14 +84,13 @@ type S3Deps = Credentials | HttpClient | Region;
  * not already exist — nothing touches AWS credentials at layer
  * construction time.
  *
- * @resource
  *
- * @section Using the S3 State Store
+ * ### Using the S3 State Store
  * Pass `AWS.state()` as the `state` option of a Stack. By default the
  * state is stored in an account-regional bucket named
  * `alchemy-state-{accountId}-{region}-an`.
  *
- * @example Default bucket
+ * **Example:** Default bucket
  * ```typescript
  * import * as Alchemy from "alchemy";
  * import * as AWS from "alchemy/AWS";
@@ -98,7 +104,7 @@ type S3Deps = Credentials | HttpClient | Region;
  * );
  * ```
  *
- * @example Custom bucket and key prefix
+ * **Example:** Custom bucket and key prefix
  * ```typescript
  * const Stack = Alchemy.Stack(
  *   "my-stack",
@@ -107,6 +113,10 @@ type S3Deps = Credentials | HttpClient | Region;
  *     state: AWS.state({
  *       bucketName: "my-company-state",
  *       prefix: "alchemy",
+ *       encryption: {
+ *         sseAlgorithm: "aws:kms",
+ *         kmsMasterKeyId: "alias/alchemy-state",
+ *       },
  *     }),
  *   },
  *   Effect.gen(function* () {
@@ -114,6 +124,25 @@ type S3Deps = Credentials | HttpClient | Region;
  *   }),
  * );
  * ```
+ *
+ * ### Managing SSE-C Restrictions
+ * **Example:** Block customer-provided encryption keys on the state bucket
+ * ```typescript
+ * const stateStore = AWS.state({
+ *   encryption: {
+ *     sseAlgorithm: "AES256",
+ *     blockedEncryptionTypes: ["SSE-C"],
+ *   },
+ * });
+ * ```
+ *
+ * Omitted `blockedEncryptionTypes` is equivalent to `[]`: no encryption types
+ * are blocked, so SSE-C writes are permitted via AWS's `NONE` value. Removing
+ * an explicit block clears it. Omitting `encryption` restores AES256, no KMS
+ * key, disabled bucket keys, and no encryption restrictions. Existing objects
+ * are not rewritten.
+ *
+ * @resource
  */
 export const state = (options: S3StateOptions = {}) =>
   Layer.effect(
@@ -150,16 +179,11 @@ export const makeS3State = (options: S3StateOptions = {}) =>
   Effect.gen(function* () {
     const context = yield* Effect.context<S3Deps | AWSEnvironment>();
 
-    const prefix = options.prefix
-      ? `${options.prefix.replace(/\/+$/, "")}/`
-      : "";
+    const prefix = options.prefix ? `${options.prefix.replace(/\/+$/, "")}/` : "";
 
     const toError = (cause: unknown) =>
       new StateStoreError({
-        message:
-          cause instanceof Error
-            ? cause.message
-            : `S3 state store error: ${String(cause)}`,
+        message: cause instanceof Error ? cause.message : `S3 state store error: ${String(cause)}`,
         cause: cause instanceof Error ? cause : undefined,
       });
 
@@ -173,9 +197,8 @@ export const makeS3State = (options: S3StateOptions = {}) =>
     const bucket = yield* Effect.cached(
       Effect.gen(function* () {
         const { accountId, region } = yield* AWSEnvironment.current;
-        const bucketName =
-          options.bucketName ?? createStateBucketName(accountId, region);
-        yield* ensureStateBucket(bucketName, region);
+        const bucketName = options.bucketName ?? createStateBucketName(accountId, region);
+        yield* ensureStateBucket(bucketName, region, options);
         return bucketName;
       }).pipe(Effect.provideContext(context), Effect.mapError(toError)),
     );
@@ -187,21 +210,15 @@ export const makeS3State = (options: S3StateOptions = {}) =>
     ): Effect.Effect<A, StateStoreError> =>
       bucket.pipe(
         Effect.flatMap((bucket) =>
-          f(bucket).pipe(
-            Effect.provideContext(context),
-            Effect.mapError(toError),
-          ),
+          f(bucket).pipe(Effect.provideContext(context), Effect.mapError(toError)),
         ),
       );
 
     const stagePrefix = ({ stack, stage }: { stack: string; stage: string }) =>
       `${prefix}${stack}/${stage}/`;
 
-    const resourceKey = (request: {
-      stack: string;
-      stage: string;
-      fqn: string;
-    }) => `${stagePrefix(request)}${encodeFqn(request.fqn)}.json`;
+    const resourceKey = (request: { stack: string; stage: string; fqn: string }) =>
+      `${stagePrefix(request)}${encodeFqn(request.fqn)}.json`;
 
     const outputKey = (request: { stack: string; stage: string }) =>
       `${stagePrefix(request)}${OUTPUT_FILE}`;
@@ -221,19 +238,15 @@ export const makeS3State = (options: S3StateOptions = {}) =>
      * S3 CommonPrefixes (delimiter `/`), across pagination.
      */
     const listChildren = (bucket: string, keyPrefix: string) =>
-      s3.listObjectsV2
-        .pages({ Bucket: bucket, Prefix: keyPrefix, Delimiter: "/" })
-        .pipe(
-          Stream.flatMap((page) =>
-            Stream.fromIterable(page.CommonPrefixes ?? []),
-          ),
-          // `{keyPrefix}{name}/` -> `{name}`
-          Stream.map((common) => common.Prefix),
-          Stream.filter((p): p is string => p !== undefined),
-          Stream.map((p) => p.slice(keyPrefix.length, -1)),
-          Stream.runCollect,
-          Effect.map((names) => Array.from(names)),
-        );
+      s3.listObjectsV2.pages({ Bucket: bucket, Prefix: keyPrefix, Delimiter: "/" }).pipe(
+        Stream.flatMap((page) => Stream.fromIterable(page.CommonPrefixes ?? [])),
+        // `{keyPrefix}{name}/` -> `{name}`
+        Stream.map((common) => common.Prefix),
+        Stream.filter((p): p is string => p !== undefined),
+        Stream.map((p) => p.slice(keyPrefix.length, -1)),
+        Stream.runCollect,
+        Effect.map((names) => Array.from(names)),
+      );
 
     /** Read and revive a JSON object; `undefined` when the key is absent. */
     const readJson = <T>(bucket: string, key: string) =>
@@ -273,9 +286,7 @@ export const makeS3State = (options: S3StateOptions = {}) =>
           yield* s3.deleteObjects({
             Bucket: bucket,
             Delete: {
-              Objects: keys
-                .slice(i, i + DELETE_BATCH_SIZE)
-                .map((Key) => ({ Key })),
+              Objects: keys.slice(i, i + DELETE_BATCH_SIZE).map((Key) => ({ Key })),
               Quiet: true,
             },
           });
@@ -286,10 +297,8 @@ export const makeS3State = (options: S3StateOptions = {}) =>
       id: "s3",
       getVersion: () => Effect.succeed(STATE_STORE_VERSION),
       listStacks: () => run((bucket) => listChildren(bucket, prefix)),
-      listStages: (stack: string) =>
-        run((bucket) => listChildren(bucket, `${prefix}${stack}/`)),
-      get: (request) =>
-        run((bucket) => readJson<PersistedState>(bucket, resourceKey(request))),
+      listStages: (stack: string) => run((bucket) => listChildren(bucket, `${prefix}${stack}/`)),
+      get: (request) => run((bucket) => readJson<PersistedState>(bucket, resourceKey(request))),
       getReplacedResources: Effect.fn(function* (request) {
         return (yield* Effect.all(
           (yield* state.list(request)).map((fqn) =>
@@ -302,20 +311,18 @@ export const makeS3State = (options: S3StateOptions = {}) =>
         )).filter((r) => r?.status === "replaced");
       }),
       set: (request) =>
-        run((bucket) =>
-          writeJson(bucket, resourceKey(request), request.value),
-        ).pipe(Effect.map(() => request.value)),
+        run((bucket) => writeJson(bucket, resourceKey(request), request.value)).pipe(
+          Effect.map(() => request.value),
+        ),
       delete: (request) =>
-        run((bucket) =>
-          s3.deleteObject({ Bucket: bucket, Key: resourceKey(request) }),
-        ).pipe(Effect.asVoid),
+        run((bucket) => s3.deleteObject({ Bucket: bucket, Key: resourceKey(request) })).pipe(
+          Effect.asVoid,
+        ),
       deleteStack: ({ stack, stage }) =>
         run((bucket) =>
           deleteAll(
             bucket,
-            stage === undefined
-              ? `${prefix}${stack}/`
-              : stagePrefix({ stack, stage }),
+            stage === undefined ? `${prefix}${stack}/` : stagePrefix({ stack, stage }),
           ),
         ),
       list: (request) =>
@@ -332,12 +339,11 @@ export const makeS3State = (options: S3StateOptions = {}) =>
               .map((file) => decodeFqn(file.replace(/\.json$/, ""))),
           ),
         ),
-      getOutput: (request) =>
-        run((bucket) => readJson(bucket, outputKey(request))),
+      getOutput: (request) => run((bucket) => readJson(bucket, outputKey(request))),
       setOutput: (request) =>
-        run((bucket) =>
-          writeJson(bucket, outputKey(request), request.value),
-        ).pipe(Effect.map(() => request.value)),
+        run((bucket) => writeJson(bucket, outputKey(request), request.value)).pipe(
+          Effect.map(() => request.value),
+        ),
     };
     return state;
   });
@@ -357,7 +363,7 @@ export const createStateBucketName = (accountId: string, region: string) =>
  * Observe-then-ensure the state bucket: head it, create it if missing
  * (tolerating create races), and wait for it to become available.
  */
-const ensureStateBucket = (bucket: string, region: string) =>
+const ensureStateBucket = (bucket: string, region: string, options: S3StateOptions) =>
   Effect.gen(function* () {
     // An absent bucket surfaces as either `NotFound` (the HEAD 404) or
     // `NoSuchBucket` depending on the namespace/path — treat both as "create
@@ -365,60 +371,107 @@ const ensureStateBucket = (bucket: string, region: string) =>
     // nuke) escape as an uncaught `NoSuchBucket` instead of being recreated.
     const exists = yield* s3.headBucket({ Bucket: bucket }).pipe(
       Effect.map(() => true),
-      Effect.catchTag(["NotFound", "NoSuchBucket"], () =>
-        Effect.succeed(false),
-      ),
+      Effect.catchTag(["NotFound", "NoSuchBucket"], () => Effect.succeed(false)),
     );
-    if (exists) {
-      return;
+    if (!exists) {
+      yield* Effect.logInfo(`S3 state store: creating bucket ${bucket} in ${region}`);
+      yield* s3
+        .createBucket({
+          Bucket: bucket,
+          // account-regional namespace: the bucket name only needs to be
+          // unique within this account+region, so deterministic default
+          // names can't collide with other AWS customers.
+          BucketNamespace: "account-regional",
+          // us-east-1 rejects an explicit LocationConstraint
+          ...(region === "us-east-1"
+            ? {}
+            : {
+                CreateBucketConfiguration: {
+                  LocationConstraint: region as s3.BucketLocationConstraint,
+                },
+              }),
+        })
+        .pipe(
+          // Many callers race to create the shared default state bucket on
+          // first use. The loser sees the create already done
+          // (`BucketAlreadyOwnedByYou`/`BucketAlreadyExists`) or mid-flight
+          // (`OperationAborted`). All mean "someone else is creating it".
+          Effect.catchTag(
+            ["BucketAlreadyOwnedByYou", "BucketAlreadyExists", "OperationAborted"],
+            () => Effect.void,
+          ),
+        );
+
+      // Wait for the bucket to become available. Under a concurrent create
+      // the bucket is briefly not yet head-able and object/configuration ops
+      // would race ahead of it.
+      yield* s3.headBucket({ Bucket: bucket }).pipe(
+        Effect.retry({
+          while: (error) => error._tag === "NotFound" || error._tag === "NoSuchBucket",
+          schedule: Schedule.max([Schedule.spaced("1 second"), Schedule.recurs(10)]),
+        }),
+      );
     }
 
-    yield* Effect.logInfo(
-      `S3 state store: creating bucket ${bucket} in ${region}`,
-    );
-    yield* s3
-      .createBucket({
+    // Secure defaults are reconciled for BOTH newly-created and existing
+    // buckets. This makes AWS.state converge out-of-band drift and explicit
+    // custom buckets rather than only securing the greenfield path.
+    const desiredVersioning = "Enabled";
+    const observedVersioning = yield* s3.getBucketVersioning({
+      Bucket: bucket,
+    });
+    if (observedVersioning.Status !== desiredVersioning) {
+      yield* s3.putBucketVersioning({
         Bucket: bucket,
-        // account-regional namespace: the bucket name only needs to be
-        // unique within this account+region, so deterministic default
-        // names can't collide with other AWS customers.
-        BucketNamespace: "account-regional",
-        // us-east-1 rejects an explicit LocationConstraint
-        ...(region === "us-east-1"
-          ? {}
-          : {
-              CreateBucketConfiguration: {
-                LocationConstraint: region as s3.BucketLocationConstraint,
-              },
-            }),
-      })
-      .pipe(
-        // Many callers race to create the shared default state bucket on first
-        // use. The loser sees the create already done
-        // (`BucketAlreadyOwnedByYou`/`BucketAlreadyExists`) or mid-flight
-        // (`OperationAborted` — "a conflicting conditional operation is in
-        // progress"). All mean "someone else is creating it" — fall through to
-        // the readiness wait.
-        Effect.catchTag(
-          [
-            "BucketAlreadyOwnedByYou",
-            "BucketAlreadyExists",
-            "OperationAborted",
-          ],
-          () => Effect.void,
-        ),
-      );
+        VersioningConfiguration: { Status: desiredVersioning },
+      });
+    }
 
-    // Wait for the bucket to become available. Under a concurrent create the
-    // bucket is briefly not yet head-able (NotFound/NoSuchBucket) and object
-    // ops would race ahead of it — keep polling until HEAD succeeds.
-    yield* s3
-      .headBucket({ Bucket: bucket })
-      .pipe(
-        Effect.retry(
-          Schedule.max([Schedule.spaced("1 second"), Schedule.recurs(15)]),
-        ),
-      );
+    yield* syncBucketEncryption(bucket, options.encryption);
+
+    const desiredPublicAccess: s3.PublicAccessBlockConfiguration = {
+      BlockPublicAcls: true,
+      IgnorePublicAcls: true,
+      BlockPublicPolicy: true,
+      RestrictPublicBuckets: true,
+    };
+    const observedPublicAccess = yield* s3.getPublicAccessBlock({ Bucket: bucket }).pipe(
+      Effect.map((result) => result.PublicAccessBlockConfiguration),
+      Effect.catchTag("NoSuchPublicAccessBlockConfiguration", () =>
+        Effect.succeed<s3.PublicAccessBlockConfiguration | undefined>(undefined),
+      ),
+    );
+    const publicAccessFingerprint = (config: s3.PublicAccessBlockConfiguration | undefined) =>
+      JSON.stringify({
+        blockAcls: config?.BlockPublicAcls ?? false,
+        ignoreAcls: config?.IgnorePublicAcls ?? false,
+        blockPolicy: config?.BlockPublicPolicy ?? false,
+        restrictBuckets: config?.RestrictPublicBuckets ?? false,
+      });
+    if (
+      publicAccessFingerprint(observedPublicAccess) !== publicAccessFingerprint(desiredPublicAccess)
+    ) {
+      yield* s3.putPublicAccessBlock({
+        Bucket: bucket,
+        PublicAccessBlockConfiguration: desiredPublicAccess,
+      });
+    }
+
+    const desiredOwnership = "BucketOwnerEnforced";
+    const observedOwnership = yield* s3.getBucketOwnershipControls({ Bucket: bucket }).pipe(
+      Effect.map((result) => result.OwnershipControls?.Rules?.[0]?.ObjectOwnership),
+      Effect.catchTag("OwnershipControlsNotFoundError", () =>
+        Effect.succeed<string | undefined>(undefined),
+      ),
+    );
+    if (observedOwnership !== desiredOwnership) {
+      yield* s3.putBucketOwnershipControls({
+        Bucket: bucket,
+        OwnershipControls: {
+          Rules: [{ ObjectOwnership: desiredOwnership }],
+        },
+      });
+    }
   }).pipe(
     // The whole observe→create→wait sequence races other first-callers of the
     // shared bucket; `OperationAborted` (conflicting create) and a transiently
@@ -427,12 +480,7 @@ const ensureStateBucket = (bucket: string, region: string) =>
     // converges instead of surfacing as a `StateStoreError`.
     Effect.retry({
       while: (e) =>
-        e._tag === "OperationAborted" ||
-        e._tag === "NoSuchBucket" ||
-        e._tag === "NotFound",
-      schedule: Schedule.max([
-        Schedule.spaced("2 seconds"),
-        Schedule.recurs(10),
-      ]),
+        e._tag === "OperationAborted" || e._tag === "NoSuchBucket" || e._tag === "NotFound",
+      schedule: Schedule.max([Schedule.spaced("2 seconds"), Schedule.recurs(10)]),
     }),
   );

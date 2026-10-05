@@ -1,32 +1,25 @@
+import * as emailRouting from "@distilled.cloud/cloudflare/email-routing";
+import { describe, expect } from "alchemy-test";
+import * as Effect from "effect/Effect";
+import { MinimumLogLevel } from "effect/References";
+import * as Schedule from "effect/Schedule";
 import * as Cloudflare from "@/Cloudflare";
 import { CloudflareEnvironment } from "@/Cloudflare/CloudflareEnvironment";
 import { findZoneByName } from "@/Cloudflare/Zone/lookup";
 import * as Provider from "@/Provider";
-import * as Test from "@/Test/Vitest";
-import * as emailRouting from "@distilled.cloud/cloudflare/email-routing";
-import { expect } from "@effect/vitest";
-import * as Effect from "effect/Effect";
-import { MinimumLogLevel } from "effect/References";
-import * as Schedule from "effect/Schedule";
-import { describe } from "vitest";
-
+import * as Test from "@/Test/Alchemy";
+import { emailRoutingScoped } from "./scope.ts";
 const { test } = Test.make({ providers: Cloudflare.providers() });
 
-const logLevel = Effect.provideService(
-  MinimumLogLevel,
-  process.env.DEBUG ? "Debug" : "Info",
-);
+const logLevel = Effect.provideService(MinimumLogLevel, process.env.DEBUG ? "Debug" : "Info");
 
-const zoneName =
-  process.env.CLOUDFLARE_TEST_DNS_ZONE_NAME ?? "alchemy-test-2.us";
+const zoneName = process.env.CLOUDFLARE_TEST_DNS_ZONE_NAME ?? "alchemy-test-2.us";
 
 const resolveZoneId = Effect.gen(function* () {
   const { accountId } = yield* yield* CloudflareEnvironment;
   const zone = yield* findZoneByName({ accountId, name: zoneName });
   if (!zone) {
-    return yield* Effect.die(
-      new Error(`zone "${zoneName}" not found in account`),
-    );
+    return yield* Effect.die(new Error(`zone "${zoneName}" not found in account`));
   }
   return zone.id;
 });
@@ -41,7 +34,7 @@ const forbiddenRetrySchedule = Schedule.exponential("500 millis");
 // Email Routing must be enabled on the zone for rules to be created and
 // visible to `list()`.
 const enableRouting = (zoneId: string) =>
-  emailRouting.enableEmailRouting({ zoneId, body: {} }).pipe(
+  emailRouting.enableEmailRouting({ zoneId }).pipe(
     Effect.retry({
       while: (e) => e._tag === "Forbidden",
       schedule: forbiddenRetrySchedule,
@@ -49,16 +42,19 @@ const enableRouting = (zoneId: string) =>
     }),
   );
 
-describe.sequential("EmailRule", () => {
-  // Canonical `list()` test (zone-scoped collection): email routing rules live
-  // under `/zones/{id}/email/routing/rules` with no account-wide enumeration
-  // API, so `list()` enumerates every zone via `listAllZones` and exhaustively
-  // paginates each zone's rules (skipping zones without Email Routing enabled).
-  // Deploy a rule on the standing test zone, then assert it appears in the
-  // exhaustively-paginated result.
-  test.provider(
-    "list enumerates the deployed email rule across all zones",
-    (stack) =>
+describe.sequential.skipIf(!emailRoutingScoped)(
+  "EmailRule",
+  {
+    tags: ["provider:cloudflare", "provider:cloudflare:email", "provider:cloudflare:zone", "live"],
+  },
+  () => {
+    // Canonical `list()` test (zone-scoped collection): email routing rules live
+    // under `/zones/{id}/email/routing/rules` with no account-wide enumeration
+    // API, so `list()` enumerates every zone via `listAllZones` and exhaustively
+    // paginates each zone's rules (skipping zones without Email Routing enabled).
+    // Deploy a rule on the standing test zone, then assert it appears in the
+    // exhaustively-paginated result.
+    test.provider("list enumerates the deployed email rule across all zones", (stack) =>
       Effect.gen(function* () {
         const zoneId = yield* resolveZoneId;
 
@@ -67,19 +63,11 @@ describe.sequential("EmailRule", () => {
 
         const rule = yield* stack.deploy(
           Effect.gen(function* () {
-            const routing = yield* Cloudflare.Email.Routing("Routing", {
-              zone: zoneName,
-            });
+            const routing = yield* Cloudflare.Email.Routing("Routing", { zone: zoneName });
             return yield* Cloudflare.Email.Rule("ListRule", {
               zone: { zoneId: routing.zoneId },
               name: "alchemy list test",
-              matchers: [
-                {
-                  type: "literal",
-                  field: "to",
-                  value: "list@alchemy-test-2.us",
-                },
-              ],
+              matchers: [{ type: "literal", field: "to", value: "list@alchemy-test-2.us" }],
               actions: [{ type: "drop" }],
             });
           }),
@@ -110,5 +98,6 @@ describe.sequential("EmailRule", () => {
 
         yield* stack.destroy();
       }).pipe(logLevel),
-  );
-});
+    );
+  },
+);

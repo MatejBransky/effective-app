@@ -4,8 +4,8 @@ import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-
 import { Unowned } from "../../AdoptPolicy.ts";
+import { isResolved } from "../../Diff.ts";
 import { createPhysicalName } from "../../PhysicalName.ts";
 import * as Provider from "../../Provider.ts";
 import { Resource } from "../../Resource.ts";
@@ -19,7 +19,7 @@ export interface WarpConnectorProps {
   /**
    * User-friendly name for the WARP Connector tunnel. Tunnel names are
    * unique per account, which makes the name the resource's identity
-   * during adoption and state recovery. Mutable — patched in place.
+   * during adoption and state recovery. Changing it replaces the tunnel.
    *
    * @default ${app}-${stage}-${id}
    */
@@ -64,11 +64,8 @@ export type WarpConnector = Resource<
  * host joins it at runtime using the `token` attribute. Pair with
  * {@link Route} to route private CIDRs through the connector and
  * {@link VirtualNetwork} to isolate overlapping address space.
- * @resource
- * @product Tunnels
- * @category Cloudflare One (Zero Trust)
- * @section Creating a WARP Connector
- * @example Basic WARP Connector tunnel
+ * ### Creating a WARP Connector
+ * **Example:** Basic WARP Connector tunnel
  * ```typescript
  * const connector = yield* Cloudflare.Tunnel.WarpConnector("SiteA", {
  *   name: "site-a-connector",
@@ -76,7 +73,7 @@ export type WarpConnector = Resource<
  * // Provision the host with: warp-cli connector new <Redacted.value(connector.token)>
  * ```
  *
- * @example Route a private network through the connector
+ * **Example:** Route a private network through the connector
  * ```typescript
  * yield* Cloudflare.Tunnel.Route("SiteANet", {
  *   tunnelId: connector.tunnelId,
@@ -84,16 +81,20 @@ export type WarpConnector = Resource<
  * });
  * ```
  *
- * @section Renaming
- * @example Rename in place
+ * ### Renaming
+ * **Example:** Replace with a new name
  * ```typescript
- * // Renaming patches the existing tunnel — same tunnelId, no replacement.
+ * // Renaming creates a new tunnel with a new tunnelId.
  * const connector = yield* Cloudflare.Tunnel.WarpConnector("SiteA", {
  *   name: "site-a-connector-v2",
  * });
  * ```
  *
  * @see https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/private-net/warp-connector/
+ *
+ * @resource
+ * @product Tunnels
+ * @category Cloudflare One (Zero Trust)
  */
 export const WarpConnector = Resource<WarpConnector>(TypeId);
 
@@ -107,12 +108,14 @@ export const WarpConnectorProvider = () =>
   Provider.succeed(WarpConnector, {
     stables: ["tunnelId", "accountId", "createdAt"],
 
-    diff: Effect.fn(function* ({ output }) {
+    diff: Effect.fn(function* ({ olds, news, output }) {
       const { accountId } = yield* yield* CloudflareEnvironment;
       if ((output?.accountId ?? accountId) !== accountId) {
         return { action: "replace" } as const;
       }
-      // name converges via PATCH.
+      if (isResolved(news) && olds !== undefined && olds.name !== news.name) {
+        return { action: "replace" } as const;
+      }
       return undefined;
     }),
 
@@ -175,9 +178,7 @@ export const WarpConnectorProvider = () =>
       const name = yield* resolveName(id, news.name);
 
       // 1. Observe — the cached id is a hint, not a guarantee.
-      let observed = output?.tunnelId
-        ? yield* getConnector(accountId, output.tunnelId)
-        : undefined;
+      let observed = output?.tunnelId ? yield* getConnector(accountId, output.tunnelId) : undefined;
       if (!observed) {
         observed = yield* findByName(accountId, name);
       }
@@ -225,9 +226,9 @@ export const WarpConnectorProvider = () =>
   });
 
 interface ObservedConnector {
-  id?: string | null;
+  id?: string;
   name?: string | null;
-  status?: string | null;
+  status?: "inactive" | "degraded" | "healthy" | "down" | null;
   createdAt?: string | null;
   deletedAt?: string | null;
 }
@@ -238,9 +239,7 @@ interface ObservedConnector {
  */
 const getConnector = (accountId: string, tunnelId: string) =>
   zeroTrust.getTunnelWarpConnector({ accountId, tunnelId }).pipe(
-    Effect.map((t): ObservedConnector | undefined =>
-      t.deletedAt ? undefined : t,
-    ),
+    Effect.map((t): ObservedConnector | undefined => (t.deletedAt ? undefined : t)),
     Effect.catchTag("TunnelNotFound", () => Effect.succeed(undefined)),
   );
 
@@ -249,16 +248,14 @@ const getConnector = (accountId: string, tunnelId: string) =>
  * unique per account so at most one live tunnel can match.
  */
 const findByName = (accountId: string, name: string) =>
-  zeroTrust.listTunnelWarpConnectors
-    .items({ accountId, name, isDeleted: false })
-    .pipe(
-      Stream.filter(
-        (t): t is ObservedConnector & { id: string } =>
-          t.name === name && !t.deletedAt && typeof t.id === "string",
-      ),
-      Stream.runHead,
-      Effect.map(Option.getOrUndefined),
-    );
+  zeroTrust.listTunnelWarpConnectors.items({ accountId, name, isDeleted: false }).pipe(
+    Stream.filter(
+      (t): t is ObservedConnector & { id: string } =>
+        t.name === name && !t.deletedAt && typeof t.id === "string",
+    ),
+    Stream.runHead,
+    Effect.map(Option.getOrUndefined),
+  );
 
 const resolveName = (id: string, name: string | undefined) =>
   Effect.gen(function* () {
@@ -266,10 +263,7 @@ const resolveName = (id: string, name: string | undefined) =>
     return yield* createPhysicalName({ id, lowercase: true });
   });
 
-const toAttributes = Effect.fn(function* (
-  tunnel: ObservedConnector,
-  accountId: string,
-) {
+const toAttributes = Effect.fn(function* (tunnel: ObservedConnector, accountId: string) {
   const token = yield* zeroTrust.getTunnelWarpConnectorToken({
     accountId,
     tunnelId: tunnel.id!,

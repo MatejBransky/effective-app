@@ -33,11 +33,29 @@ export interface Invalidation extends Resource<
   "AWS.CloudFront.Invalidation",
   InvalidationProps,
   {
+    /**
+     * The identifier of the invalidation batch.
+     */
     invalidationId: string;
+    /**
+     * The distribution the invalidation ran against.
+     */
     distributionId: string;
+    /**
+     * The version prop that triggered this invalidation batch.
+     */
     version: string;
+    /**
+     * Current status of the invalidation (`InProgress` or `Completed`).
+     */
     status: string;
+    /**
+     * The path patterns that were invalidated.
+     */
     paths: string[];
+    /**
+     * When the invalidation batch was created.
+     */
     createTime: Date | undefined;
   },
   never,
@@ -49,25 +67,22 @@ export interface Invalidation extends Resource<
  *
  * `Invalidation` is a helper resource for website deployments that need to
  * clear selected CloudFront cache paths after asset updates.
- * @resource
- * @section Creating Invalidations
- * @example Invalidate The Entire Distribution
+ * ### Creating Invalidations
+ * **Example:** Invalidate The Entire Distribution
  * ```typescript
  * const invalidation = yield* Invalidation("WebsiteInvalidation", {
  *   distributionId: distribution.distributionId,
  *   version: files.version,
  * });
  * ```
+ *
+ * @resource
  */
-export const Invalidation = Resource<Invalidation>(
-  "AWS.CloudFront.Invalidation",
-);
+export const Invalidation = Resource<Invalidation>("AWS.CloudFront.Invalidation");
 
 const defaultPaths = ["/*"];
 
-class InvalidationInProgress extends Data.TaggedError(
-  "InvalidationInProgress",
-)<{
+class InvalidationInProgress extends Data.TaggedError("InvalidationInProgress")<{
   message: string;
 }> {}
 
@@ -110,17 +125,12 @@ export const InvalidationProvider = () =>
             ),
             Effect.retry({
               while: (error) => error._tag === "InvalidationInProgress",
-              schedule: Schedule.max([
-                Schedule.fixed("2 seconds"),
-                Schedule.recurs(120),
-              ]),
+              schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(120)]),
             }),
           );
       });
 
-      const createInvalidation = Effect.fn(function* (
-        props: InvalidationProps,
-      ) {
+      const createInvalidation = Effect.fn(function* (props: InvalidationProps) {
         yield* Effect.logInfo(
           `CloudFront Invalidation create: distribution=${props.distributionId} version=${props.version} paths=${(props.paths ?? defaultPaths).length} wait=${props.wait ?? false}`,
         );
@@ -139,16 +149,11 @@ export const InvalidationProvider = () =>
           `CloudFront Invalidation create: created ${response.Invalidation?.Id ?? "missing"} status=${response.Invalidation?.Status ?? "unknown"}`,
         );
         const invalidation = props.wait
-          ? yield* waitForCompletion(
-              props.distributionId,
-              response.Invalidation?.Id!,
-            )
+          ? yield* waitForCompletion(props.distributionId, response.Invalidation?.Id!)
           : response.Invalidation;
 
         if (!invalidation?.Id) {
-          return yield* Effect.fail(
-            new Error("createInvalidation returned no invalidation"),
-          );
+          return yield* Effect.fail(new Error("createInvalidation returned no invalidation"));
         }
 
         return invalidation;
@@ -168,10 +173,7 @@ export const InvalidationProvider = () =>
           yield* Effect.logInfo(
             `CloudFront Invalidation diff: oldDistribution=${olds.distributionId} newDistribution=${news.distributionId} oldVersion=${olds.version} newVersion=${news.version}`,
           );
-          if (
-            olds.distributionId !== news.distributionId ||
-            olds.version !== news.version
-          ) {
+          if (olds.distributionId !== news.distributionId || olds.version !== news.version) {
             yield* Effect.logInfo(
               `CloudFront Invalidation diff: replacing invalidation for distribution=${news.distributionId}`,
             );

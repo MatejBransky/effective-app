@@ -14,12 +14,12 @@ export default class NotifyWorkflow extends Cloudflare.Workflow<NotifyWorkflow>(
   "Notifier",
   Effect.gen(function* () {
     // Bind a `secret_text` on the workflow at plantime. Using a literal
-    // (instead of `Config.redacted("WORKFLOW_SECRET")`) keeps the integ
+    // (instead of `Config.Redacted("WORKFLOW_SECRET")`) keeps the integ
     // test self-contained — no `.env` setup required.
-    const secret = yield* Config.redacted("WORKFLOW_SECRET").pipe(
+    const secret = yield* Config.Redacted("WORKFLOW_SECRET").pipe(
       Config.withDefault(Redacted.make(WORKFLOW_SECRET_VALUE)),
     );
-    // Regression guard for https://github.com/alchemy-run/alchemy-effect/pull/71
+    // Regression guard for https://github.com/alchemy-run/alchemy/pull/71
     //
     // The kv binding internally yields `Cloudflare.Workers.WorkerEnvironment` —
     // before that PR, accessing `WorkerEnvironment` inside a workflow body
@@ -40,9 +40,7 @@ export default class NotifyWorkflow extends Cloudflare.Workflow<NotifyWorkflow>(
           const got = yield* kv.get(key);
           if (got !== message) {
             return yield* Effect.die(
-              new Error(
-                `KV roundtrip mismatch: expected "${message}", got "${got ?? "null"}"`,
-              ),
+              new Error(`KV roundtrip mismatch: expected "${message}", got "${got ?? "null"}"`),
             );
           }
           return got;

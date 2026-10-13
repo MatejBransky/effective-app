@@ -11,6 +11,7 @@ import mdx from "@astrojs/mdx";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
+import type { StarlightPlugin } from "@astrojs/starlight/types";
 import tailwindcss from "@tailwindcss/vite";
 import type { AstroIntegration } from "astro";
 import { defineConfig } from "astro/config";
@@ -40,6 +41,7 @@ function providersSidebarEntry() {
       { label: "Railway", link: "/railway" },
       { label: "PlanetScale", link: "/planetscale" },
       { label: "Neon", link: "/neon" },
+      { label: "Turso", link: "/turso" },
       { label: "Prisma", link: "/prisma" },
       { label: "Better Auth", link: "/better-auth" },
       { label: "Axiom", link: "/axiom" },
@@ -125,11 +127,12 @@ function providerApiReferenceEntry(...providers: string[]) {
  */
 /**
  * Dev only: hand-written docs (`.md`/`.mdx`) are editable in the browser.
- * Generated reference pages are edited through their JSDoc instead.
+ * Generated reference pages are edited through their JSDoc instead, and blog
+ * posts aren't editable (in-place editing breaks selecting and copying text).
  */
 const markdownCopy: MarkdownFilesOptions = {
   root: fileURLToPath(new URL(".", import.meta.url)),
-  exclude: /\/src\/content\/docs\/providers\//,
+  exclude: /\/src\/content\/docs\/(providers|blog)\//,
   style: JSDOC_COPY_STYLE,
 };
 
@@ -211,6 +214,26 @@ function copyMarkdownSources(): AstroIntegration {
   };
 }
 
+/**
+ * Registered after starlight-blog so it replaces the blog's MarkdownContent
+ * override (which ours wraps) instead of tripping its conflict warning.
+ */
+function markdownContentOverride(): StarlightPlugin {
+  return {
+    name: "markdown-content-override",
+    hooks: {
+      "config:setup": ({ config, updateConfig }) => {
+        updateConfig({
+          components: {
+            ...config.components,
+            MarkdownContent: "./src/components/starlight/MarkdownContent.astro",
+          },
+        });
+      },
+    },
+  };
+}
+
 export default defineConfig({
   site: "https://alchemy.run",
   redirects: {
@@ -221,6 +244,8 @@ export default defineConfig({
     "/better-auth/database-layers": "/better-auth/databases",
     "/better-auth/migrations": "/better-auth/guides/migrations",
     "/better-auth/upgrading": "/better-auth/upgrades/from-1-6-to-1-7",
+    // The Birthday Week post was published as beta.82, then re-released as beta.83.
+    "/blog/2026-10-12-beta-82": "/blog/2026-10-12-beta-83",
   },
   prefetch: true,
   devToolbar: { enabled: false },
@@ -252,7 +277,6 @@ export default defineConfig({
         Header: "./src/components/starlight/Header.astro",
         Head: "./src/components/starlight/Head.astro",
         Sidebar: "./src/components/starlight/Sidebar.astro",
-        MarkdownContent: "./src/components/starlight/MarkdownContent.astro",
       },
       prerender: true,
       social: [
@@ -551,6 +575,10 @@ export default defineConfig({
                   link: "/cloudflare/compute/hibernatable-websockets",
                 },
                 { label: "Containers", link: "/cloudflare/compute/containers" },
+                {
+                  label: "Container lifecycle",
+                  link: "/cloudflare/compute/container-lifecycle",
+                },
                 { label: "Workflows", link: "/cloudflare/compute/workflows" },
               ],
             },
@@ -622,6 +650,10 @@ export default defineConfig({
                   link: "/cloudflare/data/r2-presigned-urls",
                 },
                 { label: "Hyperdrive", link: "/cloudflare/data/hyperdrive" },
+                {
+                  label: "Private database (Workers VPC)",
+                  link: "/cloudflare/data/hyperdrive-private-database",
+                },
                 { label: "Drizzle ORM", link: "/cloudflare/data/drizzle" },
                 { label: "Prisma ORM", link: "/cloudflare/data/prisma" },
                 { label: "Drizzle on D1", link: "/cloudflare/data/d1-drizzle" },
@@ -634,12 +666,15 @@ export default defineConfig({
                   link: "/cloudflare/data/branch-from-shared-database",
                 },
                 { label: "Artifacts", link: "/cloudflare/data/artifacts" },
+                { label: "Pipelines", link: "/cloudflare/data/pipelines" },
+                { label: "Iceberg tables", link: "/cloudflare/data/iceberg-tables" },
               ],
             },
             {
               label: "Messaging & events",
               items: [
                 { label: "Queues", link: "/cloudflare/messaging/queues" },
+                { label: "K2 streams", link: "/cloudflare/messaging/k2" },
                 { label: "Cron triggers", link: "/cloudflare/messaging/cron" },
                 {
                   label: "GitHub events",
@@ -715,6 +750,10 @@ export default defineConfig({
                 {
                   label: "Custom domains & routes",
                   link: "/cloudflare/networking/custom-domains",
+                },
+                {
+                  label: "Federated APIs",
+                  link: "/cloudflare/networking/federated-apis",
                 },
                 { label: "Tunnel", link: "/cloudflare/networking/tunnel" },
               ],
@@ -1186,6 +1225,36 @@ export default defineConfig({
           ],
         },
         {
+          label: "Turso",
+          items: [
+            { label: "Overview", link: "/turso" },
+            { label: "Setup", link: "/turso/setup" },
+            {
+              label: "Tutorial",
+              items: [{ autogenerate: { directory: "turso/tutorial" } }],
+            },
+            {
+              label: "Databases",
+              items: [
+                { label: "Groups", link: "/turso/groups" },
+                { label: "Create & configure", link: "/turso/databases" },
+                { label: "Migrations", link: "/turso/migrations" },
+                { label: "Connections", link: "/turso/connections" },
+                { label: "Database per tenant", link: "/turso/database-per-tenant" },
+                { label: "Preview databases", link: "/turso/preview-databases" },
+              ],
+            },
+            {
+              label: "Access",
+              items: [
+                { label: "Tokens", link: "/turso/tokens" },
+                { label: "Team & organization", link: "/turso/organization" },
+              ],
+            },
+            providerResourcesEntry("Turso"),
+          ],
+        },
+        {
           label: "Neon",
           items: [
             { label: "Overview", link: "/neon" },
@@ -1227,6 +1296,7 @@ export default defineConfig({
               items: [
                 { label: "Branching", link: "/neon/data/branching" },
                 { label: "Connections", link: "/neon/data/connections" },
+                { label: "Roles", link: "/neon/data/roles" },
                 { label: "Migrations", link: "/neon/data/migrations" },
               ],
             },
@@ -1596,6 +1666,7 @@ export default defineConfig({
                 { label: "Postgres", link: "/sql/effect-sql/postgres" },
                 { label: "MySQL", link: "/sql/effect-sql/mysql" },
                 { label: "D1", link: "/sql/effect-sql/d1" },
+                { label: "libSQL", link: "/sql/effect-sql/libsql" },
                 { label: "Migrations", link: "/sql/effect-sql/migrations" },
                 {
                   label: "Connection lifecycle",
@@ -1609,6 +1680,7 @@ export default defineConfig({
                 { label: "Postgres", link: "/sql/drizzle/postgres" },
                 { label: "MySQL", link: "/sql/drizzle/mysql" },
                 { label: "D1", link: "/sql/drizzle/d1" },
+                { label: "libSQL", link: "/sql/drizzle/libsql" },
                 { label: "Migrations", link: "/sql/drizzle/migrations" },
               ],
             },
@@ -1657,8 +1729,13 @@ export default defineConfig({
       // starlight-blog feeds this many posts into the sidebar's "Recent"
       // group, which `src/blog-sidebar.ts` re-buckets into Releases/Posts.
       // We want every post listed, so set it effectively unlimited.
-      plugins: [starlightBlog({ recentPostCount: Number.MAX_SAFE_INTEGER })],
-      routeMiddleware: ["./src/blog-sidebar.ts", "./src/docs-tabs-sidebar.ts"],
+      plugins: [
+        // The header blog link renders inside ThemeSelect, which the
+        // dark-only site overrides to nothing.
+        starlightBlog({ recentPostCount: Number.MAX_SAFE_INTEGER, navigation: "none" }),
+        markdownContentOverride(),
+      ],
+      routeMiddleware: ["./src/blog-sidebar.ts", "./src/docs-tabs-sidebar.ts", "./src/favicon.ts"],
     }),
     mdx(),
   ],
@@ -1673,6 +1750,14 @@ export default defineConfig({
       }),
       tailwindcss(),
     ],
+    build: {
+      // Astro builds with `target: "esnext"`, which Vite hands to Lightning
+      // CSS as empty browser targets. Lightning CSS then drops every vendor
+      // prefix, including `-webkit-text-size-adjust` — the only form iOS
+      // Safari reads — so phones inflate wide code lines. List the browsers
+      // (iOS included) so the prefixes survive minification.
+      cssTarget: ["chrome111", "edge111", "firefox114", "safari16.4", "ios16.4"],
+    },
     server: {
       // Dev-only: allow sharing the dev server through cloudflared quick
       // tunnels (random *.trycloudflare.com hostnames).

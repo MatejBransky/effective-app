@@ -1,5 +1,4 @@
 export const dict = {
-  "go.promo.spaceBunny": "Space Bunny Free, a new anonymous model, is available for a limited time",
   "go.referral.ended.label": "Warning",
   "go.referral.ended":
     "The referral program has ended. Referral links no longer earn credit for you or the person who shared them.",
@@ -12,6 +11,8 @@ export const dict = {
   "nav.x": "X",
   "nav.enterprise": "Enterprise",
   "nav.zen": "Zen",
+  "nav.models": "Models",
+  "nav.teams": "Teams",
   "nav.go": "Go",
   "nav.login": "Login",
   "nav.free": "Download",
@@ -260,6 +261,7 @@ export const dict = {
     "All Zen models are hosted in the US. Providers follow a zero-retention policy and do not use your data for model training, with the",
   "zen.privacy.exceptionsLink": "following exceptions",
 
+  "go.promo.step5": "Step 5 Preview Free, a new model, is available for a limited time.",
   "go.title": "OpenCode Go | Low cost coding models for everyone",
   "go.meta.description": "Go costs $10/month, with generous usage limits and reliable access to leading coding models.",
   "go.hero.title": "Low cost coding models for everyone",
@@ -380,7 +382,7 @@ export const dict = {
   "go.faq.a5.museRetention":
     "Heavily discounted token pricing in exchange for permission to use your prompts and completions to train future Meta models.",
   "go.faq.a5.deepseekRetention":
-    "ZDR agreement is renewed monthly. The current agreement is valid through September 30, 2026.",
+    "ZDR agreement is renewed monthly. The current agreement is valid through October 31, 2026.",
   "go.faq.a5.learnMore": "Learn more",
 
   "go.faq.a5.beforeExceptions":
@@ -782,6 +784,7 @@ export const dict = {
   "download.platform.macosAppleSilicon": "macOS (Apple Silicon)",
   "download.platform.macosIntel": "macOS (Intel)",
   "download.platform.windowsX64": "Windows (x64)",
+  "download.platform.windowsArm64": "Windows (ARM64)",
   "download.platform.linuxDeb": "Linux (.deb)",
   "download.platform.linuxRpm": "Linux (.rpm)",
 
@@ -816,6 +819,14 @@ export const dict = {
   "enterprise.form.email.placeholder": "jeff@amazon.com",
   "enterprise.form.phone.label": "Phone number",
   "enterprise.form.phone.placeholder": "+1 234 567 8900",
+  "enterprise.form.inferenceSpend.label": "What is your company's current monthly inference spend (USD)?",
+  "enterprise.form.inferenceSpend.placeholder": "Select a range (optional)",
+  "enterprise.form.inferenceSpend.none": "Not spending yet",
+  "enterprise.form.inferenceSpend.under1k": "Under $1K",
+  "enterprise.form.inferenceSpend.1kTo10k": "$1K–$10K",
+  "enterprise.form.inferenceSpend.10kTo50k": "$10K–$50K",
+  "enterprise.form.inferenceSpend.50kTo100k": "$50K–$100K",
+  "enterprise.form.inferenceSpend.over100k": "$100K or more",
   "enterprise.form.message.label": "What problem are you trying to solve?",
   "enterprise.form.message.placeholder": "We need help with...",
   "enterprise.form.send": "Send",
@@ -824,6 +835,7 @@ export const dict = {
   "enterprise.form.success.submitted": "Form submitted successfully.",
   "enterprise.form.error.allFieldsRequired": "All fields are required.",
   "enterprise.form.error.invalidEmailFormat": "Invalid email format.",
+  "enterprise.form.error.invalidInferenceSpend": "Select a valid inference spend range.",
   "enterprise.form.error.internalServer": "Internal server error.",
   "enterprise.faq.title": "FAQ",
   "enterprise.faq.q1": "What is OpenCode Enterprise?",

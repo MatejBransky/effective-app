@@ -2,7 +2,6 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
-  "go.promo.spaceBunny": "Space Bunny Free, nowy anonimowy model, jest dostępny przez ograniczony czas",
   "go.referral.ended.label": "Ostrzeżenie",
   "go.referral.ended":
     "Program poleceń został zakończony. Linki polecające nie dają już środków ani Tobie, ani osobie, która je udostępniła.",
@@ -263,6 +262,7 @@ export const dict = {
     "Wszystkie modele Zen są hostowane w USA. Dostawcy stosują politykę zerowej retencji i nie wykorzystują Twoich danych do trenowania modeli, z",
   "zen.privacy.exceptionsLink": "następującymi wyjątkami",
 
+  "go.promo.step5": "Step 5 Preview Free, nowy model, jest dostępny bezpłatnie przez ograniczony czas.",
   "go.title": "OpenCode Go | Niskokosztowe modele do kodowania dla każdego",
   "go.meta.description":
     "Go kosztuje $10/miesiąc, oferując hojne limity użycia i niezawodny dostęp do wiodących modeli do kodowania.",
@@ -382,7 +382,7 @@ export const dict = {
   "go.faq.a5.gptRetention":
     "Dzienniki monitorowania nadużyć są generowane dla każdego użycia funkcji API i przechowywane przez maksymalnie 30 dni.",
   "go.faq.a5.learnMore": "Dowiedz się więcej",
-  "go.faq.a5.deepseekRetention": "Umowa ZDR jest odnawiana co miesiąc. Obecna umowa obowiązuje do 30 września 2026 r.",
+  "go.faq.a5.deepseekRetention": "Umowa ZDR jest odnawiana co miesiąc. Obecna umowa obowiązuje do 31 października 2026 r.",
   "go.faq.a5.museRetention":
     "Znacznie obniżone ceny tokenów w zamian za zgodę na wykorzystanie Twoich promptów i odpowiedzi do trenowania przyszłych modeli Meta.",
 
@@ -785,6 +785,7 @@ export const dict = {
   "download.platform.macosAppleSilicon": "macOS (Apple Silicon)",
   "download.platform.macosIntel": "macOS (Intel)",
   "download.platform.windowsX64": "Windows (x64)",
+  "download.platform.windowsArm64": "Windows (ARM64)",
   "download.platform.linuxDeb": "Linux (.deb)",
   "download.platform.linuxRpm": "Linux (.rpm)",
 
@@ -821,6 +822,14 @@ export const dict = {
   "enterprise.form.email.placeholder": "jeff@amazon.com",
   "enterprise.form.phone.label": "Numer telefonu",
   "enterprise.form.phone.placeholder": "+1 234 567 8900",
+  "enterprise.form.inferenceSpend.label": "Jakie są obecne miesięczne wydatki Twojej firmy na inferencję (USD)?",
+  "enterprise.form.inferenceSpend.placeholder": "Wybierz przedział (opcjonalnie)",
+  "enterprise.form.inferenceSpend.none": "Jeszcze bez wydatków",
+  "enterprise.form.inferenceSpend.under1k": "Poniżej $1K",
+  "enterprise.form.inferenceSpend.1kTo10k": "$1K–$10K",
+  "enterprise.form.inferenceSpend.10kTo50k": "$10K–$50K",
+  "enterprise.form.inferenceSpend.50kTo100k": "$50K–$100K",
+  "enterprise.form.inferenceSpend.over100k": "$100K lub więcej",
   "enterprise.form.message.label": "Jaki problem próbujesz rozwiązać?",
   "enterprise.form.message.placeholder": "Potrzebujemy pomocy z...",
   "enterprise.form.send": "Wyślij",
@@ -829,6 +838,7 @@ export const dict = {
   "enterprise.form.success.submitted": "Formularz został pomyślnie wysłany.",
   "enterprise.form.error.allFieldsRequired": "Wszystkie pola są wymagane.",
   "enterprise.form.error.invalidEmailFormat": "Nieprawidłowy format adresu e-mail.",
+  "enterprise.form.error.invalidInferenceSpend": "Wybierz prawidłowy przedział wydatków na inferencję.",
   "enterprise.form.error.internalServer": "Wewnętrzny błąd serwera.",
   "enterprise.faq.title": "FAQ",
   "enterprise.faq.q1": "Czym jest OpenCode Enterprise?",

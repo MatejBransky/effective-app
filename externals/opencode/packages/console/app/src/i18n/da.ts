@@ -3,7 +3,6 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
-  "go.promo.spaceBunny": "Space Bunny Free, en ny anonym model, er tilgængelig i en begrænset periode",
   "go.referral.ended.label": "Advarsel",
   "go.referral.ended":
     "Henvisningsprogrammet er afsluttet. Henvisningslinks giver ikke længere kredit til dig eller den, der delte dem.",
@@ -262,6 +261,7 @@ export const dict = {
     "Alle Zen-modeller er hostet i USA. Udbydere følger en nulopbevaringspolitik og bruger ikke dine data til modeltræning med",
   "zen.privacy.exceptionsLink": "følgende undtagelser",
 
+  "go.promo.step5": "Den nye model Step 5 Preview Free er gratis i en begrænset periode.",
   "go.title": "OpenCode Go | Kodningsmodeller til lav pris for alle",
   "go.meta.description":
     "Go koster $10/måned, med generøse brugsgrænser og pålidelig adgang til førende kodningsmodeller.",
@@ -383,7 +383,7 @@ export const dict = {
     "Kraftigt nedsatte tokenpriser til gengæld for tilladelse til at bruge dine prompts og modelsvar til at træne fremtidige Meta-modeller.",
   "go.faq.a5.learnMore": "Læs mere",
   "go.faq.a5.deepseekRetention":
-    "ZDR-aftalen fornyes månedligt. Den nuværende aftale er gyldig til og med 30. september 2026.",
+    "ZDR-aftalen fornyes månedligt. Den nuværende aftale er gyldig til og med 31. oktober 2026.",
 
   "go.faq.a5.beforeExceptions":
     "Go-modeller hostes i USA. Udbydere følger en nulopbevaringspolitik og bruger ikke dine data til modeltræning, med de",
@@ -783,6 +783,7 @@ export const dict = {
   "download.platform.macosAppleSilicon": "macOS (Apple Silicon)",
   "download.platform.macosIntel": "macOS (Intel)",
   "download.platform.windowsX64": "Windows (x64)",
+  "download.platform.windowsArm64": "Windows (ARM64)",
   "download.platform.linuxDeb": "Linux (.deb)",
   "download.platform.linuxRpm": "Linux (.rpm)",
 
@@ -817,6 +818,14 @@ export const dict = {
   "enterprise.form.email.placeholder": "jeff@amazon.com",
   "enterprise.form.phone.label": "Telefonnummer",
   "enterprise.form.phone.placeholder": "+1 234 567 8900",
+  "enterprise.form.inferenceSpend.label": "Hvad er jeres virksomheds nuværende månedlige forbrug på inferens (USD)?",
+  "enterprise.form.inferenceSpend.placeholder": "Vælg et interval (valgfrit)",
+  "enterprise.form.inferenceSpend.none": "Intet forbrug endnu",
+  "enterprise.form.inferenceSpend.under1k": "Under $1K",
+  "enterprise.form.inferenceSpend.1kTo10k": "$1K–$10K",
+  "enterprise.form.inferenceSpend.10kTo50k": "$10K–$50K",
+  "enterprise.form.inferenceSpend.50kTo100k": "$50K–$100K",
+  "enterprise.form.inferenceSpend.over100k": "$100K eller mere",
   "enterprise.form.message.label": "Hvilket problem prøver du at løse?",
   "enterprise.form.message.placeholder": "Vi har brug for hjælp med...",
   "enterprise.form.send": "Send",
@@ -825,6 +834,7 @@ export const dict = {
   "enterprise.form.success.submitted": "Formular indsendt med succes.",
   "enterprise.form.error.allFieldsRequired": "Alle felter er påkrævet.",
   "enterprise.form.error.invalidEmailFormat": "Ugyldigt e-mailformat.",
+  "enterprise.form.error.invalidInferenceSpend": "Vælg et gyldigt interval for inferensforbrug.",
   "enterprise.form.error.internalServer": "Intern serverfejl.",
   "enterprise.faq.title": "FAQ",
   "enterprise.faq.q1": "Hvad er OpenCode Enterprise?",

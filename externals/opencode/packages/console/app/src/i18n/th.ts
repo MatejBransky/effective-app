@@ -3,7 +3,6 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
-  "go.promo.spaceBunny": "Space Bunny Free โมเดลนิรนามใหม่ เปิดให้ใช้งานในช่วงเวลาจำกัด",
   "go.referral.ended.label": "คำเตือน",
   "go.referral.ended": "โปรแกรมแนะนำเพื่อนสิ้นสุดแล้ว ลิงก์แนะนำจะไม่ให้เครดิตแก่คุณหรือผู้ที่แชร์ลิงก์อีกต่อไป",
   "go.graph.bonus": "ใช้งาน {{count}} เท่า",
@@ -260,6 +259,7 @@ export const dict = {
     "โมเดล Zen ทั้งหมดโฮสต์ในสหรัฐอเมริกา ผู้ให้บริการปฏิบัติตามนโยบายไม่เก็บรักษาข้อมูล (zero-retention policy) และไม่ใช้ข้อมูลของคุณสำหรับการฝึกโมเดล โดยมี",
   "zen.privacy.exceptionsLink": "ข้อยกเว้นดังนี้",
 
+  "go.promo.step5": "Step 5 Preview Free โมเดลใหม่ เปิดให้ใช้ฟรีชั่วคราว",
   "go.title": "OpenCode Go | โมเดลเขียนโค้ดราคาประหยัดสำหรับทุกคน",
   "go.meta.description":
     "Go มีราคา $10/เดือน พร้อมขีดจำกัดการใช้งานที่เอื้อเฟื้อและการเข้าถึงโมเดลเขียนโค้ดชั้นนำอย่างเชื่อถือได้",
@@ -380,7 +380,7 @@ export const dict = {
   "go.faq.a5.museRetention":
     "ราคาของ token ลดลงอย่างมาก โดยแลกกับการอนุญาตให้นำพรอมต์และผลลัพธ์ที่สร้างขึ้นของคุณไปใช้ฝึกโมเดล Meta ในอนาคต",
   "go.faq.a5.learnMore": "ดูข้อมูลเพิ่มเติม",
-  "go.faq.a5.deepseekRetention": "ข้อตกลง ZDR จะต่ออายุทุกเดือน ข้อตกลงปัจจุบันมีผลใช้ถึงวันที่ 30 กันยายน 2026",
+  "go.faq.a5.deepseekRetention": "ข้อตกลง ZDR จะต่ออายุทุกเดือน ข้อตกลงปัจจุบันมีผลใช้ถึงวันที่ 31 ตุลาคม 2026",
 
   "go.faq.a5.beforeExceptions":
     "โมเดล Go โฮสต์ในสหรัฐอเมริกา ผู้ให้บริการปฏิบัติตามนโยบายไม่เก็บรักษาข้อมูล (zero-retention policy) และไม่ใช้ข้อมูลของคุณสำหรับการฝึกโมเดล โดยมี",
@@ -780,6 +780,7 @@ export const dict = {
   "download.platform.macosAppleSilicon": "macOS (Apple Silicon)",
   "download.platform.macosIntel": "macOS (Intel)",
   "download.platform.windowsX64": "Windows (x64)",
+  "download.platform.windowsArm64": "Windows (ARM64)",
   "download.platform.linuxDeb": "Linux (.deb)",
   "download.platform.linuxRpm": "Linux (.rpm)",
 
@@ -814,6 +815,14 @@ export const dict = {
   "enterprise.form.email.placeholder": "jeff@amazon.com",
   "enterprise.form.phone.label": "หมายเลขโทรศัพท์",
   "enterprise.form.phone.placeholder": "+1 234 567 8900",
+  "enterprise.form.inferenceSpend.label": "ค่าใช้จ่ายด้าน AI inference รายเดือนในปัจจุบันของบริษัทคุณคือเท่าไร (USD)?",
+  "enterprise.form.inferenceSpend.placeholder": "เลือกช่วง (ไม่บังคับ)",
+  "enterprise.form.inferenceSpend.none": "ยังไม่มีค่าใช้จ่าย",
+  "enterprise.form.inferenceSpend.under1k": "ต่ำกว่า $1K",
+  "enterprise.form.inferenceSpend.1kTo10k": "$1K–$10K",
+  "enterprise.form.inferenceSpend.10kTo50k": "$10K–$50K",
+  "enterprise.form.inferenceSpend.50kTo100k": "$50K–$100K",
+  "enterprise.form.inferenceSpend.over100k": "$100K ขึ้นไป",
   "enterprise.form.message.label": "คุณกำลังพยายามแก้ปัญหาอะไร?",
   "enterprise.form.message.placeholder": "เราต้องการความช่วยเหลือเรื่อง...",
   "enterprise.form.send": "ส่ง",
@@ -822,6 +831,7 @@ export const dict = {
   "enterprise.form.success.submitted": "ส่งแบบฟอร์มสำเร็จแล้ว",
   "enterprise.form.error.allFieldsRequired": "จำเป็นต้องกรอกทุกช่อง",
   "enterprise.form.error.invalidEmailFormat": "รูปแบบอีเมลไม่ถูกต้อง",
+  "enterprise.form.error.invalidInferenceSpend": "เลือกช่วงค่าใช้จ่ายด้าน inference ที่ถูกต้อง",
   "enterprise.form.error.internalServer": "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์",
   "enterprise.faq.title": "คำถามที่พบบ่อย",
   "enterprise.faq.q1": "OpenCode Enterprise คืออะไร?",

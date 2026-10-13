@@ -3,7 +3,6 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
-  "go.promo.spaceBunny": "Space Bunny Free — новая анонимная модель, доступная в течение ограниченного времени",
   "go.referral.ended.label": "Предупреждение",
   "go.referral.ended":
     "Реферальная программа завершена. Реферальные ссылки больше не начисляют кредиты ни вам, ни тому, кто ими поделился.",
@@ -266,6 +265,7 @@ export const dict = {
     "Все модели Zen размещены в США. Провайдеры следуют политике нулевого хранения и не используют ваши данные для обучения моделей, за",
   "zen.privacy.exceptionsLink": "следующими исключениями",
 
+  "go.promo.step5": "Новая модель Step 5 Preview Free временно доступна бесплатно.",
   "go.title": "OpenCode Go | Недорогие модели для кодинга для всех",
   "go.meta.description":
     "Go стоит $10/месяц и предлагает щедрые лимиты использования и надежный доступ к ведущим моделям для кодинга.",
@@ -387,7 +387,7 @@ export const dict = {
     "Журналы мониторинга злоупотреблений создаются при любом использовании функций API и хранятся до 30 дней.",
   "go.faq.a5.learnMore": "Подробнее",
   "go.faq.a5.deepseekRetention":
-    "Соглашение ZDR продлевается ежемесячно. Текущее соглашение действует до 30 сентября 2026 года.",
+    "Соглашение ZDR продлевается ежемесячно. Текущее соглашение действует до 31 октября 2026 года.",
   "go.faq.a5.museRetention":
     "Значительно сниженная стоимость токенов в обмен на разрешение использовать ваши промпты и ответы для обучения будущих моделей Meta.",
 
@@ -794,6 +794,7 @@ export const dict = {
   "download.platform.macosAppleSilicon": "macOS (Apple Silicon)",
   "download.platform.macosIntel": "macOS (Intel)",
   "download.platform.windowsX64": "Windows (x64)",
+  "download.platform.windowsArm64": "Windows (ARM64)",
   "download.platform.linuxDeb": "Linux (.deb)",
   "download.platform.linuxRpm": "Linux (.rpm)",
 
@@ -829,6 +830,14 @@ export const dict = {
   "enterprise.form.email.placeholder": "jeff@amazon.com",
   "enterprise.form.phone.label": "Номер телефона",
   "enterprise.form.phone.placeholder": "+1 234 567 8900",
+  "enterprise.form.inferenceSpend.label": "Каковы текущие ежемесячные расходы вашей компании на инференс (USD)?",
+  "enterprise.form.inferenceSpend.placeholder": "Выберите диапазон (необязательно)",
+  "enterprise.form.inferenceSpend.none": "Расходов пока нет",
+  "enterprise.form.inferenceSpend.under1k": "Менее $1K",
+  "enterprise.form.inferenceSpend.1kTo10k": "$1K–$10K",
+  "enterprise.form.inferenceSpend.10kTo50k": "$10K–$50K",
+  "enterprise.form.inferenceSpend.50kTo100k": "$50K–$100K",
+  "enterprise.form.inferenceSpend.over100k": "$100K или больше",
   "enterprise.form.message.label": "Какую проблему вы пытаетесь решить?",
   "enterprise.form.message.placeholder": "Нам нужна помощь с...",
   "enterprise.form.send": "Отправить",
@@ -837,6 +846,7 @@ export const dict = {
   "enterprise.form.success.submitted": "Форма успешно отправлена.",
   "enterprise.form.error.allFieldsRequired": "Все поля обязательны.",
   "enterprise.form.error.invalidEmailFormat": "Неверный формат email.",
+  "enterprise.form.error.invalidInferenceSpend": "Выберите допустимый диапазон расходов на инференс.",
   "enterprise.form.error.internalServer": "Внутренняя ошибка сервера.",
   "enterprise.faq.title": "FAQ",
   "enterprise.faq.q1": "Что такое OpenCode Enterprise?",

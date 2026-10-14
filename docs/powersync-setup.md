@@ -87,7 +87,7 @@ up too.
 
 ## Phase 2 - Backend API (new app)
 
-7. [x] Added `apps/server` (Effect v4 `effect/unstable/httpapi`) with a
+7. [x] Added `apps/server` (Effect v4 `effect/http-api`) with a
        public `/health` and a protected `/me` endpoint, verified end-to-end
        against the live Keycloak - proves the JWKS verification chain, not yet
        the data path. Still open, blocked on a domain model existing:

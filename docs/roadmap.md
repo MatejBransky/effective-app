@@ -18,7 +18,7 @@ the concrete implementation built on top of them is gone.
 - **Keycloak (self-hosted, local dev)** - `docker-compose.yml`'s `keycloak` service +
   `infra/keycloak/realm-export.json`. Deliberately generic (no tenant/business claim
   yet - see `CONTEXT.md`). Phase 0 of `docs/powersync-setup.md`.
-- **`apps/server` (skeleton)** - Effect v4 HTTP API (`effect/unstable/httpapi`) with a
+- **`apps/server` (skeleton)** - Effect v4 HTTP API (`effect/http-api`) with a
   public `/health` and a Keycloak-JWT-protected `/me` endpoint, verified end-to-end
   against the live Keycloak. The `uploadData`/tenant-scoped endpoints Phase 2 also
   calls for still wait on a domain model existing.

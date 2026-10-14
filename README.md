@@ -48,7 +48,7 @@ inside `shared/*` is enforced without a lint rule).
 - `infra/` - local dev config for the self-hosted services in `docs/roadmap.md`
   (`infra/keycloak`, `infra/postgres`, `infra/powersync`) - placeholders, not wired
   into `docker-compose.yml` yet
-- `externals/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code; includes `packages/atom/react`, Effect-TS's own official React bindings for `effect/unstable/reactivity`'s Atom (published as `@effect/atom-react` - no separate `externals/effect-atom` subtree needed, that older standalone package still pins `effect@^3.19`)
+- `externals/effect` - reference copy of the Effect source (git subtree), consulted before writing Effect code; includes `packages/atom/react`, Effect-TS's own official React bindings for `effect/reactivity`'s Atom (published as `@effect/atom-react` - no separate `externals/effect-atom` subtree needed, that older standalone package still pins `effect@^3.19`)
 - `externals/alchemy-effect` - reference copy of [alchemy-run/alchemy-effect](https://github.com/alchemy-run/alchemy-effect) (git subtree), the Effect-native flavor of Alchemy - consulted before writing infrastructure (IaC) code
 - `externals/opencode` - reference copy of [anomalyco/opencode](https://github.com/anomalyco/opencode) (git subtree, `dev` branch), an AI coding agent - consulted for agent/CLI tooling patterns
 

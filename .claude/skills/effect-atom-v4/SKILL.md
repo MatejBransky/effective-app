@@ -1,6 +1,6 @@
 ---
 name: effect-atom-v4
-description: "Effect Atom v4 patterns for React state management. Use when working with effect/unstable/reactivity, atoms, AtomRegistry, useAtomValue, useAtom, Atom.family, runtime.atom, derived atoms, persistent storage. Triggers on Atom.make, Atom.writable, Atom.kvs, useAtomSuspense, AsyncResult, BrowserKeyValueStore, effect/unstable/reactivity."
+description: "Effect Atom v4 patterns for React state management. Use when working with effect/reactivity, atoms, AtomRegistry, useAtomValue, useAtom, Atom.family, runtime.atom, derived atoms, persistent storage. Triggers on Atom.make, Atom.writable, Atom.kvs, useAtomSuspense, AsyncResult, BrowserKeyValueStore, effect/reactivity."
 ---
 
 # Effect Atom (v4)
@@ -10,7 +10,7 @@ Reactive state management for React, built on Effect.
 ## Imports
 
 ```ts
-import { AsyncResult, Atom, AtomRegistry, Reactivity } from "effect/unstable/reactivity";
+import { AsyncResult, Atom, AtomRegistry, Reactivity } from "effect/reactivity";
 
 import {
   RegistryContext,
@@ -28,9 +28,9 @@ import {
 Individual module imports also work:
 
 ```ts
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-import * as Atom from "effect/unstable/reactivity/Atom";
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
+import * as Atom from "effect/reactivity/Atom";
+import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 ```
 
 ## Core Atom Creation
@@ -728,7 +728,7 @@ Atom.batch(() => {
 
 | Import                                              | Package                                         |
 | --------------------------------------------------- | ----------------------------------------------- |
-| `Atom`, `AsyncResult`, `AtomRegistry`, `Reactivity` | `effect/unstable/reactivity`                    |
+| `Atom`, `AsyncResult`, `AtomRegistry`, `Reactivity` | `effect/reactivity`                             |
 | `useAtomValue`, `useAtom`, `RegistryProvider`       | `@effect/atom-react`                            |
 | `HydrationBoundary`                                 | `@effect/atom-react`                            |
 | `ScopedAtom`                                        | `@effect/atom-react/ScopedAtom`                 |

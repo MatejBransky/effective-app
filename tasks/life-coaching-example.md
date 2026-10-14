@@ -80,3 +80,48 @@ Not a prototype with mocks – every phase below stays deployable and verified.
 1. Is `playedRatio >= 90%` + `reachedEnd` the right definition of "listened"?
 2. Focus-time change effective from tomorrow – accepted?
 3. Are `cs/en` enough for the example?
+
+## 10. Implementation notes (built 2026-10-14)
+
+Deliberate deviations from the plan above, all in favor of "works E2E":
+
+- **Auth: existing Keycloak, not `@yielded/auth`.** `@yielded/auth@0.1.0-beta.1`
+  is password-hashing primitives, not an IdP - swapping the repo's verified
+  Keycloak loop for it would have broken E2E. Coaching authorizes against the
+  existing `Auth`/`JwtVerifier` seam (`CurrentHost.subject` as user id);
+  `@yielded/auth` can plug in at that same seam later.
+- **E2E browser runs on `@playwright/test` (repo-local Chromium), not MCP
+  Playwright** - no Playwright MCP server is configured (`.mcp.json` only has
+  `cloudflare`), and none is callable from here. Same verification value:
+  `apps/client/e2e/coaching.spec.ts` drives a real browser through login,
+  settings, playback, submit, push, coach review, and locale switch.
+- **Coaching reads go over direct HttpApi, not PowerSync sync.** The
+  host/member local-first loop is untouched; syncing coaching tables would
+  need new sync streams + RLS publication work. Follow-up, not needed for the
+  E2E flow.
+- **Audio is served by the API (`GET /coaching/audio/:key`), not S3
+  presigned URLs.** Fixture WAVs stand in for the media bucket; the unlock
+  gate + short-lived-URL shape are the same, only the storage backend differs.
+- **Push scheduler is an admin-triggered endpoint** (`POST
+  /coaching/push/check-due`), not a cron worker - same due/send/idempotency
+  logic, invoked directly in E2E. Production wires it to an alchemy cron.
+- **Push E2E mocks only `PushManager.subscribe`.** Real headless subscribe is
+  impossible in Playwright (Chromium: no Push API in incognito contexts;
+  Firefox: no push-service reachability - microsoft/playwright#23954), so
+  `push.spec.ts` stubs `subscribe` with a valid P-256 keypair while keeping
+  everything else real (permission flow, SW, subscription API, scheduler,
+  web-push encryption up to the network send, which fails gracefully with
+  `{ sent: 0 }` and records nothing). Real delivery additionally needs a
+  one-time manual check in a headed browser. The `check-due` unit test (fake
+  sender) proves the send/idempotency logic itself.
+- **Server push texts are a tiny typed `cs`/`en` map**, not Paraglide
+  (Paraglide compiles for the Vite client; sharing its runtime with the
+  server was out of scope).
+- **RLS lesson: no self-referencing policies.** `admin_all` on
+  `coaching_users` and `exists` coach checks on `client_profiles` recursed
+  infinitely - coach reads go through a `SECURITY DEFINER`
+  `coaching_coach_of()` function instead (migration 0004).
+- **`submit` heartbeat merge is monotonic** (max played, OR reachedEnd) so a
+  late in-flight heartbeat can never un-reach the end.
+- **Babel stays on 7.x** - `vite-plugin-babel@1.7.3` (latest) breaks on
+  Babel 8 (default-export removal); React Compiler needs that plugin.

@@ -15,6 +15,27 @@
       "when": 1784215798769,
       "tag": "0001_brown_natasha_romanoff",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792010465218,
+      "tag": "0002_lowly_prima",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792011890169,
+      "tag": "0003_thankful_micromacro",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792011930113,
+      "tag": "0004_sticky_typhoid_mary",
+      "breakpoints": true
     }
   ]
 }

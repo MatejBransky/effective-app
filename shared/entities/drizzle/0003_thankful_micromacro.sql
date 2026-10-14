@@ -1,0 +1,1 @@
+DROP POLICY "admin_all" ON "coaching_users" CASCADE;

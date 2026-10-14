@@ -1,28 +1,12 @@
-import { Effect, Layer } from "effect";
-import { HttpApiError, HttpApiMiddleware, HttpApiSecurity } from "effect/unstable/httpapi";
-import { CurrentUser } from "./CurrentUser.ts";
-import { JwtVerifier } from "./JwtVerifier.ts";
+import { AuthApi } from "@repo/auth";
+import { Auth, Http, Password, Sessions } from "@yielded/auth";
 
-/**
- * Bearer-token auth middleware. `HttpApiSecurity.bearer` only extracts the raw
- * (redacted) credential from the Authorization header - it does not verify anything by
- * itself, so the actual JWT/JWKS check happens in `AuthLive` below via `JwtVerifier`.
- */
-export class Auth extends HttpApiMiddleware.Service<Auth, { provides: CurrentUser }>()(
-  "app-server/Auth",
-  {
-    error: HttpApiError.Unauthorized,
-    security: { bearer: HttpApiSecurity.bearer },
-  },
-) {}
+export const AppAuth = Auth.make(AuthApi, {
+  sessions: Sessions.stateful({ maxAge: "8 hours", idleTimeout: "30 minutes" }),
+  strategies: { password: Password.make() },
+  defaultStrategy: "password",
+});
 
-export const AuthLive = Layer.effect(
-  Auth,
-  Effect.gen(function* () {
-    const verifier = yield* JwtVerifier;
-    return {
-      bearer: (effect, opts) =>
-        Effect.provideServiceEffect(effect, CurrentUser, verifier.verify(opts.credential)),
-    };
-  }),
-);
+export const AuthRoutes = Http.layer(AppAuth, {
+  origin: "http://app.example.com",
+});

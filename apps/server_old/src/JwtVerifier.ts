@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Redacted } from "effect";
-import { HttpApiError } from "effect/unstable/httpapi";
+import { HttpApiError } from "effect/http-api";
 import type { JWTVerifyGetKey } from "jose";
 import * as jose from "jose";
 

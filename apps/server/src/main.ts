@@ -1,36 +1,63 @@
-import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
-import { Layer } from "effect";
-import { HttpMiddleware, HttpRouter } from "effect/unstable/http";
-import { HttpApiBuilder } from "effect/unstable/httpapi";
-import { createServer } from "node:http";
-import { Api } from "./Api.ts";
-import { AuthLive } from "./Auth.ts";
-import { HealthGroupLive, MeGroupLive } from "./Handlers.ts";
-import { layer as jwtVerifierLayer } from "./JwtVerifier.ts";
+import { Context, Effect, Layer } from "effect";
 
-const issuer = process.env["KEYCLOAK_ISSUER"];
-const jwksUri = process.env["KEYCLOAK_JWKS_URI"];
-if (!issuer || !jwksUri) {
-  throw new Error("KEYCLOAK_ISSUER and KEYCLOAK_JWKS_URI must be set (see .env.example)");
-}
+// interface (class extends Context.Service)
+class Config extends Context.Service<
+  Config,
+  {
+    readonly getConfig: Effect.Effect<{
+      readonly loglevel: string;
+      readonly connection: string;
+    }>;
+  }
+>()("Config") {}
 
-const clientOrigin = process.env["CLIENT_ORIGIN"];
-if (!clientOrigin) {
-  throw new Error("CLIENT_ORIGIN must be set (see .env.example)");
-}
+// implementation (Layer.succeed(interface, implementation))
+const ConfigLive = Layer.succeed(Config, {
+  getConfig: Effect.succeed({
+    loglevel: "info",
+    connection: "mongodb://localhost:27017/mydb",
+  }),
+});
 
-const port = Number(process.env["PORT"] ?? 4000);
-
-const ApiLive = HttpApiBuilder.layer(Api).pipe(
-  Layer.provide(HealthGroupLive),
-  Layer.provide(MeGroupLive),
-  Layer.provide(AuthLive),
-  Layer.provide(jwtVerifierLayer({ issuer, jwksUri })),
-  (layer) =>
-    HttpRouter.serve(layer, {
-      middleware: HttpMiddleware.cors({ allowedOrigins: [clientOrigin] }),
-    }),
-  Layer.provide(NodeHttpServer.layer(createServer, { port })),
+await Effect.runPromise(
+  Effect.provide(Config.pipe(Effect.andThen((c) => c.getConfig)), ConfigLive),
 );
 
-Layer.launch(ApiLive).pipe(NodeRuntime.runMain);
+// interface (class extends Context.Service)
+class Logger extends Context.Service<
+  Logger,
+  {
+    readonly log: (message: string) => Effect.Effect<void>;
+  }
+>()("Logger") {}
+
+// implementation (Layer.effect(interface, Effect.gen(function* () { implementation }))
+const LoggerLive = Layer.effect(
+  Logger,
+  Effect.gen(function* () {
+    const config = yield* Config;
+
+    return {
+      log: (message: string) =>
+        Effect.gen(function* () {
+          const { loglevel } = yield* config.getConfig;
+          console.log(`[${loglevel}] ${message}`);
+        }),
+    };
+  }),
+);
+
+// implementation with dependencies (Layer.provide(implementation, Layer.mergeAll(dependencyA, dependencyB, ...)))
+const loggerWithDependencies = Layer.provide(LoggerLive, ConfigLive);
+
+// actual usage (Effect.gen(function* () { ... }))
+const program = Effect.gen(function* () {
+  const logger = yield* Logger;
+  yield* logger.log("Hello, World!");
+});
+
+// program with dependencies (program.pipe(Effect.provide(implementationWithDependencies)))
+const provided = program.pipe(Effect.provide(loggerWithDependencies));
+
+// run the program (Effect.runPromise(provided))
+await Effect.runPromise(provided);

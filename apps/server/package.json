@@ -1,5 +1,5 @@
 {
-  "name": "@repo/app-server",
+  "name": "@repo/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,11 +11,13 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "effect": "catalog:",
-    "jose": "catalog:"
+    "@yielded/auth": "catalog:",
+    "@yielded/auth-persistence-drizzle": "0.1.0-beta.37",
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@repo/auth": "workspace:*",
     "@repo/shared-typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",

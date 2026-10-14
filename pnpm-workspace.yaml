@@ -22,22 +22,22 @@ catalog:
   oxfmt: 0.71.0
   turbo: 2.11.7
   vitest: 5.0.3
-  "@effect/vitest": 4.0.0
-  # Effect v4 stable. Upstream main is already at 4.0.1, but that release is still within
-  # minimumReleaseAge; use the latest mature release and keep adapters on the same version.
-  effect: 4.0.0
+  "@effect/vitest": 4.0.3
+  # Keep Effect and its adapters on the latest mature published v4 release. Respect
+  # minimumReleaseAge before moving this coordinated set forward.
+  effect: 4.0.3
   drizzle-orm: 0.45.2
   drizzle-kit: 0.31.10
   # Node runtime adapter for Effect HTTP APIs - a separate package from `effect` itself.
   # Keep it on the exact same v4 release as `effect` above.
-  "@effect/platform-node": 4.0.0
+  "@effect/platform-node": 4.0.3
   # React bindings for effect/reactivity's Atom/AtomRegistry - Effect-TS's own
   # official package (externals/effect/packages/atom/react in the effect monorepo itself,
   # published under the `@effect` scope), not the older standalone `@effect-atom/atom-react`
   # (still pins effect@^3.19 - checked directly against npm, incompatible with this repo's v4
   # pin - no separate `externals/effect-atom` subtree needed once this was found). Pinned to
   # the exact same v4 release as `effect` above, matching its own peerDependencies.
-  "@effect/atom-react": 4.0.0
+  "@effect/atom-react": 4.0.3
   # JWT/JWKS verification for apps/server's AuthService - vendored Effect v4 has no
   # built-in JWT support (HttpApiSecurity only extracts the raw credential string).
   jose: 6.2.12
@@ -57,8 +57,7 @@ catalog:
   # framework-agnostic, avoids hand-rolling PKCE/token-refresh logic.
   "oidc-client-ts": 3.5.0
   # Shared contract API for the auth domain (docs: yielded.dev/auth/guide/getting-started).
-  # beta.19 was still inside minimumReleaseAge when added; use the latest mature beta.
-  "@yielded/auth": 0.1.0-beta.17
+  "@yielded/auth": 0.1.0-beta.37
 
 # Force patched versions for transitive dev-only vulnerabilities that the direct
 # dependency hasn't bumped past yet (flagged by `pnpm audit`, part of CI's security
@@ -86,7 +85,6 @@ overrides:
 # Reject a package version until it has been public for a day - gives the community time
 # to flag "zero-day" malicious releases before we can install them.
 minimumReleaseAge: 1440
-# Bypass the cooldown for specific package@version entries that need a hotfix immediately.
 minimumReleaseAgeExclude: []
 
 # Refuse to install a version whose publish provenance/CI attestation is weaker than the

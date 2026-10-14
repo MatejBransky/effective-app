@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("LeadStage", () => {
   it("round-trips decode/encode", async () => {
     const asserts = new TestSchema.Asserts(LeadStage);
+
     const encoded = {
       id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -16,6 +17,7 @@ describe("LeadStage", () => {
       order: 0,
       createdAt: "2024-01-05T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<LeadStageId>(encoded.id),

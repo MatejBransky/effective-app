@@ -14,5 +14,7 @@ export const LeadStage = Schema.Struct({
   order: Schema.Number,
   createdAt: Schema.DateFromString,
 });
+
 export type LeadStage = typeof LeadStage.Type;
+
 export type LeadStageEncoded = typeof LeadStage.Encoded;

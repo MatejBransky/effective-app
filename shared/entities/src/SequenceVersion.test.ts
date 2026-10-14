@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("SequenceVersion", () => {
   it("round-trips decode/encode for an original version", async () => {
     const asserts = new TestSchema.Asserts(SequenceVersion);
+
     const encoded = {
       id: "66666666-6666-4666-8666-666666666666",
       sequenceId: "11111111-1111-4111-8111-111111111111",
@@ -24,6 +25,7 @@ describe("SequenceVersion", () => {
       actorId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       createdAt: "2024-07-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<SequenceVersionId>(encoded.id),
@@ -38,6 +40,7 @@ describe("SequenceVersion", () => {
 
   it("round-trips decode/encode for a revert-created version", async () => {
     const asserts = new TestSchema.Asserts(SequenceVersion);
+
     const encoded = {
       id: "77777777-7777-4777-8777-777777777777",
       sequenceId: "11111111-1111-4111-8111-111111111111",
@@ -54,6 +57,7 @@ describe("SequenceVersion", () => {
       actorId: null,
       createdAt: "2024-07-02T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<SequenceVersionId>(encoded.id),

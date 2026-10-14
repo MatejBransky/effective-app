@@ -7,6 +7,7 @@ import { HostId, LeadStageId, MemberHostId, MemberId } from "./Id.ts";
  * along the funnel". See "Why status lives on MemberHost, not Member" in docs/data-model.md.
  */
 export const MemberHostStatus = Schema.Literals(["lead", "enrolled"]);
+
 export type MemberHostStatus = typeof MemberHostStatus.Type;
 
 export const MemberHost = Schema.Struct({
@@ -18,5 +19,7 @@ export const MemberHost = Schema.Struct({
   leadStageId: Schema.NullOr(LeadStageId),
   createdAt: Schema.DateFromString,
 });
+
 export type MemberHost = typeof MemberHost.Type;
+
 export type MemberHostEncoded = typeof MemberHost.Encoded;

@@ -9,6 +9,7 @@ import { closeModal, modalStackAtom, type ModalHandle } from "./ModalManager.ts"
 /** Mount once in the app shell (not per-page) - renders every entry in `modalStackAtom`. */
 export const ModalHost = () => {
   const stack = useAtomValue(modalStackAtom);
+
   return (
     <>
       {stack
@@ -31,6 +32,7 @@ const Modal = ({
   // `runtime` is `@repo/shared-lib`'s Atom.runtime-backed AtomRegistryService - reached
   // through the same RegistryContext useAtomValue already uses, no separate Context needed.
   const context = useAtomValue(runtime, AsyncResult.getOrThrow);
+
   const close = useCallback(
     () => Effect.runSync(Effect.provide(closeModal(id), context)),
     [id, context],
@@ -43,9 +45,11 @@ const Modal = ({
     // Atom in sync when that happens instead of only reacting to our own closeModal() calls.
     const onClose = () => close();
     dialog?.addEventListener("close", onClose);
+
     return () => dialog?.removeEventListener("close", onClose);
   }, [close]);
 
   const handle: ModalHandle = { id, close };
+
   return createPortal(<dialog ref={dialogRef}>{render(handle)}</dialog>, document.body);
 };

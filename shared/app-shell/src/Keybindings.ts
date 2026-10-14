@@ -46,6 +46,7 @@ export const registerKeybinding = (
     const registry = yield* AtomRegistryService;
     const id = crypto.randomUUID();
     registry.update(keybindingsAtom, (list) => [...list, { ...binding, id }]);
+
     return () => registry.update(keybindingsAtom, (list) => list.filter((b) => b.id !== id));
   });
 
@@ -88,6 +89,7 @@ export const dispatchKeydown = (
 ): Effect.Effect<void, never, AtomRegistryService> =>
   Effect.gen(function* () {
     const registry = yield* AtomRegistryService;
+
     for (const binding of registry.get(keybindingsAtom)) {
       if (matchesKeybinding(binding.keys, event)) {
         binding.handler(event);
@@ -104,7 +106,9 @@ export const useGlobalKeybindings = (): void => {
   useEffect(() => {
     const dispatch = (event: KeyboardEvent) =>
       Effect.runSync(Effect.provide(dispatchKeydown(event), context));
+
     window.addEventListener("keydown", dispatch);
+
     return () => window.removeEventListener("keydown", dispatch);
   }, [context]);
 };

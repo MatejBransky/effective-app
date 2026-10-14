@@ -6,6 +6,7 @@ import { FilterRule } from "./FilterRule.ts";
 describe("FilterRule", () => {
   it("round-trips a leaf condition rule", async () => {
     const asserts = new TestSchema.Asserts(FilterRule);
+
     const value = {
       type: "condition" as const,
       field: "leadStage",
@@ -19,6 +20,7 @@ describe("FilterRule", () => {
 
   it("round-trips a nested group rule (recursive via Schema.suspend)", async () => {
     const asserts = new TestSchema.Asserts(FilterRule);
+
     const value = {
       type: "group" as const,
       combinator: "and" as const,

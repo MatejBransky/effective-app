@@ -17,5 +17,7 @@ export const MarketingSequence = Schema.Struct({
   isEnabled: Schema.Boolean,
   createdAt: Schema.DateFromString,
 });
+
 export type MarketingSequence = typeof MarketingSequence.Type;
+
 export type MarketingSequenceEncoded = typeof MarketingSequence.Encoded;

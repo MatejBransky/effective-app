@@ -27,10 +27,12 @@ export const layer = Layer.effect(
   HostScopedDb,
   Effect.gen(function* () {
     const db = yield* Db;
+
     return {
       query: (fn) =>
         Effect.gen(function* () {
           const host = yield* CurrentHost;
+
           return yield* Effect.tryPromise({
             try: () =>
               db.transaction(async (tx) => {
@@ -39,6 +41,7 @@ export const layer = Layer.effect(
                 // this avoids ever building a habit of interpolating untrusted input
                 // into raw SQL text.
                 await tx.execute(sql`select set_config('app.host_id', ${host.hostId}, true)`);
+
                 return fn(tx);
               }),
             catch: () => new DbError(),

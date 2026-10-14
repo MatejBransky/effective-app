@@ -45,6 +45,7 @@ export const SequenceActionExecutionResult = Schema.Union([
   TagAddResult,
   TagRemoveResult,
 ]).pipe(Schema.toTaggedUnion("actionType"));
+
 export type SequenceActionExecutionResult = typeof SequenceActionExecutionResult.Type;
 
 /**
@@ -58,6 +59,7 @@ export const SequenceActionExecutedPayload = Schema.Struct({
   actionType: SequenceActionType,
   result: SequenceActionExecutionResult,
 });
+
 export type SequenceActionExecutedPayload = typeof SequenceActionExecutedPayload.Type;
 
 /**
@@ -83,5 +85,7 @@ export const DomainEvent = Schema.Struct({
   actorId: Schema.NullOr(Schema.String),
   occurredAt: Schema.DateFromString,
 });
+
 export type DomainEvent = typeof DomainEvent.Type;
+
 export type DomainEventEncoded = typeof DomainEvent.Encoded;

@@ -38,11 +38,13 @@ async function bootstrap() {
   // imperative atom read (same as reading any other atom outside a component) - see
   // `@repo/shared-lib`'s `runtime` for why this needs no separate Context/provider.
   const context = AsyncResult.getOrThrow(registry.get(runtime));
+
   for (const keybinding of appKeybindings) {
     Effect.runSync(Effect.provide(registerKeybinding(keybinding), context));
   }
 
   const rootElement = document.getElementById("root")!;
+
   if (!rootElement.innerHTML) {
     const root = ReactDOM.createRoot(rootElement);
     root.render(

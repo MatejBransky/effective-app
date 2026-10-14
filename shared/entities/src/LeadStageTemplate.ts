@@ -13,5 +13,7 @@ export const LeadStageTemplate = Schema.Struct({
   color: Schema.NullOr(Schema.String),
   order: Schema.Number,
 });
+
 export type LeadStageTemplate = typeof LeadStageTemplate.Type;
+
 export type LeadStageTemplateEncoded = typeof LeadStageTemplate.Encoded;

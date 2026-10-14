@@ -29,11 +29,18 @@ export const defineAction = <Ctx, E = never>(
 ): ActionDefinition<Ctx, E> => definition;
 
 /** Resolves `label`'s `string | ((ctx) => string)` union - every consumer rendering a label
- * needs this same resolution, so it lives here once rather than repeated at each call site. */
+ * needs this same resolution, so it lives here once rather than repeated at each call site.
+ * `label` is already a parsed domain value (an in-code union, never unparsed external input),
+ * so there is no I/O boundary to decode at - the branch below just folds that union, using
+ * `instanceof` rather than `typeof` (see anti-slop/no-runtime-typeof). */
 export const resolveActionLabel = <Ctx>(
   action: Pick<ActionDefinition<Ctx, never>, "label">,
   ctx: Ctx,
-): string => (typeof action.label === "function" ? action.label(ctx) : action.label);
+): string => {
+  const { label } = action;
+
+  return label instanceof Function ? label(ctx) : label;
+};
 
 export interface ActionTrigger<Ctx, E> {
   readonly trigger: (ctx: Ctx) => void;

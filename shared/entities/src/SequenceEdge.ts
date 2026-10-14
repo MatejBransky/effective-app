@@ -14,5 +14,7 @@ export const SequenceEdge = Schema.Struct({
   /** `null` = unconditional edge; otherwise which branch of a `CONDITION` action this edge follows. */
   conditionBranch: Schema.NullOr(Schema.Literals(["true", "false"])),
 });
+
 export type SequenceEdge = typeof SequenceEdge.Type;
+
 export type SequenceEdgeEncoded = typeof SequenceEdge.Encoded;

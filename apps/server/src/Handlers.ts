@@ -13,6 +13,7 @@ export const MeGroupLive = HttpApiBuilder.group(Api, "Me", (handlers) =>
   handlers.handle("me", () =>
     Effect.gen(function* () {
       const host = yield* CurrentHost;
+
       return { hostId: host.hostId, subject: host.subject };
     }),
   ),
@@ -26,7 +27,9 @@ export const HostsGroupLive = HttpApiBuilder.group(Api, "Hosts", (handlers) =>
       // limits this to at most the caller's own host row.
       const rows = yield* hostScopedDb.query((tx) => tx.select().from(hosts));
       const host = rows[0];
+
       if (!host) return yield* new HostNotFound();
+
       return {
         id: host.id,
         name: host.name,

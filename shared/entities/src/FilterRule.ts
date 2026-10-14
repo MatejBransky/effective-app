@@ -15,6 +15,7 @@ export const FilterOperator = Schema.Literals([
   "in",
   "not_in",
 ]);
+
 export type FilterOperator = typeof FilterOperator.Type;
 
 export interface FilterConditionRule {

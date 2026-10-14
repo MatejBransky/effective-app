@@ -22,5 +22,7 @@ export const SequenceVersion = Schema.Struct({
   actorId: Schema.NullOr(Schema.String),
   createdAt: Schema.DateFromString,
 });
+
 export type SequenceVersion = typeof SequenceVersion.Type;
+
 export type SequenceVersionEncoded = typeof SequenceVersion.Encoded;

@@ -13,9 +13,11 @@ import { logout, restoreSession } from "../lib/auth";
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
     const user = await restoreSession();
+
     if (!user) {
       throw redirect({ to: "/login" });
     }
+
     return { user };
   },
   component: AuthenticatedLayout,

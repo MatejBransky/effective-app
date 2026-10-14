@@ -6,6 +6,7 @@ import { SequenceEdge } from "./SequenceEdge.ts";
 describe("SequenceEdge", () => {
   it("round-trips an unconditional edge", async () => {
     const asserts = new TestSchema.Asserts(SequenceEdge);
+
     const value = {
       id: "22222222-2222-4222-8222-222222222222",
       sequenceId: "11111111-1111-4111-8111-111111111111",
@@ -20,6 +21,7 @@ describe("SequenceEdge", () => {
 
   it("round-trips a conditional branch edge", async () => {
     const asserts = new TestSchema.Asserts(SequenceEdge);
+
     const value = {
       id: "22222222-2222-4222-8222-222222222222",
       sequenceId: "11111111-1111-4111-8111-111111111111",

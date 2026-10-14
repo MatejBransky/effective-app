@@ -26,6 +26,7 @@ function HomePage() {
   const { data: hostRows, isLoading: hostLoading } = useQuery(
     toCompilableQuery(drizzleDb.select().from(hosts).limit(1)),
   );
+
   const { data: memberRows, isLoading: membersLoading } = useQuery(
     toCompilableQuery(drizzleDb.select().from(members).orderBy(members.createdAt)),
   );
@@ -61,12 +62,14 @@ function HomePage() {
   const hostName = host?.name;
   useEffect(() => {
     const input = inputRef.current;
+
     if (input && hostName !== undefined && document.activeElement !== input) {
       input.value = hostName;
     }
   }, [hostName]);
 
   if (hostLoading || membersLoading) return <p>Loading...</p>;
+
   if (!host) return <p>No host synced yet.</p>;
 
   const renameHost = async (name: string) => {
@@ -90,6 +93,7 @@ function HomePage() {
     clearTimeout(pendingRename.current);
     pendingRename.current = setTimeout(() => void renameHost(name), DEBOUNCE_MS);
   };
+
   const flushRename = (name: string) => {
     clearTimeout(pendingRename.current);
     void renameHost(name);

@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("SequenceEnrollment", () => {
   it("round-trips decode/encode for a finished enrollment", async () => {
     const asserts = new TestSchema.Asserts(SequenceEnrollment);
+
     const encoded = {
       id: "55555555-5555-4555-8555-555555555555",
       hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -17,6 +18,7 @@ describe("SequenceEnrollment", () => {
       finishedAt: "2024-06-05T00:00:00.000Z",
       cancelledAt: null,
     };
+
     const decoded = {
       ...encoded,
       id: asId<SequenceEnrollmentId>(encoded.id),
@@ -33,6 +35,7 @@ describe("SequenceEnrollment", () => {
 
   it("round-trips decode/encode for an in-flight enrollment", async () => {
     const asserts = new TestSchema.Asserts(SequenceEnrollment);
+
     const encoded = {
       id: "55555555-5555-4555-8555-555555555555",
       hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -42,6 +45,7 @@ describe("SequenceEnrollment", () => {
       finishedAt: null,
       cancelledAt: null,
     };
+
     const decoded = {
       ...encoded,
       id: asId<SequenceEnrollmentId>(encoded.id),

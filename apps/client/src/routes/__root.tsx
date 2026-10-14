@@ -10,6 +10,7 @@ function RootLayout() {
   // Mounted at the outermost layout (not `_authenticated`) so modals/shortcuts work on
   // pre-login routes too, e.g. `/login`.
   useGlobalKeybindings();
+
   return (
     <>
       <Outlet />

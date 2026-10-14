@@ -8,6 +8,7 @@
  * patterns, and common checks such as strings, numbers, records, and class
  * instances.
  *
+ * @stability stable
  * @since 4.0.0
  */
 import * as internal from "./internal/matcher.ts"
@@ -22,7 +23,7 @@ const TypeId = internal.TypeId
 
 // The conditional must stay deferred until P is inferred. Replacing it with an
 // intersection loses contextual typing for nested generic calls (microsoft/TypeScript#52864).
-type Contextual<P, Fallback> = internal.Contextual<P, Fallback>
+type Contextual<P, Fallback> = [P] extends [never] ? Fallback : P
 
 type TagHandlers<D extends string, R, Ret> = {
   readonly [Tag in Types.Tags<D, R> & string]: (_: Extract<R, Record<D, Tag>>) => Ret
@@ -39,6 +40,7 @@ type ValueTagHandlers<I> = {
 /**
  * Marker used by `Matcher` to distinguish matchers created with `Match.value`.
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -77,6 +79,7 @@ export type ValueFlavor = "value"
  * result // => "string: some input"
  * ```
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -118,6 +121,7 @@ export type Matcher<
  * matcher(42) // => "Number: 42"
  * ```
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -170,6 +174,7 @@ export interface TypeMatcher<
  * result // => "User: Alice"
  * ```
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -212,6 +217,7 @@ export interface ValueMatcher<
  * @see {@link When} for positive cases
  * @see {@link Not} for negative cases
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -242,6 +248,7 @@ export type Case = When | Not
  * stringMatcher(42) // => "Got number: 42"
  * ```
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -276,6 +283,7 @@ export interface When {
  * matcher("forbidden") // => "This string is forbidden"
  * ```
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -324,6 +332,7 @@ export interface Not {
  *
  * @see {@link value} for creating a matcher from a specific value.
  *
+ * @stability stable
  * @category constructors
  * @since 4.0.0
  */
@@ -332,10 +341,13 @@ export const type: <I>() => Matcher<I, Types.Without<never>, I, never, never> = 
 /**
  * Creates a reusable matcher from a function that selects the value to match.
  *
+ * **Details**
+ *
  * The compiled matcher keeps the selector's original argument list. Case
  * handlers receive the narrowed selected value followed by those arguments.
  *
- * @example
+ * **Example** (Creating a reusable matcher)
+ *
  * ```ts import.meta.vitest
  * import { Match } from "effect"
  *
@@ -348,6 +360,7 @@ export const type: <I>() => Matcher<I, Types.Without<never>, I, never, never> = 
  * format("status", "a") // => "status: A"
  * ```
  *
+ * @stability stable
  * @category constructors
  * @since 4.0.0
  */
@@ -395,6 +408,7 @@ export const fn: <Args extends Array<any>, I>(
  *
  * @see {@link type} for creating a matcher from a specific type.
  *
+ * @stability stable
  * @category constructors
  * @since 4.0.0
  */
@@ -428,6 +442,7 @@ export const value: <const I>(
  * message // => "Success: Hello"
  * ```
  *
+ * @stability stable
  * @category constructors
  * @since 4.0.0
  */
@@ -491,6 +506,7 @@ export const valueTags: {
  * processResult({ _tag: "Loading" }) // => { type: "pending" }
  * ```
  *
+ * @stability stable
  * @category constructors
  * @since 4.0.0
  */
@@ -544,6 +560,7 @@ export const typeTags: {
  * )
  * ```
  *
+ * @stability stable
  * @category utility types
  * @since 4.0.0
  */
@@ -551,6 +568,26 @@ export const withReturnType: <Ret>() => <I, F, R, A, Pr, _, Args extends Array<a
   self: Matcher<I, F, R, A, Pr, _, Args>
 ) => [Ret] extends [[A] extends [never] ? any : A] ? Matcher<I, F, R, A, Pr, Ret, Args>
   : "withReturnType constraint does not extend Result type" = internal.withReturnType
+
+// `P` is a const type parameter, so object literals skip excess-property checks.
+// Reject pattern keys that no object variant of the input has. Functions,
+// refinements, and array patterns are not checked.
+type PatternKey<K> = K extends number ? `${K}` : K
+
+type PatternKeys<A> = object extends A ? PropertyKey
+  : A extends object ? PatternKey<keyof A>
+  : never
+
+type ObjectPatternGuard<A, P> = [P] extends [Function | ReadonlyArray<any> | SafeRefinement<never, any>] ? unknown
+  : [P] extends [object] ? { readonly [K in Exclude<PatternKey<keyof P>, PatternKeys<A>>]: never }
+  : unknown
+
+type ExactPattern<R, P> = (Types.PatternPrimitive<R> | Types.PatternBase<R>) & ObjectPatternGuard<R, P>
+
+type ExactPatterns<R, P> = {
+  readonly [I in keyof P]: I extends number | `${number}` ? P[I] & ExactPattern<R, P[I]>
+    : P[I]
+}
 
 /**
  * Defines a condition for matching values.
@@ -597,12 +634,13 @@ export const withReturnType: <Ret>() => <I, F, R, A, Pr, _, Args extends Array<a
  * @see {@link not} for handling inputs that do not match a pattern
  * @see {@link orElse} for providing a fallback when no pattern case matches
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
 export const when: <
   R,
-  const P extends Types.PatternPrimitive<R> | Types.PatternBase<R>,
+  const P extends ExactPattern<R, P>,
   Ret,
   Args extends Array<any>,
   Fn extends (_: Types.WhenMatch<R, P>, ...args: Args) => Ret
@@ -659,6 +697,7 @@ export const when: <
  * handleError({ _tag: "ValidationError", field: "email" }) // => "Invalid field: email"
  * ```
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -669,7 +708,7 @@ export const whenOr: <
   Args extends Array<any>,
   Fn extends (_: Types.WhenMatch<R, P[number]>, ...args: Args) => Ret
 >(
-  ...args: [...patterns: P, f: Fn]
+  ...args: [...patterns: ExactPatterns<R, P>, f: Fn]
 ) => <I, F, A, Pr>(
   self: Matcher<I, F, R, A, Pr, Ret, Args>
 ) => Matcher<
@@ -680,7 +719,13 @@ export const whenOr: <
   Pr,
   Ret,
   Args
-> = internal.whenOr
+> = <
+  R,
+  const P extends ReadonlyArray<Types.PatternPrimitive<R> | Types.PatternBase<R>>,
+  Ret,
+  Args extends Array<any>,
+  Fn extends (_: Types.WhenMatch<R, P[number]>, ...args: Args) => Ret
+>(...args: [...patterns: ExactPatterns<R, P>, f: Fn]) => internal.whenOr<R, P, Ret, Args, Fn>(...args)
 
 /**
  * Matches a value that satisfies all provided patterns.
@@ -717,6 +762,7 @@ export const whenOr: <
  * checkUser({ age: 20, role: "user" }) // => "Access denied"
  * ```
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -727,7 +773,7 @@ export const whenAnd: <
   Args extends Array<any>,
   Fn extends (_: Types.WhenMatch<R, T.UnionToIntersection<P[number]>>, ...args: Args) => Ret
 >(
-  ...args: [...patterns: P, f: Fn]
+  ...args: [...patterns: ExactPatterns<R, P>, f: Fn]
 ) => <I, F, A, Pr>(
   self: Matcher<I, F, R, A, Pr, Ret, Args>
 ) => Matcher<
@@ -738,7 +784,13 @@ export const whenAnd: <
   Pr,
   Ret,
   Args
-> = internal.whenAnd
+> = <
+  R,
+  const P extends ReadonlyArray<Types.PatternPrimitive<R> | Types.PatternBase<R>>,
+  Ret,
+  Args extends Array<any>,
+  Fn extends (_: Types.WhenMatch<R, T.UnionToIntersection<P[number]>>, ...args: Args) => Ret
+>(...args: [...patterns: ExactPatterns<R, P>, f: Fn]) => internal.whenAnd<R, P, Ret, Args, Fn>(...args)
 
 /**
  * Matches values based on a specified discriminant field.
@@ -778,6 +830,7 @@ export const whenAnd: <
  * @see {@link discriminators} for defining several discriminator handlers at once
  * @see {@link discriminatorStartsWith} for matching string discriminator values by prefix
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -829,6 +882,7 @@ export const discriminator: <D extends string>(
  *
  * @see {@link discriminator} for matching exact discriminator values
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -892,6 +946,7 @@ export const discriminatorStartsWith: <D extends string>(
  * @see {@link discriminator} for adding one discriminator case to a matcher pipeline
  * @see {@link discriminatorsExhaustive} for handling every discriminator value and finalizing the matcher
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -955,6 +1010,7 @@ export const discriminators: <D extends string>(
  *
  * @see {@link discriminators} for defining discriminator handlers without finalizing the matcher
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -1012,6 +1068,7 @@ export const discriminatorsExhaustive: <D extends string>(
  * match({ _tag: "error", error: new Error("Oops!") }) // => "Error: Oops!"
  * ```
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -1062,6 +1119,7 @@ export const tag: <
  * match({ _tag: "A.A" }) // => 1
  * ```
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -1117,6 +1175,7 @@ export const tagStartsWith: <
  * match({ _tag: "A", a: "ok" }) // => "ok"
  * ```
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -1172,6 +1231,7 @@ export const tags: <
  * match({ _tag: "B", b: 42 }) // => 42
  * ```
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
@@ -1221,12 +1281,13 @@ export const tagsExhaustive: <
  *
  * @see {@link when} for adding a positive pattern case
  *
+ * @stability stable
  * @category defining patterns
  * @since 4.0.0
  */
 export const not: <
   R,
-  const P extends Types.PatternPrimitive<R> | Types.PatternBase<R>,
+  const P extends ExactPattern<R, P>,
   Ret,
   Args extends Array<any>,
   Fn extends (_: Types.NotMatch<R, P>, ...args: Args) => Ret
@@ -1277,6 +1338,7 @@ export const not: <
  *
  * @see {@link string} for matching any string
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1318,6 +1380,7 @@ export const nonEmptyString: SafeRefinement<string, never> = internal.nonEmptySt
  * handleStatus("pending") // => "Unknown status: pending"
  * ```
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1350,6 +1413,7 @@ export const is: <
  * processValue(true) // => "Boolean: yes"
  * ```
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1391,6 +1455,7 @@ export const string: Predicate.Refinement<unknown, string> = Predicate.isString
  *
  * @see {@link bigint} for matching primitive bigint values
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1440,6 +1505,7 @@ export const number: Predicate.Refinement<unknown, number> = Predicate.isNumber
  * @see {@link defined} for matching only non-nullish values
  * @see {@link orElse} for providing a fallback after earlier cases
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1483,6 +1549,7 @@ export const any: SafeRefinement<unknown, any> = internal.any
  *
  * @see {@link any} for matching every value without excluding nullish inputs
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1524,6 +1591,7 @@ export const defined: <A>(u: A) => u is A & {} = internal.defined
  *
  * @see {@link is} for matching specific literal boolean values
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1546,6 +1614,7 @@ export {
    * @see {@link defined} for matching non-nullish values
    * @see {@link is} for matching literal values
    *
+   * @stability stable
    * @category guards
    * @since 4.0.0
    */
@@ -1569,6 +1638,7 @@ export {
    * @see {@link defined} for matching non-nullish values
    * @see {@link is} for matching literal values
    *
+   * @stability stable
    * @category guards
    * @since 4.0.0
    */
@@ -1611,6 +1681,7 @@ export {
  *
  * @see {@link number} for matching primitive number values
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1649,6 +1720,7 @@ export const bigint: Predicate.Refinement<unknown, bigint> = Predicate.isBigInt
  * handleSymbol("string") // => "Not a symbol"
  * ```
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1691,6 +1763,7 @@ export const symbol: Predicate.Refinement<unknown, symbol> = Predicate.isSymbol
  *
  * @see {@link instanceOf} for matching instances of any constructor
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1736,6 +1809,7 @@ export const date: Predicate.Refinement<unknown, Date> = Predicate.isDate
  *
  * @see {@link instanceOf} for matching a specific constructor
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1795,6 +1869,7 @@ export const record: Predicate.Refinement<unknown, { [x: PropertyKey]: unknown }
  * @see {@link instanceOfUnsafe} for constructor matching without the same type-safety guarantee
  * @see {@link record} for matching broad non-null, non-array objects
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1840,6 +1915,7 @@ export const instanceOf: <A extends abstract new(...args: any) => any>(
  *
  * @see {@link instanceOf} for type-safe constructor matching
  *
+ * @stability stable
  * @category guards
  * @since 4.0.0
  */
@@ -1883,6 +1959,7 @@ export const instanceOfUnsafe: <A extends abstract new(...args: any) => any>(
  * @see {@link result} for returning unmatched input as a `Result` failure
  * @see {@link orElseAbsurd} for finalizing when unmatched input should be impossible
  *
+ * @stability stable
  * @category completion
  * @since 4.0.0
  */
@@ -1935,6 +2012,7 @@ export const orElse: <RA, Ret, Args extends Array<any>, F extends (_: RA, ...arg
  * @see {@link exhaustive} for compile-time exhaustive matcher finalization
  * @see {@link orElse} for providing a fallback for unmatched input
  *
+ * @stability stable
  * @category completion
  * @since 4.0.0
  */
@@ -1977,6 +2055,7 @@ export const orElseAbsurd: <I, R, RA, A, Pr, Ret, Args extends Array<any>>(
  * getRole({ role: "viewer" })._tag // => "Failure"
  * ```
  *
+ * @stability stable
  * @category completion
  * @since 4.0.0
  */
@@ -2026,6 +2105,7 @@ export const result: <I, F, R, A, Pr, Ret, Args extends Array<any>>(
  * @see {@link result} for preserving unmatched input as a `Result` failure
  * @see {@link orElse} for replacing unmatched input with a fallback value
  *
+ * @stability stable
  * @category completion
  * @since 4.0.0
  */
@@ -2064,6 +2144,7 @@ export const option: <I, F, R, A, Pr, Ret, Args extends Array<any>>(
  * )
  * ```
  *
+ * @stability stable
  * @category completion
  * @since 4.0.0
  */
@@ -2072,7 +2153,7 @@ export const exhaustive: <I, F, A, Pr, Ret, Args extends Array<any>>(
 ) => [Pr] extends [never] ? [Args] extends [[]] ? (u: I) => Unify<A> : (...args: Args) => Unify<A> : Unify<A> =
   internal.exhaustive
 
-const SafeRefinementId = "~effect/match/Match/SafeRefinement"
+const SafeRefinementId = "~effect/Match/SafeRefinement"
 
 /**
  * A safe refinement that narrows types without runtime errors.
@@ -2102,6 +2183,7 @@ const SafeRefinementId = "~effect/match/Match/SafeRefinement"
  * processValue(null) // => "Undefined or null"
  * ```
  *
+ * @stability stable
  * @category models
  * @since 4.0.0
  */
@@ -2122,6 +2204,7 @@ type Fail = typeof Fail
  * application. These types enable the sophisticated type inference that makes
  * pattern matching both type-safe and ergonomic.
  *
+ * @stability stable
  * @since 4.0.0
  */
 export declare namespace Types {
@@ -2641,6 +2724,32 @@ export declare namespace Types {
 
   type Simplify<A> = { [K in keyof A]: A[K] } & {}
 
+  // Tuple patterns match a prefix at runtime. For inputs with a variadic part,
+  // narrow each position the pattern requires and keep the rest of the input.
+  type NarrowArrayPattern<I extends ReadonlyArray<any>, P extends ReadonlyArray<any>> = number extends I["length"]
+    ? number extends P["length"] ? MapArrayPattern<I, P>
+    : P["length"] extends Required<P>["length"] ? NarrowArrayPrefix<I, P>
+    : MapArrayPattern<I, P>
+    : MapArrayPattern<I, P>
+
+  type MapArrayPattern<I, P> = {
+    readonly [K in keyof I]: K extends keyof P ? ExtractAndNarrow<I[K], P[K]> : I[K]
+  } extends infer R ? Fail extends R[keyof R] ? never
+    : R
+    : never
+
+  type NarrowArrayPrefix<
+    I extends ReadonlyArray<any>,
+    P extends ReadonlyArray<any>,
+    Out extends ReadonlyArray<any> = readonly []
+  > = P extends readonly [infer PH, ...infer PT] ?
+    I extends readonly [infer IH, ...infer IT] ?
+      [ExtractAndNarrow<IH, PH>] extends [infer N] ? [N] extends [never] ? never
+        : NarrowArrayPrefix<IT, PT, readonly [...Out, N]>
+      : never
+    : NarrowArrayPrefix<readonly [I[number], ...Array<I[number]>], P, Out>
+    : readonly [...Out, ...I]
+
   type ExtractAndNarrow<Input, P> = P extends Predicate.Refinement<infer _In, infer _Out> ?
     _Out extends Input ? Extract<_Out, Input>
     : Extract<Input, _Out> :
@@ -2649,12 +2758,7 @@ export declare namespace Types {
       : Extract<Input, _In>
     : P extends Predicate.Predicate<infer _In> ? Extract<Input, _In>
     : Input extends infer I ? Exclude<
-        I extends ReadonlyArray<any> ? P extends ReadonlyArray<any> ? {
-              readonly [K in keyof I]: K extends keyof P ? ExtractAndNarrow<I[K], P[K]>
-                : I[K]
-            } extends infer R ? Fail extends R[keyof R] ? never
-              : R
-            : never
+        I extends ReadonlyArray<any> ? P extends ReadonlyArray<any> ? NarrowArrayPattern<I, P>
           : never
           : IsPlainObject<I> extends true ? string extends keyof I ? I extends P ? I
               : never

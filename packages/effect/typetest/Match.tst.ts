@@ -1,4 +1,4 @@
-import { Effect, Match, Option, pipe, type Result } from "effect"
+import { Effect, Match, Option, pipe, type Result, Schema } from "effect"
 import { describe, expect, it } from "tstyche"
 
 type Closed = { readonly _tag: "Closed" }
@@ -14,6 +14,7 @@ declare const taggedInput:
 declare const discriminatedInput:
   | { readonly kind: "A"; readonly a: string }
   | { readonly kind: "B"; readonly b: number }
+declare const renamedTransfer: { readonly _tag: "Transfer"; readonly renamedValue: "foo" } | null
 
 describe("Match", () => {
   it("fn infers the selected value and original arguments", () => {
@@ -201,6 +202,54 @@ describe("Match", () => {
     expect(Match.exhaustive(complete)).type.toBe<string | number>()
   })
 
+  it("rejects unknown keys on object patterns", () => {
+    // https://github.com/Effect-TS/effect/issues/6230
+    pipe(
+      Match.value(renamedTransfer),
+      // @ts-expect-error Type 'string' is not assignable to type 'never'
+      Match.when({ _tag: "Transfer", value: "foo" }, () => "hit")
+    )
+    pipe(
+      Match.value(renamedTransfer),
+      // @ts-expect-error Argument of type
+      Match.whenOr({ _tag: "Transfer" }, { value: "foo" }, () => "hit")
+    )
+    pipe(
+      Match.value(renamedTransfer),
+      // @ts-expect-error Argument of type
+      Match.whenAnd({ _tag: "Transfer" }, { value: "foo" }, () => "hit")
+    )
+    pipe(
+      Match.value(renamedTransfer),
+      // @ts-expect-error Type 'string' is not assignable to type 'never'
+      Match.not({ value: "foo" }, () => "hit")
+    )
+  })
+
+  it("rejects unknown keys on object patterns spread from arrays", () => {
+    const patterns: Array<{ _tag: "Transfer"; value: "foo" }> = [{ _tag: "Transfer", value: "foo" }]
+
+    pipe(
+      Match.value(renamedTransfer),
+      // @ts-expect-error Argument of type
+      Match.whenOr(...patterns, () => "hit")
+    )
+    pipe(
+      Match.value(renamedTransfer),
+      // @ts-expect-error Argument of type
+      Match.whenAnd(...patterns, () => "hit")
+    )
+  })
+
+  it("accepts union-member keys, broad inputs, and equivalent property keys", () => {
+    Match.value(taggedInput).pipe(Match.when({ a: (a) => a.length > 0 }, () => "hit"))
+    Match.type<unknown>().pipe(Match.when({ _tag: "A" }, () => "hit"))
+    Match.type<object>().pipe(Match.when({ _tag: "A" }, () => "hit"))
+    Match.type<Record<string, string>>().pipe(Match.when({ 0: "A" }, () => "hit"))
+    Match.type<{ "0": string }>().pipe(Match.when({ 0: "A" }, () => "hit"))
+    Match.type<{ 0: string }>().pipe(Match.when({ "0": "A" }, () => "hit"))
+  })
+
   it("tagsExhaustive contextually types Effect.fn handlers", () => {
     Match.value(taggedInput).pipe(
       Match.tagsExhaustive({
@@ -247,6 +296,71 @@ describe("Match", () => {
     )
   })
 
+  it("valueTags rejects the unknown tag in the Schema union reproduction", () => {
+    // https://github.com/Effect-TS/effect/issues/8167
+    const Vehicles = Schema.Union([
+      Schema.TaggedStruct("Car", {}),
+      Schema.TaggedStruct("Bike", {})
+    ])
+    const myVehicle: typeof Vehicles.Type = { _tag: "Bike" }
+
+    // @ts-expect-error Type '() => string' is not assignable to type 'never'
+    Match.valueTags(myVehicle, { Plane: () => "plane" })
+  })
+
+  it("valueTags rejects missing and unknown tags", () => {
+    // @ts-expect-error Type '() => boolean' is not assignable to type 'never'
+    Match.valueTags(taggedInput, { A: () => "a", B: () => 1, C: () => true })
+
+    // @ts-expect-error Property 'B' is missing
+    Match.valueTags(taggedInput, { A: () => "a" })
+
+    // @ts-expect-error Type '{}' is missing the following properties
+    Match.valueTags(taggedInput, {})
+
+    pipe(
+      taggedInput,
+      // @ts-expect-error Type '() => boolean' is not assignable to type 'never'
+      Match.valueTags({ A: () => "a", B: () => 1, C: () => true })
+    )
+
+    pipe(
+      taggedInput,
+      // @ts-expect-error Property 'B' is missing
+      Match.valueTags({ A: () => "a" })
+    )
+  })
+
+  it("valueTags infers handler inputs and the union of return types", () => {
+    const result = Match.valueTags(taggedInput, {
+      A: (value) => {
+        expect(value).type.toBe<{ readonly _tag: "A"; readonly a: string }>()
+        return value.a
+      },
+      B: (value) => {
+        expect(value).type.toBe<{ readonly _tag: "B"; readonly b: number }>()
+        return value.b
+      }
+    })
+    expect(result).type.toBe<string | number>()
+
+    expect(
+      pipe(
+        taggedInput,
+        Match.valueTags({
+          A: (value) => {
+            expect(value).type.toBe<{ readonly _tag: "A"; readonly a: string }>()
+            return value.a
+          },
+          B: (value) => {
+            expect(value).type.toBe<{ readonly _tag: "B"; readonly b: number }>()
+            return value.b
+          }
+        })
+      )
+    ).type.toBe<string | number>()
+  })
+
   it("related handler maps contextually type nested Effect.fn calls", () => {
     Match.value(taggedInput).pipe(
       Match.tags({
@@ -283,6 +397,49 @@ describe("Match", () => {
           expect(value).type.toBe<{ readonly _tag: "B"; readonly b: number }>()
           return value.b
         })
+      })
+    )
+  })
+
+  it("variadic tuple patterns narrow the required head and preserve the tail", () => {
+    Match.type<readonly [string, ...Array<number>]>().pipe(
+      Match.when([Match.number], (value) => {
+        expect(value).type.toBe<never>()
+      }),
+      Match.when(["A"], (value) => {
+        expect(value).type.toBe<readonly ["A", ...Array<number>]>()
+      })
+    )
+  })
+
+  it("array prefix patterns keep the unmatched tail", () => {
+    // https://github.com/Effect-TS/effect/issues/4901
+    type Item = string | number | null
+    Match.type<Array<Item>>().pipe(
+      Match.when(["A", Match.null], (value) => {
+        expect(value).type.toBe<readonly ["A", null, ...Array<Item>]>()
+      }),
+      Match.orElse((value) => {
+        expect(value).type.toBe<Array<Item>>()
+      })
+    )
+
+    Match.type<readonly [string, number]>().pipe(
+      Match.when(["A", Match.number], (value) => {
+        expect(value).type.toBe<readonly ["A", number]>()
+      })
+    )
+
+    Match.type<Array<Item>>().pipe(
+      Match.when([], (value) => {
+        expect(value).type.toBe<ReadonlyArray<Item>>()
+      })
+    )
+
+    const optionalPattern: readonly ["A"?] = ["A"]
+    Match.type<ReadonlyArray<string>>().pipe(
+      Match.not(optionalPattern, (value) => {
+        expect(value).type.toBe<ReadonlyArray<string>>()
       })
     )
   })

@@ -1,6 +1,7 @@
 /**
  * PostgreSQL support for Effect SQL, backed by the native wire protocol client.
  *
+ * @stability unstable
  * @since 4.0.0
  */
 import type * as Arr from "effect/Array"
@@ -10,17 +11,18 @@ import type * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type * as Queue from "effect/Queue"
+import * as Reactivity from "effect/reactivity/Reactivity"
 import type * as Redacted from "effect/Redacted"
 import type * as Scope from "effect/Scope"
+import * as Client from "effect/sql/SqlClient"
+import type { Borrower, Connection } from "effect/sql/SqlConnection"
+import { SqlError, UnknownError } from "effect/sql/SqlError"
+import type { Custom, Fragment } from "effect/sql/Statement"
+import * as Statement from "effect/sql/Statement"
 import * as Stream from "effect/Stream"
-import * as Reactivity from "effect/unstable/reactivity/Reactivity"
-import * as Client from "effect/unstable/sql/SqlClient"
-import type { Borrower, Connection } from "effect/unstable/sql/SqlConnection"
-import type { SqlError } from "effect/unstable/sql/SqlError"
-import type { Custom, Fragment } from "effect/unstable/sql/Statement"
-import * as Statement from "effect/unstable/sql/Statement"
 import type { Duplex } from "node:stream"
 import type { ConnectionOptions } from "node:tls"
+import { validateChannelName } from "./internal/sqlError.ts"
 import * as PgConnection from "./PgConnection.ts"
 import * as PgPool from "./PgPool.ts"
 import * as PgTypes from "./PgTypes.ts"
@@ -28,6 +30,7 @@ import * as PgTypes from "./PgTypes.ts"
 /**
  * The runtime type identifier for `PgClient`.
  *
+ * @stability unstable
  * @category type IDs
  * @since 4.0.0
  */
@@ -36,6 +39,7 @@ export const TypeId: TypeId = "~@effect/sql-pg/PgClient"
 /**
  * The type-level identifier for `PgClient`.
  *
+ * @stability unstable
  * @category type IDs
  * @since 4.0.0
  */
@@ -44,6 +48,7 @@ export type TypeId = "~@effect/sql-pg/PgClient"
 /**
  * A PostgreSQL `SqlClient` with JSON and `LISTEN`/`NOTIFY` helpers.
  *
+ * @stability unstable
  * @category services
  * @since 4.0.0
  */
@@ -52,19 +57,22 @@ export interface PgClient extends Client.SqlClient {
   readonly config: PgClientConfig
   readonly json: (_: unknown) => Fragment
   /**
-   * Registers a channel listener and returns its non-empty payload queue after
+   * Registers a channel listener and returns its notification queue after
    * PostgreSQL confirms `LISTEN`. The listener holds a connection until the
    * scope closes.
+   * Connection failures after registration fail the queue with the original
+   * `SqlError`. Intentional scope closure interrupts consumers.
    */
   readonly listen: (
     channel: string
-  ) => Effect.Effect<Queue.Dequeue<PgConnection.Notification>, SqlError, Scope.Scope>
+  ) => Effect.Effect<Queue.Dequeue<PgConnection.Notification, SqlError>, SqlError, Scope.Scope>
   readonly notify: (channel: string, payload: string) => Effect.Effect<void, SqlError>
 }
 
 /**
  * The service tag for `PgClient`.
  *
+ * @stability unstable
  * @category services
  * @since 4.0.0
  */
@@ -73,6 +81,7 @@ export const PgClient = Context.Service<PgClient>("@effect/sql-pg/PgClient")
 /**
  * Connection and query settings for a PostgreSQL client.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -85,13 +94,37 @@ export interface PgClientConfig {
   readonly ssl?: boolean | ConnectionOptions | undefined
   readonly database?: string | undefined
   readonly username?: string | undefined
-  readonly password?: Redacted.Redacted | undefined
+  /**
+   * A static password or an Effect evaluated for each connection attempt.
+   * Providers must handle typed errors and require no services.
+   * {@link Effect.orDie} converts typed errors to defects, not retryable SQL errors.
+   */
+  readonly password?: Redacted.Redacted | Effect.Effect<Redacted.Redacted> | undefined
 
   readonly connectTimeout?: Duration.Input | undefined
+  /** Idle time before TCP keepalive probes start. See `PgConnection.Config.keepAlive`. */
+  readonly keepAlive?: Duration.Input | undefined
 
   readonly stream?: (() => Duplex) | undefined
 
+  /**
+   * Overrides `startupParameters.application_name`, the URL's `application_name`,
+   * and the default `"@effect/sql-pg"`, in that order.
+   */
   readonly applicationName?: string | undefined
+  /**
+   * Session defaults sent in every physical connection's startup packet.
+   * Names are lowercased; `user`, `database`, `replication`, and `options` are
+   * reserved. `client_encoding` only accepts UTF8 / UTF-8 (case-insensitive).
+   * Empty names and NUL bytes fail before connecting; PostgreSQL validates
+   * other settings. Do not set the same GUC here and in `startupOptions`.
+   */
+  readonly startupParameters?: Readonly<Record<string, string>> | undefined
+  /**
+   * Opaque PostgreSQL startup options, overriding the URL's `options` parameter.
+   * Forwarded without parsing `-c` flags or checking for duplicate GUCs.
+   */
+  readonly startupOptions?: string | undefined
   readonly spanAttributes?: Record<string, unknown> | undefined
 
   readonly transformResultNames?: ((str: string) => string) | undefined
@@ -105,11 +138,9 @@ export interface PgClientConfig {
   readonly multiplex?: boolean | undefined
   /**
    * How many statements may share one connection when `multiplex` is on.
-   *
-   * Higher trades tail latency for throughput: the statements sharing a
-   * connection are pipelined into one write, and they also queue behind the
-   * slowest of them. The default suits a server that is a cheap round trip
-   * away; one reached across a virtual or real network is worth more.
+   * Defaults to `32`. Higher values trade tail latency for throughput: the
+   * statements sharing a connection are pipelined into one write, and they
+   * also queue behind the slowest of them.
    */
   readonly multiplexConcurrency?: number | undefined
   /**
@@ -119,11 +150,14 @@ export interface PgClientConfig {
   readonly prepare?: boolean | undefined
   /** How many statements a connection keeps prepared. Defaults to `100`. */
   readonly preparedStatementCacheSize?: number | undefined
+  /** Maximum backend message size in bytes. Defaults to 16 MiB. */
+  readonly maxMessageSize?: number | undefined
 }
 
 /**
  * PostgreSQL client settings with connection pool limits and timeouts.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -138,6 +172,7 @@ export interface PgPoolConfig extends PgClientConfig {
 /**
  * Creates a scoped PostgreSQL client backed by a connection pool.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -154,6 +189,7 @@ export const make = (options: PgPoolConfig): Effect.Effect<PgClient, SqlError, S
 /**
  * Creates a scoped PostgreSQL client backed by one connection.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -202,7 +238,7 @@ const makeImpl = Effect.fnUntraced(function*(
 
   const listen = (
     channel: string
-  ): Effect.Effect<Queue.Dequeue<PgConnection.Notification>, SqlError, Scope.Scope> =>
+  ): Effect.Effect<Queue.Dequeue<PgConnection.Notification, SqlError>, SqlError, Scope.Scope> =>
     Effect.flatMap(options.listenAcquirer, (connection) => connection.listen(channel))
 
   return Object.assign(
@@ -212,6 +248,8 @@ const makeImpl = Effect.fnUntraced(function*(
       // Postgres prepares transaction control like anything else, and a client
       // with preparation turned off falls back to the unnamed path anyway.
       prepareTransactionControls: true,
+      commit,
+      releaseSavepoint: (name) => `RELEASE SAVEPOINT ${name}`,
       transactionAcquirer: options.transactionAcquirer,
       compiler,
       spanAttributes: [
@@ -228,11 +266,15 @@ const makeImpl = Effect.fnUntraced(function*(
       config,
       json: (_: unknown) => Statement.fragment([PgJson(_)]),
       listen,
-      notify: (channel: string, payload: string) =>
-        Effect.asVoid(Effect.scoped(Effect.flatMap(
-          options.acquirer,
-          (conn) => conn.executeRaw(`SELECT pg_notify($1, $2)`, [channel, payload])
-        )))
+      notify: (channel: string, payload: string) => {
+        const channelError = validateChannelName(channel, "notify")
+        return channelError !== undefined ?
+          Effect.fail(channelError) :
+          Effect.asVoid(Effect.scoped(Effect.flatMap(
+            options.acquirer,
+            (conn) => conn.executeRaw(`SELECT pg_notify($1, $2)`, [channel, payload])
+          )))
+      }
     }
   )
 })
@@ -298,6 +340,24 @@ class ConnectionImpl implements Connection {
   }
 }
 
+/** PostgreSQL returns `ROLLBACK` for `COMMIT` when a transaction is aborted. */
+const commit = (conn: Connection): Effect.Effect<void, SqlError> =>
+  Effect.flatMap(
+    conn.executeRaw("COMMIT", []) as Effect.Effect<PgConnection.Result, SqlError>,
+    (result) =>
+      result.command === "ROLLBACK"
+        ? Effect.fail(
+          new SqlError({
+            reason: new UnknownError({
+              cause: new Error("COMMIT rolled back an aborted transaction"),
+              message: "PgClient: COMMIT rolled back an aborted transaction",
+              operation: "commit"
+            })
+          })
+        )
+        : Effect.void
+  )
+
 const makeConnection = (
   connection: PgConnection.PgConnection,
   streamAcquirer?: Effect.Effect<PgConnection.PgConnection, SqlError, Scope.Scope> | undefined
@@ -306,6 +366,7 @@ const makeConnection = (
 /**
  * Provides both `PgClient` and `SqlClient` from an acquisition effect.
  *
+ * @stability unstable
  * @category layers
  * @since 4.0.0
  */
@@ -322,6 +383,7 @@ export const layerFrom = <E, R>(
 /**
  * Creates a client layer from wrapped pool configuration.
  *
+ * @stability unstable
  * @category layers
  * @since 4.0.0
  */
@@ -336,6 +398,7 @@ export const layerConfig = (
 /**
  * Creates a client layer from pool configuration.
  *
+ * @stability unstable
  * @category layers
  * @since 4.0.0
  */
@@ -346,6 +409,7 @@ export const layer = (
 /**
  * Creates the PostgreSQL statement compiler.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -396,6 +460,7 @@ const escape = Statement.defaultEscape("\"")
 /**
  * PostgreSQL-specific statement fragments.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */

@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -13,6 +14,10 @@ export default defineConfig({
   // instead of duplicating the KEYCLOAK_*/POWERSYNC_* vars in a second file.
   envDir: fileURLToPath(new URL("../..", import.meta.url)),
   plugins: [
+    // Compiles project.inlang/messages into src/paraglide (gitignored build
+    // artifact, regenerated on every dev/build) - UI strings for the coaching
+    // slice come from there, never hardcoded.
+    paraglideVitePlugin({ project: "./project.inlang", outdir: "./src/paraglide" }),
     // Must come before react() - generates routeTree.gen.ts from src/routes.
     tanstackRouter({
       target: "react",
@@ -41,9 +46,12 @@ export default defineConfig({
     wasm(),
     topLevelAwait(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "apple-touch-icon.png"],
-      workbox: {
+      injectManifest: {
         // PowerSync's WASM SQLite engine ships multi-megabyte .wasm assets (the async
         // build is ~2.5 MB) - well past workbox's default 2 MiB precache limit, which
         // fails the build outright rather than just warning. This app is local-first by

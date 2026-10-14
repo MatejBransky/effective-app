@@ -1,6 +1,6 @@
-import * as Cloudflare from "@/Cloudflare";
 import * as Effect from "effect/Effect";
-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+import * as HttpClientRequest from "effect/http/HttpClientRequest";
+import * as Cloudflare from "@/Cloudflare";
 
 /**
  * Deterministic port the test's host-side HTTP server listens on. It stands
@@ -18,19 +18,32 @@ export const HOST_PROBE_PORT = 42117;
  */
 export const PPG_URL = "prisma+postgres://localhost:51216/?api_key=test-key";
 
-class HostReachContainer extends Cloudflare.Container<HostReachContainer>()(
-  "HostReachContainer",
-  {
-    // Template string, not `path.join(import.meta.dirname, …)`: this module is
-    // bundled into the Worker and `import.meta.dirname` is undefined there.
-    context: `${import.meta.dirname}/context`,
-    env: {
-      TARGET_URL: `http://localhost:${HOST_PROBE_PORT}/hello`,
-      PPG_URL,
-    },
-    observability: { logs: { enabled: true } },
+/**
+ * Cloud SQL URLs (Neon pooled, PlanetScale Postgres pooled, PlanetScale
+ * MySQL). The rewrite must leave these hosts alone — they are not loopback,
+ * and mangling them is how a "fix localhost" change would break Neon /
+ * PlanetScale from a container.
+ */
+export const NEON_URL =
+  "postgres://neondb_owner:secret@ep-cool-name-123456-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require";
+export const PLANETSCALE_PG_URL =
+  "postgresql://user:secret@xxxx.pg.psdb.cloud:6432/postgres?sslmode=verify-full";
+export const PLANETSCALE_MYSQL_URL =
+  "mysql://user:secret@aws.connect.psdb.cloud:3306/db?sslaccept=strict";
+
+class HostReachContainer extends Cloudflare.Container<HostReachContainer>()("HostReachContainer", {
+  // Template string, not `path.join(import.meta.dirname, …)`: this module is
+  // bundled into the Worker and `import.meta.dirname` is undefined there.
+  context: `${import.meta.dirname}/context`,
+  env: {
+    TARGET_URL: `http://localhost:${HOST_PROBE_PORT}/hello`,
+    PPG_URL,
+    NEON_URL,
+    PLANETSCALE_PG_URL,
+    PLANETSCALE_MYSQL_URL,
   },
-) {}
+  observability: { logs: { enabled: true } },
+}) {}
 
 /**
  * Durable Object that binds the {@link HostReachContainer} and exposes the
@@ -42,13 +55,14 @@ export class HostReachContainerObject extends Cloudflare.DurableObject<HostReach
     const container = yield* HostReachContainer;
 
     return Effect.gen(function* () {
+      // Starting is idempotent: a no-op once the container is running.
+      const start = container.start({ enableInternet: true });
       const { fetch } = yield* container.getTcpPort(8080);
 
       const get = (path: string) =>
         Effect.gen(function* () {
-          const response = yield* fetch(
-            HttpClientRequest.get(`http://container${path}`),
-          );
+          yield* start;
+          const response = yield* fetch(HttpClientRequest.get(`http://container${path}`));
           return yield* response.text;
         });
 
@@ -57,11 +71,5 @@ export class HostReachContainerObject extends Cloudflare.DurableObject<HostReach
         getProbe: () => get("/probe"),
       };
     });
-  }).pipe(
-    Effect.provide(
-      Cloudflare.Containers.layer(HostReachContainer, {
-        enableInternet: true,
-      }),
-    ),
-  ),
+  }),
 ) {}

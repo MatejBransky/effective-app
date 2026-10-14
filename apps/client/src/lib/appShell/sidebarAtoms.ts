@@ -1,6 +1,6 @@
 import { AtomRegistryService } from "@repo/shared-lib";
 import { Effect } from "effect";
-import { Atom } from "effect/unstable/reactivity";
+import { Atom } from "effect/reactivity";
 
 /** Whether the app-shell sidebar is open - toggled by the Mod+B keybinding registered in
  * `Sidebar.tsx`, or by clicking its own toggle button. Same pattern as `syncAtoms.ts`. */

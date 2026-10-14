@@ -66,6 +66,8 @@ PowerSync locally:
 cp .env.example .env
 pnpm run dev:infra       # starts Postgres + Mailpit + Keycloak + PowerSync (docker compose)
 pnpm run dev:infra:down  # stops them
+export DATABASE_URL="postgres://effective_app:local_dev_only@localhost:5442/effective_app"
+pnpm --filter @repo/entities db:migrate  # apply Drizzle migrations to Postgres
 pnpm --filter @repo/server run dev  # apps/server, once dev:infra is up
 pnpm --filter @repo/client run dev  # apps/client, once apps/server is up
 ```

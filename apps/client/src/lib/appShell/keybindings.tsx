@@ -1,7 +1,7 @@
 import { openModal, type Keybinding, type ModalHandle } from "@repo/shared-app-shell";
 import { registry, runtime } from "@repo/shared-lib";
 import { Effect } from "effect";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { toggleSidebar } from "./sidebarAtoms.ts";
 
 /** `restorePrevious` marks the help dialog itself as a temporary, unintrusive overlay:

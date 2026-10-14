@@ -1,6 +1,6 @@
 import { AtomRegistryService } from "@repo/shared-lib";
 import { Effect } from "effect";
-import { Atom, type AtomRegistry } from "effect/unstable/reactivity";
+import { Atom, type AtomRegistry } from "effect/reactivity";
 import type { ReactNode } from "react";
 
 export interface ModalHandle {

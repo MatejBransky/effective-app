@@ -1,10 +1,10 @@
 import { Context, Layer } from "effect";
-import { Atom, AtomRegistry } from "effect/unstable/reactivity";
+import { Atom, AtomRegistry } from "effect/reactivity";
 
 /**
  * The one app-wide registry instance. React hooks (`useAtomValue`, `useAtomSet`, ...) come
  * directly from `@effect/atom-react` - Effect-TS's own official React bindings for
- * `effect/unstable/reactivity`'s Atom/AtomRegistry, a real package published under the
+ * `effect/reactivity`'s Atom/AtomRegistry, a real package published under the
  * `@effect` scope (`packages/atom/react` in the effect monorepo itself, confirmed directly
  * against `externals/effect/packages/atom/react/package.json`), pinned to the exact same
  * `4.0.0-beta.98` line as `effect` (its own `peerDependencies.effect` matches exactly - checked
@@ -35,7 +35,7 @@ export const AtomRegistryServiceLive: Layer.Layer<AtomRegistryService> = Layer.s
 );
 
 /**
- * `AtomRegistryServiceLive` turned into an `Atom` (`effect/unstable/reactivity`'s own
+ * `AtomRegistryServiceLive` turned into an `Atom` (`effect/reactivity`'s own
  * `Atom.runtime`, not a hand-rolled React Context) - the bridge non-hook Effect code needs
  * to actually *run* (`openModal`, `registerKeybinding`, an action's `execute`). Being an
  * Atom, it's reached through the exact same `AtomRegistry`/`RegistryContext` every other

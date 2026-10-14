@@ -383,7 +383,7 @@ Every host-scoped table in `shared/entities`'s `./db` schema has `.enableRLS()` 
 - **Scoped only via a join** (`members` via `member_hosts`,
   `sequence_actions`/`sequence_edges` via `marketing_sequences`) -
   `hostIsolationViaJoinPolicy(...)`, an `exists (select 1 from <join table>
-where ...)` check. References the other table by literal SQL name rather
+  where ...)` check. References the other table by literal SQL name rather
   than importing its Drizzle table object, to avoid circular imports between
   schema files (e.g. `MemberHost.ts` already imports `members`).
 - **`lead_stage_templates` deliberately has no RLS** - it's platform-maintained
@@ -397,7 +397,7 @@ connecting role must actually be subject to RLS** - two gaps that would make
 enabling RLS pure theater if left unaddressed:
 
 - Postgres lets the table **owner** bypass RLS by default (`FORCE ROW LEVEL
-SECURITY` would override this, but this repo takes the other approach:
+  SECURITY` would override this, but this repo takes the other approach:
   `postgres/init-scripts/02-app-user-role.sql` creates a separate non-owner,
   non-superuser `app_user` role with `SELECT`/`INSERT`/`UPDATE`/`DELETE`
   grants only. `effective_app` (the `DATABASE_URL` role) still owns every
@@ -457,7 +457,7 @@ what lets the exact same Keycloak-issued token satisfy both `apps/server`'s
 `AuthService` and PowerSync's `client_auth` (see below), rather than needing
 two different tokens for the two consumers.
 
-`apps/server` (`effect/unstable/httpapi`) has a public `/health` endpoint, a
+`apps/server` (`effect/http-api`) has a public `/health` endpoint, a
 protected `/me` endpoint, and a protected `/hosts/me` endpoint (which actually
 queries Postgres through `HostScopedDb` - see "Postgres RLS for
 multi-tenancy" above) - all behind an `Auth` `HttpApiMiddleware.Service` using
@@ -540,13 +540,13 @@ they'll resurface on a fresh machine otherwise:
   a fresh init. Fixed in `docker-compose.yml`'s `postgres` and `pg-storage`
   volume mounts. An existing volume created before this fix has data laid
   out for the old path and needs to be reinitialized once: `pnpm run
-dev:infra:down && docker volume rm effective-app_postgres-data
-effective-app_powersync-storage-data`.
+  dev:infra:down && docker volume rm effective-app_postgres-data
+  effective-app_powersync-storage-data`.
 - **`sslmode` defaults to `verify-full`** on PowerSync's Postgres connections
   (both `replication.connections` and `storage`) - our local Postgres
   containers have no TLS configured, so the client's SSL negotiation was
   failing the connection outright. Surfaced as a generic, unhelpful `"Fatal
-startup error ... postgres query failed"` at the wire-protocol level (not a
+  startup error ... postgres query failed"` at the wire-protocol level (not a
   SQL error - confirmed by extracting and running the exact failing query,
   `CREATE TABLE IF NOT EXISTS locks (...)`, directly via `psql`, which
   succeeded fine). Fixed by adding `sslmode: disable` to both connections in
@@ -661,7 +661,7 @@ sources for each point (all checked to resolve with a real HTTP 200 as of
 - **Nested transactions (savepoints) aren't supported** - the driver's own
   "Known limitations" section states this is the one thing it doesn't yet
   do, and the installed source throws `Error('Nested transactions are not
-supported')` if attempted. **Not currently used by this app** - every
+  supported')` if attempted. **Not currently used by this app** - every
   client-side write here is a single-statement `drizzleDb.update(...)`, no
   `drizzleDb.transaction()` calls anywhere in `apps/client`.
   ([README - Known limitations](https://github.com/powersync-ja/powersync-js/blob/main/packages/drizzle-driver/README.md#known-limitations))
@@ -725,7 +725,7 @@ per-op failures surface in the response body's `errors` array instead of an
 HTTP error status, since a 4xx would block the client's upload queue
 permanently.
 
-**CORS**: `effect/unstable/http`'s `HttpRouter.cors` (no CORS module existed
+**CORS**: `effect/http`'s `HttpRouter.cors` (no CORS module existed
 in this repo's vendored Effect v4 before now), allowlisting `CLIENT_ORIGIN`
 (`http://localhost:5173`). Needed to be provided to `main.ts`'s `ApiLive`
 pipe _before_ `HttpRouter.serve`, unlike `HostScopedDbLayer` - CORS is global
@@ -777,7 +777,7 @@ reactivity actually behaves rather than assumptions:
   state as soon as `db.execute()`'s promise resolved, assuming the `hosts`
   query already reflected the new value. It doesn't yet at that point:
   `useQuery`'s watched-query re-run is throttled (`DEFAULT_WATCH_THROTTLE_MS
-= 30`, in `@powersync/common`'s `WatchedQuery` module - confirmed directly in
+  = 30`, in `@powersync/common`'s `WatchedQuery` module - confirmed directly in
   the installed package source, since neither the PowerSync docs nor the
   skill state the exact default), so there's a real gap between the local
   write completing and the query reflecting it, during which the old value
@@ -811,15 +811,15 @@ each wrong turn looked plausible from the package name alone:
 
 1. `@effect-atom/atom-react` (tim-smart's original, pre-v4 package) requires
    `effect: ^3.19` as a peer (`npm view @effect-atom/atom-react
-peerDependencies`), incompatible with this repo's `effect: 4.0.0-beta.98`
+   peerDependencies`), incompatible with this repo's `effect: 4.0.0-beta.98`
    pin.
 2. Rather than bundle a second, incompatible major version of `effect`, a
    hand-rolled `useAtomValue`/`useAtomSet` pair over `useSyncExternalStore`
-   was written directly against `effect/unstable/reactivity` (the
+   was written directly against `effect/reactivity` (the
    `Atom`/`AtomRegistry` module folded into effect core for v4 - confirmed via
    github.com/tim-smart/effect-atom issue #413, tim-smart's own reply: "In v4
    Atom is part of the library `import { Atom } from
-'effect/unstable/reactivity'`"). Vendoring `externals/effect-atom` (tim-smart's
+   'effect/reactivity'`"). Vendoring `externals/effect-atom` (tim-smart's
    repo, added later for an unrelated reason) as a reference turned out to
    still be the same v3-only package, not a fix.
 3. **The real fix**: closer inspection of `externals/effect` itself (not
@@ -1119,7 +1119,7 @@ begin with). `shared/app-shell` stays framework-runtime-agnostic: it only ever _
 `AtomRegistryService` requirement, never runs anything itself.
 
 **What actually _runs_ those effects turned out not to need a bespoke mechanism at all -
-`effect/unstable/reactivity`'s own `Atom.runtime` already solves it.** `shared/lib` exports
+`effect/reactivity`'s own `Atom.runtime` already solves it.** `shared/lib` exports
 `runtime = Atom.runtime(AtomRegistryServiceLive)` - an `AtomRuntime`, which per its own type is
 just an ordinary `Atom`. Being an Atom, it's reached through the exact same `AtomRegistry`/
 `RegistryContext` every other atom here already uses (`main.tsx`'s one

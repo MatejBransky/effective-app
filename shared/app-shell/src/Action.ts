@@ -1,7 +1,7 @@
 import { AtomRegistryService, runtime } from "@repo/shared-lib";
 import { useAtomValue } from "@effect/atom-react";
 import { Effect } from "effect";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { useCallback, useState } from "react";
 
 export interface ActionDefinition<Ctx, E = never> {

@@ -1,7 +1,7 @@
 import { runtime } from "@repo/shared-lib";
 import { useAtomValue } from "@effect/atom-react";
 import { Effect } from "effect";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import {
   browserOnlineAtom,
   pendingWritesCountAtom,

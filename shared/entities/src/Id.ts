@@ -6,41 +6,40 @@ import { Schema } from "effect";
  * docs/data-model.md. Branding keeps different entities' ids from being mixed up at the
  * type level even though they're all plain UUID strings on the wire.
  */
-const brandedUuid = <B extends string>(brand: B) =>
-  Schema.String.check(Schema.isUUID()).pipe(Schema.brand(brand));
+const Uuid = Schema.String.check(Schema.isUUID());
 
-export const HostId = brandedUuid("HostId");
+export const HostId = Uuid.pipe(Schema.brand("HostId"));
 export type HostId = typeof HostId.Type;
 
-export const MemberId = brandedUuid("MemberId");
+export const MemberId = Uuid.pipe(Schema.brand("MemberId"));
 export type MemberId = typeof MemberId.Type;
 
-export const MemberHostId = brandedUuid("MemberHostId");
+export const MemberHostId = Uuid.pipe(Schema.brand("MemberHostId"));
 export type MemberHostId = typeof MemberHostId.Type;
 
-export const LeadStageTemplateId = brandedUuid("LeadStageTemplateId");
+export const LeadStageTemplateId = Uuid.pipe(Schema.brand("LeadStageTemplateId"));
 export type LeadStageTemplateId = typeof LeadStageTemplateId.Type;
 
-export const LeadStageId = brandedUuid("LeadStageId");
+export const LeadStageId = Uuid.pipe(Schema.brand("LeadStageId"));
 export type LeadStageId = typeof LeadStageId.Type;
 
-export const MarketingSequenceId = brandedUuid("MarketingSequenceId");
+export const MarketingSequenceId = Uuid.pipe(Schema.brand("MarketingSequenceId"));
 export type MarketingSequenceId = typeof MarketingSequenceId.Type;
 
-export const HostFilterSetId = brandedUuid("HostFilterSetId");
+export const HostFilterSetId = Uuid.pipe(Schema.brand("HostFilterSetId"));
 export type HostFilterSetId = typeof HostFilterSetId.Type;
 
-export const SequenceActionId = brandedUuid("SequenceActionId");
+export const SequenceActionId = Uuid.pipe(Schema.brand("SequenceActionId"));
 export type SequenceActionId = typeof SequenceActionId.Type;
 
-export const SequenceEdgeId = brandedUuid("SequenceEdgeId");
+export const SequenceEdgeId = Uuid.pipe(Schema.brand("SequenceEdgeId"));
 export type SequenceEdgeId = typeof SequenceEdgeId.Type;
 
-export const SequenceEnrollmentId = brandedUuid("SequenceEnrollmentId");
+export const SequenceEnrollmentId = Uuid.pipe(Schema.brand("SequenceEnrollmentId"));
 export type SequenceEnrollmentId = typeof SequenceEnrollmentId.Type;
 
-export const SequenceVersionId = brandedUuid("SequenceVersionId");
+export const SequenceVersionId = Uuid.pipe(Schema.brand("SequenceVersionId"));
 export type SequenceVersionId = typeof SequenceVersionId.Type;
 
-export const DomainEventId = brandedUuid("DomainEventId");
+export const DomainEventId = Uuid.pipe(Schema.brand("DomainEventId"));
 export type DomainEventId = typeof DomainEventId.Type;

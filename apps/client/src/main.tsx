@@ -3,7 +3,7 @@ import { registry, runtime } from "@repo/shared-lib";
 import { RegistryContext } from "@effect/atom-react";
 import { PowerSyncContext } from "@powersync/react";
 import { Effect } from "effect";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";

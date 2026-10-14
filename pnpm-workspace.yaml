@@ -17,46 +17,40 @@ catalog:
   # Pinned to Node 24's own @types/node line (CI's actions/setup-node targets node-version:
   # 24) - already the latest 24.x release; the 26.x line tracks a newer Node major we don't
   # run yet.
-  "@types/node": 24.13.3
-  # oxlint 1.75.0 exists but is <24h old (minimumReleaseAge gate below) - staying on the
-  # previous mature release until it clears the cooldown.
-  oxlint: 1.74.0
-  # oxfmt 0.60.0 exists but is <24h old (minimumReleaseAge gate below) - same as oxlint.
-  oxfmt: 0.59.0
-  turbo: 2.10.5
-  vitest: 4.1.10
-  "@effect/vitest": 4.0.0-beta.100
-  # Effect v4 ("effect smol") - beta, but this is what externals/effect (vendored from the
-  # Effect-TS/effect main branch) is already on, so we're tracking the same line.
-  effect: 4.0.0-beta.100
-  drizzle-orm: 0.45.2
-  drizzle-kit: 0.31.10
-  # Node runtime adapter for effect/unstable/httpapi - a separate package from `effect`
-  # itself in this v4 line. Pinned to the exact same beta as `effect` above.
-  "@effect/platform-node": 4.0.0-beta.100
-  # React bindings for effect/unstable/reactivity's Atom/AtomRegistry - Effect-TS's own
+  "@types/node": 24.19.2
+  oxlint: 1.88.0
+  oxfmt: 0.73.0
+  turbo: 2.11.8
+  vitest: 5.0.4
+  "@effect/vitest": 4.0.4
+  # Effect v4 stable - matches externals/effect (vendored from the Effect-TS/effect main
+  # branch), which has since cut the stable 4.0.x line. All @effect/* companions pinned to
+  # the exact same version.
+  effect: 4.0.4
+  drizzle-orm: 0.45.4
+  drizzle-kit: 0.31.11
+  # Node runtime adapter for effect/http-api - a separate package from `effect`
+  # itself in this v4 line. Pinned to the exact same version as `effect` above.
+  "@effect/platform-node": 4.0.4
+  # React bindings for effect/reactivity's Atom/AtomRegistry - Effect-TS's own
   # official package (externals/effect/packages/atom/react in the effect monorepo itself,
   # published under the `@effect` scope), not the older standalone `@effect-atom/atom-react`
   # (still pins effect@^3.19 - checked directly against npm, incompatible with this repo's v4
   # pin - no separate `externals/effect-atom` subtree needed once this was found). Pinned to
-  # the exact same beta as `effect` above, matching its own peerDependencies.
-  "@effect/atom-react": 4.0.0-beta.100
+  # the exact same version as `effect` above, matching its own peerDependencies.
+  "@effect/atom-react": 4.0.4
   # JWT/JWKS verification for apps/server's AuthService - vendored Effect v4 has no
   # built-in JWT support (HttpApiSecurity only extracts the raw credential string).
-  # jose 6.2.4 exists but is <24h old (minimumReleaseAge gate below) - staying on 6.2.3
-  # until it clears the cooldown.
-  jose: 6.2.3
+  jose: 6.2.12
   # node-postgres, not postgres.js - matches the driver @effect/sql-pg wraps, so a later
   # Effect-based query layer shares the same driver/connection-pool conventions.
-  pg: 8.22.0
-  "@types/pg": 8.20.0
-  # react/react-dom 19.2.8 exist but are <24h old (minimumReleaseAge gate below) - staying
-  # on 19.2.7 until they clear the cooldown.
-  react: 19.2.7
-  react-dom: 19.2.7
-  "@types/react": 19.2.17
-  "@types/react-dom": 19.2.3
-  "@tanstack/react-router": 1.170.18
+  pg: 8.23.1
+  "@types/pg": 8.23.1
+  react: 19.3.0
+  react-dom: 19.3.0
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  "@tanstack/react-router": 1.170.44
 
 # Force patched versions for transitive dev-only vulnerabilities that the direct
 # dependency hasn't bumped past yet (flagged by `pnpm audit`, part of CI's security

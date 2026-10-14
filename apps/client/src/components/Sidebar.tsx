@@ -3,7 +3,7 @@ import { runtime } from "@repo/shared-lib";
 import { useAtomValue } from "@effect/atom-react";
 import { Link } from "@tanstack/react-router";
 import { Effect } from "effect";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { openShortcutsHelp } from "../lib/appShell/keybindings.tsx";
 import { sidebarOpenAtom, toggleSidebar } from "../lib/appShell/sidebarAtoms.ts";
 

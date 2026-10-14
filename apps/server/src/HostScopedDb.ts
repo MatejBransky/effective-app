@@ -5,11 +5,7 @@ import { Context, Effect, Layer, Schema } from "effect";
 import { CurrentHost } from "./CurrentHost.ts";
 import { Db } from "./Db.ts";
 
-export class DbError extends Schema.TaggedErrorClass<DbError>()(
-  "DbError",
-  {},
-  { httpApiStatus: 500 },
-) {}
+export class DbError extends Schema.TaggedError<DbError>()("DbError", {}, { httpApiStatus: 500 }) {}
 
 /**
  * Runs a query inside a transaction with `app.host_id` set for its duration (via

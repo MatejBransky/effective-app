@@ -1,5 +1,5 @@
 import { Effect, Layer } from "effect";
-import { HttpApiMiddleware, HttpApiSecurity } from "effect/unstable/httpapi";
+import { HttpApiMiddleware, HttpApiSecurity } from "effect/http-api";
 import { CurrentHost } from "./CurrentHost.ts";
 import { InvalidToken, JwtVerifier } from "./JwtVerifier.ts";
 

@@ -62,7 +62,7 @@ left stuck open with nothing listening for its result.
   parity were resolved). First deployable unit built and **verified live**:
   a trivial `HelloWorker` (`alchemy.run.ts` + `src/HelloWorker.ts`) deployed
   to a real Cloudflare account - `pnpm --filter @repo/infra
-run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
+  run deploy` bootstrapped `Cloudflare.state()`'s state-store Worker, then
   deployed `HelloWorker`, and the live `*.workers.dev` URL returned
   `hello world` (HTTP 200) on the first request. Proves the whole toolchain
   (credentials, state-store bootstrap, a real deploy) before `apps/server`

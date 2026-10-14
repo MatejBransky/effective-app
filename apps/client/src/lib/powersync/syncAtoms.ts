@@ -1,7 +1,7 @@
 import type { SyncStatus } from "@powersync/web";
 import { AtomRegistryService } from "@repo/shared-lib";
 import { Effect } from "effect";
-import { Atom } from "effect/unstable/reactivity";
+import { Atom } from "effect/reactivity";
 import { db, reconnect } from "./database.ts";
 
 /** How long an unsynced local write is allowed to sit in PowerSync's upload queue before

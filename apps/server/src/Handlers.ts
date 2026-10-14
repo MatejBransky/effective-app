@@ -1,6 +1,6 @@
 import { hosts } from "@repo/entities/db";
 import { Effect } from "effect";
-import { HttpApiBuilder } from "effect/unstable/httpapi";
+import { HttpApiBuilder } from "effect/http-api";
 import { Api, HostNotFound } from "./Api.ts";
 import { CurrentHost } from "./CurrentHost.ts";
 import { HostScopedDb } from "./HostScopedDb.ts";

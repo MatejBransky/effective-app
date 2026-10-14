@@ -2,7 +2,7 @@ import * as schema from "@repo/entities/db";
 import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Effect, Schema } from "effect";
-import { HttpApiBuilder } from "effect/unstable/httpapi";
+import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { HostScopedDb } from "./HostScopedDb.ts";
 import { entities, preprocessOpData } from "./SyncEntities.ts";

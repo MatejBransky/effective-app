@@ -1,6 +1,6 @@
 import { AtomRegistryService } from "@repo/shared-lib";
 import { Effect } from "effect";
-import { AtomRegistry } from "effect/unstable/reactivity";
+import { AtomRegistry } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   dispatchKeydown,

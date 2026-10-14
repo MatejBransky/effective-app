@@ -1,6 +1,6 @@
 import { AtomRegistryService } from "@repo/shared-lib";
 import { Effect } from "effect";
-import { AtomRegistry } from "effect/unstable/reactivity";
+import { AtomRegistry } from "effect/reactivity";
 import { beforeEach, describe, expect, it } from "vitest";
 import { closeModal, modalStackAtom, openModal } from "./ModalManager.ts";
 

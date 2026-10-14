@@ -60,7 +60,7 @@ describe("FilterRule", () => {
       .decoding()
       .fail(
         { type: "bogus", field: "x", operator: "equals", value: 1 },
-        `Expected { readonly "type": "condition", ... } | { readonly "type": "group", ... }, got {"type":"bogus","field":"x","operator":"equals","value":1}`,
+        `Expected { readonly "type": "condition", ... } | { readonly "type": "group", ... }`,
       );
   });
 });

@@ -1,7 +1,7 @@
 import { AtomRegistryService, runtime } from "@repo/shared-lib";
 import { useAtomValue } from "@effect/atom-react";
 import { Effect } from "effect";
-import { Atom, AsyncResult } from "effect/unstable/reactivity";
+import { Atom, AsyncResult } from "effect/reactivity";
 import { useEffect } from "react";
 
 export interface Keybinding {
@@ -18,7 +18,7 @@ interface RegisteredKeybinding extends Keybinding {
 
 /**
  * `Atom.keepAlive` is required here, not optional - every atom defaults to
- * `keepAlive: false` (`effect/unstable/reactivity`'s `AtomRegistry.createNode` schedules an
+ * `keepAlive: false` (`effect/reactivity`'s `AtomRegistry.createNode` schedules an
  * unmounted atom for removal on the very next tick unless something is actively subscribed
  * via `useAtomValue`/`registry.subscribe`). This atom is managed purely imperatively
  * (`registerKeybinding`/`dispatchKeydown` below only ever call `registry.get`/`update`, never

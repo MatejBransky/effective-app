@@ -5,7 +5,7 @@ import * as jose from "jose";
 // Deliberately no detail beyond the tag: leaking *why* a token was rejected (expired vs.
 // bad signature vs. wrong audience) helps an attacker narrow down how to forge one. Real
 // diagnostics belong in server-side logs, never in the response body.
-export class InvalidToken extends Schema.TaggedErrorClass<InvalidToken>()(
+export class InvalidToken extends Schema.TaggedError<InvalidToken>()(
   "InvalidToken",
   {},
   { httpApiStatus: 401 },

@@ -6,7 +6,7 @@ import { hosts } from "./powersync/schema.ts";
 
 const DEFAULT_HOST_NAME = "Untitled Host";
 
-export class ResetHostNameError extends Schema.TaggedErrorClass<ResetHostNameError>()(
+export class ResetHostNameError extends Schema.TaggedError<ResetHostNameError>()(
   "ResetHostNameError",
   { cause: Schema.Unknown },
 ) {}

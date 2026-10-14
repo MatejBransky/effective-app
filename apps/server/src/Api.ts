@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Auth } from "./Auth.ts";
 import { DbError } from "./HostScopedDb.ts";
 
@@ -19,7 +19,7 @@ const MeGroup = HttpApiGroup.make("Me")
   .add(HttpApiEndpoint.get("me", "/me", { success: MeResponse }))
   .middleware(Auth);
 
-export class HostNotFound extends Schema.TaggedErrorClass<HostNotFound>()(
+export class HostNotFound extends Schema.TaggedError<HostNotFound>()(
   "HostNotFound",
   {},
   { httpApiStatus: 404 },

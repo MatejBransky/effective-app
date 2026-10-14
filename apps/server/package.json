@@ -7,7 +7,9 @@
     "dev": "node --watch --env-file=../../.env src/main.ts",
     "start": "node src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:coaching": "node --env-file=../../.env src/seed-coaching.ts",
+    "reset:coaching": "node --env-file=../../.env src/reset-coaching.ts"
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
@@ -15,13 +17,15 @@
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "jose": "catalog:",
-    "pg": "catalog:"
+    "pg": "catalog:",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@repo/shared-typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "@types/web-push": "3.6.4",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

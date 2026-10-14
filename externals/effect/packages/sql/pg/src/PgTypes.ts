@@ -10,13 +10,33 @@
  * There is no `typeof` inference: an OID is always supplied, either directly
  * or through a constructor such as `int4` that carries it.
  *
- * `timestamp` has no time zone on the wire and is treated as UTC in both
- * directions. Decoding drops sub-millisecond precision by truncating toward
- * zero, including for timestamps before the PostgreSQL epoch.
+ * `timestamp` and `timestamptz` values, including array elements, decode to
+ * `Date`. Encoders accept `Date` or epoch milliseconds.
+ * Decoding truncates to milliseconds toward zero relative to the PostgreSQL
+ * epoch. To restore numeric decoding, override the codecs with `register`
+ * or a client `Registry`.
  *
+ * `infinity`, `-infinity` and values outside the JavaScript `Date` range
+ * (±8.64e15 epoch milliseconds) decode to an invalid `Date`. Numeric
+ * `±Infinity` encodes the PostgreSQL sentinels; encoding an invalid `Date` fails.
+ *
+ * The `timestamp` codec maps wall-clock fields to UTC fields of a `Date`.
+ * Date parameters bind as `timestamptz`, so inserting one into a `timestamp`
+ * column applies the session `TimeZone`. Use UTC or `timestamp(value)` to
+ * preserve its UTC fields. `timestamptz` round trips preserve the instant
+ * regardless of session timezone.
+ *
+ * `interval` values decode to `Interval`, preserving calendar months, days,
+ * and signed bigint microseconds independently. No units are normalized.
+ * Convert microseconds explicitly before JSON serialization.
+ *
+ * @stability unstable
  * @since 4.0.0
  */
 import * as Data from "effect/Data"
+import * as IpInterface from "effect/net/IpInterface"
+import * as IpNetwork from "effect/net/IpNetwork"
+import * as NetAddress from "effect/net/NetAddress"
 import * as Result from "effect/Result"
 import type * as PgProtocol from "./PgProtocol.ts"
 import type { ValueSink } from "./PgProtocol.ts"
@@ -24,6 +44,7 @@ import type { ValueSink } from "./PgProtocol.ts"
 /**
  * Failure returned when a value cannot be encoded or decoded for its OID.
  *
+ * @stability unstable
  * @category errors
  * @since 4.0.0
  */
@@ -273,6 +294,7 @@ const TZDISP_LIMIT_SECONDS = 57_600
 /**
  * Type OIDs implemented by version 1 of this codec.
  *
+ * @stability unstable
  * @category constants
  * @since 4.0.0
  */
@@ -296,8 +318,10 @@ export const OID = {
   time: 1083,
   timestamp: 1114,
   timestamptz: 1184,
+  interval: 1186,
   timetz: 1266,
   numeric: 1700,
+  regclass: 2205,
   uuid: 2950,
   jsonb: 3802,
   boolArray: 1000,
@@ -319,8 +343,10 @@ export const OID = {
   timeArray: 1183,
   timestampArray: 1115,
   timestamptzArray: 1185,
+  intervalArray: 1187,
   timetzArray: 1270,
   numericArray: 1231,
+  regclassArray: 2210,
   uuidArray: 2951,
   jsonbArray: 3807
 } as const
@@ -345,8 +371,10 @@ const arrayToElement = new Map<number, number>([
   [OID.timeArray, OID.time],
   [OID.timestampArray, OID.timestamp],
   [OID.timestamptzArray, OID.timestamptz],
+  [OID.intervalArray, OID.interval],
   [OID.timetzArray, OID.timetz],
   [OID.numericArray, OID.numeric],
+  [OID.regclassArray, OID.regclass],
   [OID.uuidArray, OID.uuid],
   [OID.jsonbArray, OID.jsonb]
 ])
@@ -358,6 +386,7 @@ const elementToArray = new Map<number, number>(
 /**
  * Options for registering a codec.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -373,6 +402,7 @@ export interface RegisterOptions {
  * A client-specific set of PostgreSQL binary codecs. Each registry starts with
  * the built-in codecs and does not affect the module-level registry.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -384,6 +414,7 @@ export interface Registry {
  * Returns the array OID whose elements have the given OID, or `undefined`
  * when there is no array type registered for it.
  *
+ * @stability unstable
  * @category getters
  * @since 4.0.0
  */
@@ -655,123 +686,28 @@ const decodeNumeric = (bytes: Uint8Array, offset: number, size: number): string 
 const PGSQL_AF_INET = 2
 const PGSQL_AF_INET6 = 3
 
-const parseIPv4 = (text: string): Uint8Array | undefined => {
-  const parts = text.split(".")
-  if (parts.length !== 4) return undefined
-  const bytes = new Uint8Array(4)
-  for (let i = 0; i < 4; i++) {
-    if (!/^\d{1,3}$/.test(parts[i])) return undefined
-    const value = Number(parts[i])
-    if (value > 255) return undefined
-    bytes[i] = value
-  }
-  return bytes
-}
-
-const parseIPv6 = (text: string): Uint8Array | undefined => {
-  const halves = text.split("::")
-  if (halves.length > 2) return undefined
-  const toGroups = (part: string): Array<string> => part === "" ? [] : part.split(":")
-  const head = toGroups(halves[0])
-  const tail = halves.length === 2 ? toGroups(halves[1]) : []
-  const bytes = new Uint8Array(16)
-
-  const trailing = tail.length > 0 ? tail[tail.length - 1] : head.length > 0 ? head[head.length - 1] : ""
-  const embedded = trailing.includes(".") ? parseIPv4(trailing) : undefined
-  if (trailing.includes(".") && embedded === undefined) return undefined
-  if (embedded !== undefined) {
-    if (tail.length > 0) tail.pop()
-    else head.pop()
-  }
-  const groupCount = embedded === undefined ? 8 : 6
-  if (head.length + tail.length > groupCount) return undefined
-  if (halves.length === 1 && head.length !== groupCount) return undefined
-
-  const writeGroup = (group: string, offset: number): boolean => {
-    if (!/^[0-9a-fA-F]{1,4}$/.test(group)) return false
-    const value = Number.parseInt(group, 16)
-    bytes[offset] = value >> 8
-    bytes[offset + 1] = value & 0xff
-    return true
-  }
-  for (let i = 0; i < head.length; i++) {
-    if (!writeGroup(head[i], i * 2)) return undefined
-  }
-  for (let i = 0; i < tail.length; i++) {
-    if (!writeGroup(tail[i], (groupCount - tail.length + i) * 2)) return undefined
-  }
-  if (embedded !== undefined) bytes.set(embedded, 12)
-  return bytes
-}
-
-const formatIPv4 = (bytes: Uint8Array, offset: number): string =>
-  `${bytes[offset]}.${bytes[offset + 1]}.${bytes[offset + 2]}.${bytes[offset + 3]}`
-
-const formatIPv6 = (bytes: Uint8Array, offset: number): string => {
-  let isV4Mapped = bytes[offset + 10] === 0xff && bytes[offset + 11] === 0xff
-  for (let i = 0; isV4Mapped && i < 10; i++) isV4Mapped = bytes[offset + i] === 0
-  if (isV4Mapped) return `::ffff:${formatIPv4(bytes, offset + 12)}`
-
-  const groups: Array<number> = []
-  for (let i = 0; i < 8; i++) groups.push(readUint16(bytes, offset + i * 2))
-
-  let bestStart = -1
-  let bestLength = 0
-  let start = -1
-  for (let i = 0; i <= 8; i++) {
-    if (i < 8 && groups[i] === 0) {
-      if (start === -1) start = i
-    } else if (start !== -1) {
-      if (i - start > bestLength) {
-        bestStart = start
-        bestLength = i - start
-      }
-      start = -1
+const encodeInet = (value: unknown, isCidr: boolean): Uint8Array => {
+  const type = isCidr ? "cidr" : "inet"
+  const text = requireString(value, type)
+  const parsed = IpInterface.fromString(text)
+  if (Result.isFailure(parsed)) return fail(`Invalid ${type} value ${JSON.stringify(text)}: ${parsed.failure.message}`)
+  const address = parsed.success.address
+  const bits = parsed.success.prefixLength
+  if (isCidr) {
+    const network = IpNetwork.make(address, bits)
+    if (Result.isFailure(network)) {
+      return fail(`Invalid ${type} value ${JSON.stringify(text)}: ${network.failure.message}`)
     }
   }
-  if (bestLength < 2) {
-    return groups.map((group) => group.toString(16)).join(":")
-  }
-  const head = groups.slice(0, bestStart).map((group) => group.toString(16)).join(":")
-  const tail = groups.slice(bestStart + bestLength).map((group) => group.toString(16)).join(":")
-  return `${head}::${tail}`
-}
-
-const hasHostBits = (bytes: Uint8Array, offset: number, length: number, bits: number): boolean => {
-  const wholeBytes = Math.floor(bits / 8)
-  const partialBits = bits % 8
-  if (partialBits !== 0 && (bytes[offset + wholeBytes] & ((1 << (8 - partialBits)) - 1)) !== 0) {
-    return true
-  }
-  for (let index = wholeBytes + (partialBits === 0 ? 0 : 1); index < length; index++) {
-    if (bytes[offset + index] !== 0) return true
-  }
-  return false
-}
-
-const encodeInet = (value: unknown, isCidr: boolean): Uint8Array => {
-  const text = requireString(value, isCidr ? "cidr" : "inet")
-  const slash = text.lastIndexOf("/")
-  const address = slash === -1 ? text : text.slice(0, slash)
-  const v4 = parseIPv4(address)
-  const bytes = v4 ?? parseIPv6(address)
-  if (bytes === undefined) {
-    return fail(`Expected an IP address, received "${text}"`)
-  }
-  const fullBits = bytes.length * 8
-  const bits = slash === -1 ? fullBits : Number(text.slice(slash + 1))
-  if (!Number.isInteger(bits) || bits < 0 || bits > fullBits) {
-    return fail(`Invalid netmask length in "${text}"`)
-  }
-  if (isCidr && hasHostBits(bytes, 0, bytes.length, bits)) {
-    return fail(`CIDR address has host bits set in "${text}"`)
-  }
-  const result = new Uint8Array(4 + bytes.length)
-  result[0] = v4 === undefined ? PGSQL_AF_INET6 : PGSQL_AF_INET
+  const octets = NetAddress.isIpv4Address(address)
+    ? NetAddress.ipv4ToOctets(address)
+    : NetAddress.ipv6ToOctets(address)
+  const result = new Uint8Array(4 + octets.length)
+  result[0] = NetAddress.isIpv4Address(address) ? PGSQL_AF_INET : PGSQL_AF_INET6
   result[1] = bits
   result[2] = isCidr ? 1 : 0
-  result[3] = bytes.length
-  result.set(bytes, 4)
+  result[3] = octets.length
+  result.set(octets, 4)
   return result
 }
 
@@ -789,11 +725,18 @@ const decodeInet = (bytes: Uint8Array, offset: number, size: number): string => 
   }
   requireSize(size, 4 + addressSize, "inet")
   if (bits > addressSize * 8) return fail(`Invalid inet netmask length: ${bits}`)
-  if (isCidr && hasHostBits(bytes, offset + 4, addressSize, bits)) {
-    return fail("CIDR address has host bits set")
+  const addressBytes = bytes.slice(offset + 4, offset + 4 + addressSize)
+  const address = family === PGSQL_AF_INET
+    ? NetAddress.ipv4FromBytesUnsafe(addressBytes)
+    : NetAddress.ipv6FromBytesUnsafe(addressBytes)
+  if (isCidr) {
+    const network = IpNetwork.make(address, bits)
+    if (Result.isFailure(network)) return fail(network.failure.message)
+    return IpNetwork.format(network.success)
   }
-  const text = family === PGSQL_AF_INET ? formatIPv4(bytes, offset + 4) : formatIPv6(bytes, offset + 4)
-  return isCidr || bits !== addressSize * 8 ? `${text}/${bits}` : text
+  return bits === addressSize * 8
+    ? NetAddress.formatIp(address)
+    : IpInterface.format(IpInterface.makeUnsafe(address, bits))
 }
 
 // -----------------------------------------------------------------------------
@@ -955,6 +898,7 @@ const decodeUuid = (bytes: Uint8Array, offset: number, size: number): string => 
 /**
  * A binary codec for a single OID.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -1049,9 +993,9 @@ const utf8Codec: UnsafeCodec<any> = codecOf(
   (sink, value) => sink.utf8(requireString(value, "text"))
 )
 
-const int8Value = (value: unknown): bigint => {
-  const big = requireBigInt(value, "int8")
-  if (big < INT64_MIN || big > INT64_MAX) fail(`int8 out of range: ${big}`)
+const requireInt64 = (value: unknown, name: string): bigint => {
+  const big = requireBigInt(value, name)
+  if (big < INT64_MIN || big > INT64_MAX) fail(`${name} out of range: ${big}`)
   return big
 }
 
@@ -1077,20 +1021,22 @@ const readTimeMicros = (bytes: Uint8Array, offset: number): number => {
   return micros
 }
 
-/** The two halves of the int64 `timestampInt64` last produced. */
 let timestampHigh = 0
 let timestampLow = 0
 
 /**
- * Converts epoch milliseconds to the halves of the wire int64. Both encoding
- * paths read them from here rather than from a returned pair, so neither
- * allocates.
+ * Writes the wire int64 to timestampHigh/Low, avoiding a pair allocation.
  */
 const timestampInt64 = (value: unknown): void => {
-  const ms = requireNumber(value, "timestamp")
-  if (Number.isNaN(ms)) {
-    fail("timestamp cannot be NaN")
-  } else if (ms === Number.POSITIVE_INFINITY) {
+  let ms: number
+  if (value instanceof Date) {
+    ms = value.getTime()
+    if (Number.isNaN(ms)) fail("timestamp cannot be an invalid Date")
+  } else {
+    ms = typeof value === "number" ? value : fail("Expected a Date or number for timestamp")
+    if (Number.isNaN(ms)) fail("timestamp cannot be NaN")
+  }
+  if (ms === Number.POSITIVE_INFINITY) {
     timestampHigh = INT32_MAX
     timestampLow = -1
   } else if (ms === Number.NEGATIVE_INFINITY) {
@@ -1122,17 +1068,14 @@ const timestampCodec: UnsafeCodec<any> = codecOf(
     requireSize(size, 8, "timestamp")
     const high = readInt32(bytes, offset)
     if (high >= -MAX_EXACT_HIGH && high < MAX_EXACT_HIGH) {
-      // Inside these bounds the whole conversion is float arithmetic, so it
-      // allocates no BigInt. Everything outside them, the sentinels included,
-      // needs the exact 64-bit value.
+      // These bounds allow exact conversion without BigInt.
       const micros = high * 4294967296 + readUint32(bytes, offset + 4)
-      return (micros - micros % 1000) / 1000 + PG_EPOCH_MS
+      return new Date((micros - micros % 1000) / 1000 + PG_EPOCH_MS)
     }
     stage8(bytes, offset)
     const micros = scratchView8.getBigInt64(0)
-    if (micros === INT64_MAX) return Number.POSITIVE_INFINITY
-    if (micros === INT64_MIN) return Number.NEGATIVE_INFINITY
-    return Number(micros / THOUSAND) + PG_EPOCH_MS
+    if (micros === INT64_MAX || micros === INT64_MIN) return new Date(Number.NaN)
+    return new Date(Number(micros / THOUSAND) + PG_EPOCH_MS)
   },
   (value) => {
     timestampInt64(value)
@@ -1141,7 +1084,6 @@ const timestampCodec: UnsafeCodec<any> = codecOf(
     writeInt32(bytes, 4, timestampLow)
     return bytes
   },
-  // Two int32s are the int64, so the sink needs nothing of its own for it.
   (sink, value) => {
     timestampInt64(value)
     sink.int32(timestampHigh)
@@ -1235,6 +1177,73 @@ const jsonbCodec: UnsafeCodec<any> = codecOf(
   }
 )
 
+const oidCodec: UnsafeCodec<any> = codecOf(
+  (bytes, offset, size) => {
+    requireSize(size, 4, "oid")
+    return readUint32(bytes, offset)
+  },
+  (value) => {
+    const num = requireInteger(value, "oid", 0, 4294967295)
+    const bytes = new Uint8Array(4)
+    bytes[0] = num >>> 24
+    bytes[1] = num >>> 16
+    bytes[2] = num >>> 8
+    bytes[3] = num
+    return bytes
+  },
+  (sink, value) => sink.int32(requireInteger(value, "oid", 0, 4294967295))
+)
+
+/**
+ * A PostgreSQL interval with independent signed calendar and time components.
+ * Months and days are int32 values; microseconds is an int64 value.
+ *
+ * @stability unstable
+ * @category models
+ * @since 4.0.0
+ */
+export interface Interval {
+  readonly months: number
+  readonly days: number
+  readonly microseconds: bigint
+}
+
+const intervalValue = (value: unknown): Interval => {
+  if (typeof value !== "object" || value === null) return fail("Expected an object for interval")
+  const interval = value as Interval
+  const months = requireInteger(interval.months, "interval months", INT32_MIN, INT32_MAX)
+  const days = requireInteger(interval.days, "interval days", INT32_MIN, INT32_MAX)
+  const microseconds = requireInt64(interval.microseconds, "interval microseconds")
+  return { months, days, microseconds }
+}
+
+const intervalCodec: UnsafeCodec<Interval> = codecOf(
+  (bytes, offset, size) => {
+    requireSize(size, 16, "interval")
+    stage8(bytes, offset)
+    return {
+      months: readInt32(bytes, offset + 12),
+      days: readInt32(bytes, offset + 8),
+      microseconds: scratchView8.getBigInt64(0)
+    }
+  },
+  (value) => {
+    const interval = intervalValue(value)
+    const bytes = new Uint8Array(16)
+    scratchView8.setBigInt64(0, interval.microseconds)
+    bytes.set(scratchBytes8)
+    writeInt32(bytes, 8, interval.days)
+    writeInt32(bytes, 12, interval.months)
+    return bytes
+  },
+  (sink, value) => {
+    const interval = intervalValue(value)
+    sink.bigInt64(interval.microseconds)
+    sink.int32(interval.days)
+    sink.int32(interval.months)
+  }
+)
+
 const builtinScalars = new Map<number, UnsafeCodec<any>>([
   [
     OID.bool,
@@ -1299,25 +1308,8 @@ const builtinScalars = new Map<number, UnsafeCodec<any>>([
       (sink, value) => sink.int32(requireInteger(value, "int4", INT32_MIN, INT32_MAX))
     )
   ],
-  [
-    OID.oid,
-    codecOf(
-      (bytes, offset, size) => {
-        requireSize(size, 4, "oid")
-        return readUint32(bytes, offset)
-      },
-      (value) => {
-        const num = requireInteger(value, "oid", 0, 4294967295)
-        const bytes = new Uint8Array(4)
-        bytes[0] = num >>> 24
-        bytes[1] = num >>> 16
-        bytes[2] = num >>> 8
-        bytes[3] = num
-        return bytes
-      },
-      (sink, value) => sink.int32(requireInteger(value, "oid", 0, 4294967295))
-    )
-  ],
+  [OID.oid, oidCodec],
+  [OID.regclass, oidCodec],
   [
     OID.int8,
     codecOf(
@@ -1327,10 +1319,10 @@ const builtinScalars = new Map<number, UnsafeCodec<any>>([
         return scratchView8.getBigInt64(0)
       },
       (value) => {
-        scratchView8.setBigInt64(0, int8Value(value))
+        scratchView8.setBigInt64(0, requireInt64(value, "int8"))
         return takeScratch8()
       },
-      (sink, value) => sink.bigInt64(int8Value(value))
+      (sink, value) => sink.bigInt64(requireInt64(value, "int8"))
     )
   ],
   [
@@ -1391,7 +1383,8 @@ const builtinScalars = new Map<number, UnsafeCodec<any>>([
   [OID.date, dateCodec],
   [OID.timetz, timetzCodec],
   [OID.timestamp, timestampCodec],
-  [OID.timestamptz, timestampCodec]
+  [OID.timestamptz, timestampCodec],
+  [OID.interval, intervalCodec]
 ])
 
 const makeArrayCodec = (elementOid: number, lookup: Lookup): UnsafeCodec<ReadonlyArray<unknown>> =>
@@ -1457,6 +1450,7 @@ const registerInState = <A>(
 /**
  * Creates a client-specific registry containing the built-in codecs.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1484,6 +1478,14 @@ const lookupFor = (registry: Registry | undefined): Lookup =>
  * Registers a binary codec for an OID the built-in catalogue does not cover,
  * or overrides a built-in one. Registered codecs take precedence.
  *
+ * **Details**
+ *
+ * Unregistered OIDs decode as UTF-8 text. Register binary user-defined types
+ * to avoid garbled output or codec errors, which close the connection when
+ * reading rows. For arrays, use `makeRegistry().register` with
+ * `RegisterOptions.arrayOid` and pass the registry as the client's `types` option.
+ *
+ * @stability unstable
  * @category registry
  * @since 4.0.0
  */
@@ -1496,6 +1498,7 @@ export const register = <A>(oid: number, codec: Codec<A>): void => {
 /**
  * Removes a previously registered codec.
  *
+ * @stability unstable
  * @category registry
  * @since 4.0.0
  */
@@ -1663,6 +1666,7 @@ const decodeArray = (
 /**
  * A result column, as `RowDescription` describes one.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -1676,9 +1680,9 @@ export interface Column {
  *
  * **Details**
  *
- * Codecs are resolved once per column. SQL `NULL` becomes `null`, and columns
- * without a registered codec return a copy of their bytes. Text-format columns
- * fail with `CodecError`.
+ * Codecs are resolved once per column. SQL `NULL` becomes `null`.
+ * Unregistered OIDs decode as UTF-8 text. Invalid UTF-8 and text-format
+ * columns fail with `CodecError`.
  *
  * **Example** (Updating the reader after `RowDescription`)
  *
@@ -1691,6 +1695,7 @@ export interface Column {
  * parser.readField = Result.getOrThrow(PgTypes.makeFieldReader(description.fields))
  * ```
  *
+ * @stability unstable
  * @category decoding
  * @since 4.0.0
  */
@@ -1709,7 +1714,7 @@ export const makeFieldReader = (
     return (bytes: Uint8Array, offset: number, size: number, column: number): unknown => {
       if (size < 0) return null
       const codec = codecs[column]
-      if (codec === undefined) return bytes.slice(offset, offset + size)
+      if (codec === undefined) return decodeUtf8(bytes, offset, size)
       const read = codec.read
       return read === undefined ? codec.decode(bytes.subarray(offset, offset + size)) : read(bytes, offset, size)
     }
@@ -1723,6 +1728,7 @@ export const makeFieldReader = (
  * Returns a `CodecError` failure when the value has the wrong JavaScript type,
  * or when the OID is neither built in nor registered.
  *
+ * @stability unstable
  * @category encoding
  * @since 4.0.0
  */
@@ -1738,9 +1744,11 @@ export const encode = (value: unknown, oid: number, registry?: Registry): Result
  *
  * **Details**
  *
- * `format` must be `1`; the text format is not implemented. An OID that is
- * neither built in nor registered decodes to the raw bytes.
+ * Only binary format (`1`) is supported. Unregistered OIDs decode as UTF-8
+ * text; invalid UTF-8 fails with `CodecError`. See `register` for binary
+ * user-defined types, including arrays.
  *
+ * @stability unstable
  * @category decoding
  * @since 4.0.0
  */
@@ -1755,7 +1763,7 @@ export const decode = (
       return fail(`Only the binary format is supported, received format ${format}`)
     }
     const codec = lookupFor(registry)(oid)
-    return codec === undefined ? bytes : codec.decode(bytes)
+    return codec === undefined ? decodeUtf8(bytes, 0, bytes.length) : codec.decode(bytes)
   })
 
 // -----------------------------------------------------------------------------
@@ -1765,6 +1773,7 @@ export const decode = (
 /**
  * The runtime type identifier for PostgreSQL parameters.
  *
+ * @stability unstable
  * @category type IDs
  * @since 4.0.0
  */
@@ -1773,6 +1782,7 @@ export const ParameterTypeId: ParameterTypeId = "~@effect/sql-pg/PgTypes/Paramet
 /**
  * The type-level identifier for PostgreSQL parameters.
  *
+ * @stability unstable
  * @category type IDs
  * @since 4.0.0
  */
@@ -1781,6 +1791,7 @@ export type ParameterTypeId = "~@effect/sql-pg/PgTypes/Parameter"
 /**
  * A value paired with the OID it should be encoded as.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -1793,6 +1804,7 @@ export interface Parameter {
 /**
  * Returns whether a value is a parameter created by this module.
  *
+ * @stability unstable
  * @category guards
  * @since 4.0.0
  */
@@ -1802,6 +1814,7 @@ export const isParameter = (value: unknown): value is Parameter =>
 /**
  * Encodes a parameter for a `Bind` message. SQL NULL stays `null`.
  *
+ * @stability unstable
  * @category encoding
  * @since 4.0.0
  */
@@ -1823,6 +1836,7 @@ const writeValue = (sink: ValueSink, value: unknown, oid: number, lookup: Lookup
  * Untyped parameters (OID `0`) use text so PostgreSQL can infer their type;
  * typed parameters use the binary format.
  *
+ * @stability unstable
  * @category encoding
  * @since 4.0.0
  */
@@ -1848,6 +1862,7 @@ const writeParameterUnsafe = (sink: ValueSink, parameter: Parameter, lookup: Loo
 /**
  * Writes a parameter into a `Bind` frame.
  *
+ * @stability unstable
  * @category encoding
  * @since 4.0.0
  */
@@ -1881,6 +1896,7 @@ const parameter = (oid: number) => (value: unknown): Parameter => makeParameter(
 /**
  * A `bool` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1889,6 +1905,7 @@ export const bool: (value: boolean | null) => Parameter = parameter(OID.bool)
 /**
  * An `int2` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1897,6 +1914,7 @@ export const int2: (value: number | null) => Parameter = parameter(OID.int2)
 /**
  * An `int4` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1905,6 +1923,7 @@ export const int4: (value: number | null) => Parameter = parameter(OID.int4)
 /**
  * An `int8` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1913,6 +1932,7 @@ export const int8: (value: bigint | null) => Parameter = parameter(OID.int8)
 /**
  * An `oid` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1921,6 +1941,7 @@ export const oid: (value: number | null) => Parameter = parameter(OID.oid)
 /**
  * A `float4` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1929,6 +1950,7 @@ export const float4: (value: number | null) => Parameter = parameter(OID.float4)
 /**
  * A `float8` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1937,6 +1959,7 @@ export const float8: (value: number | null) => Parameter = parameter(OID.float8)
 /**
  * A `numeric` parameter, given as a decimal string or `"NaN"`.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1945,6 +1968,7 @@ export const numeric: (value: string | null) => Parameter = parameter(OID.numeri
 /**
  * A `text` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1953,6 +1977,7 @@ export const text: (value: string | null) => Parameter = parameter(OID.text)
 /**
  * A `varchar` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1961,6 +1986,7 @@ export const varchar: (value: string | null) => Parameter = parameter(OID.varcha
 /**
  * A `bpchar` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1969,6 +1995,7 @@ export const bpchar: (value: string | null) => Parameter = parameter(OID.bpchar)
 /**
  * A `name` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1977,6 +2004,7 @@ export const name: (value: string | null) => Parameter = parameter(OID.name)
 /**
  * A `bytea` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1985,6 +2013,7 @@ export const bytea: (value: Uint8Array | null) => Parameter = parameter(OID.byte
 /**
  * A `json` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -1993,6 +2022,7 @@ export const json: (value: unknown) => Parameter = parameter(OID.json)
 /**
  * A `jsonb` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -2001,6 +2031,7 @@ export const jsonb: (value: unknown) => Parameter = parameter(OID.jsonb)
 /**
  * A `uuid` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -2009,6 +2040,7 @@ export const uuid: (value: string | null) => Parameter = parameter(OID.uuid)
 /**
  * An `inet` parameter, such as `"10.0.0.1"` or `"10.0.0.0/8"`.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -2017,6 +2049,7 @@ export const inet: (value: string | null) => Parameter = parameter(OID.inet)
 /**
  * A `cidr` parameter.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -2025,6 +2058,7 @@ export const cidr: (value: string | null) => Parameter = parameter(OID.cidr)
 /**
  * A `date` parameter, given as `YYYY-MM-DD`, `"infinity"`, or `"-infinity"`.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -2033,6 +2067,7 @@ export const date: (value: string | null) => Parameter = parameter(OID.date)
 /**
  * A `time` parameter, given as microseconds since midnight.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -2041,31 +2076,44 @@ export const time: (value: bigint | null) => Parameter = parameter(OID.time)
 /**
  * A `timetz` parameter, such as `"12:34:56+02:00"`.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
 export const timetz: (value: string | null) => Parameter = parameter(OID.timetz)
 
 /**
- * A `timestamp` parameter, given as Unix epoch milliseconds and interpreted
- * as UTC.
+ * A `timestamp` parameter from a `Date` or epoch milliseconds. UTC fields
+ * become the stored wall-clock fields, regardless of session `TimeZone`.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
-export const timestamp: (value: number | null) => Parameter = parameter(OID.timestamp)
+export const timestamp: (value: Date | number | null) => Parameter = parameter(OID.timestamp)
 
 /**
- * A `timestamptz` parameter, given as Unix epoch milliseconds.
+ * A `timestamptz` parameter, given as a `Date` or Unix epoch milliseconds.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
-export const timestamptz: (value: number | null) => Parameter = parameter(OID.timestamptz)
+export const timestamptz: (value: Date | number | null) => Parameter = parameter(OID.timestamptz)
+
+/**
+ * An `interval` parameter with independent months, days, and microseconds.
+ *
+ * @stability unstable
+ * @category constructors
+ * @since 4.0.0
+ */
+export const interval: (value: Interval | null) => Parameter = parameter(OID.interval)
 
 /**
  * A one-dimensional array parameter whose elements have the given OID.
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */

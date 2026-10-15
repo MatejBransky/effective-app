@@ -53,10 +53,12 @@ export const modalStackAtom: Atom.Writable<ReadonlyArray<ModalEntry>> = Atom.kee
 const closeWith = (registry: AtomRegistry.AtomRegistry, id: string): void => {
   registry.update(modalStackAtom, (stack) => {
     const next = stack.filter((entry) => entry.id !== id);
+
     if (next.length === 0) return next;
     // Whatever's now on top should be visible - un-suspends a modal that was hidden to make
     // room for the one just closed (see `restorePrevious` above).
     const top = next.at(-1)!;
+
     return top.hidden ? [...next.slice(0, -1), { ...top, hidden: false }] : next;
   });
 };
@@ -85,15 +87,19 @@ export const openModal = (
     const registry = yield* AtomRegistryService;
     const id = crypto.randomUUID();
     const handle: ModalHandle = { id, close: () => closeWith(registry, id) };
+
     if (registry.get(modalStackAtom).at(-1)?.locked) return handle;
     const entry: ModalEntry = { id, render, locked: options?.locked };
     registry.update(modalStackAtom, (stack) => {
       if (options?.stack) return [...stack, entry];
       const top = stack.at(-1);
+
       const preserved =
         options?.restorePrevious && top ? [...stack.slice(0, -1), { ...top, hidden: true }] : [];
+
       return [...preserved, entry];
     });
+
     return handle;
   });
 

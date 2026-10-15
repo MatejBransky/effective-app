@@ -20,6 +20,7 @@ export const AuthLive = Layer.effect(
   Auth,
   Effect.gen(function* () {
     const verifier = yield* JwtVerifier;
+
     return {
       bearer: (effect, opts) =>
         Effect.provideServiceEffect(effect, CurrentHost, verifier.verify(opts.credential)),

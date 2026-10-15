@@ -10,5 +10,6 @@ function LoginPage() {
   useEffect(() => {
     void login();
   }, []);
+
   return <p>Redirecting to sign in…</p>;
 }

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "generate-routes": "tsr generate",
     "typecheck": "pnpm run generate-routes && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@effect/atom-react": "catalog:",
@@ -25,11 +26,14 @@
     "effect": "catalog:",
     "oidc-client-ts": "3.5.0",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "workbox-precaching": "7.4.1"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-typescript": "7.29.7",
+    "@inlang/paraglide-js": "2.27.0",
+    "@playwright/test": "1.64.0",
     "@repo/shared-typescript-config": "workspace:*",
     "@tanstack/react-router-devtools": "1.167.2",
     "@tanstack/router-cli": "1.167.43",

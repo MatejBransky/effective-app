@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Auth } from "./Auth.ts";
+import { CoachingGroup } from "./CoachingApi.ts";
 import { DbError } from "./HostScopedDb.ts";
 
 const MeResponse = Schema.Struct({
@@ -86,4 +87,5 @@ export const Api = HttpApi.make("EffectiveApp")
   .add(HealthGroup)
   .add(MeGroup)
   .add(HostsGroup)
-  .add(SyncGroup);
+  .add(SyncGroup)
+  .add(CoachingGroup);

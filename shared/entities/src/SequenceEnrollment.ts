@@ -17,5 +17,7 @@ export const SequenceEnrollment = Schema.Struct({
   finishedAt: Schema.NullOr(Schema.DateFromString),
   cancelledAt: Schema.NullOr(Schema.DateFromString),
 });
+
 export type SequenceEnrollment = typeof SequenceEnrollment.Type;
+
 export type SequenceEnrollmentEncoded = typeof SequenceEnrollment.Encoded;

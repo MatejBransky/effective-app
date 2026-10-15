@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { getTableName } from "drizzle-orm";
 import { Effect, Layer } from "effect";
+import type { Host, MarketingSequence } from "@repo/entities";
 import { CurrentHost } from "./CurrentHost.ts";
 import { DbError, HostScopedDb } from "./HostScopedDb.ts";
 import { syncUpload } from "./SyncHandlers.ts";
@@ -30,6 +31,10 @@ type RecordedCall =
   | { readonly kind: "update"; readonly table: string; readonly row: unknown }
   | { readonly kind: "delete"; readonly table: string };
 
+/** Rows `applyOp` writes in these tests: full decoded entities on PUT, decoded
+ * field subsets on PATCH - partials of the real entity shapes. */
+type WrittenRow = Partial<Host> | Partial<MarketingSequence>;
+
 /** A fake Drizzle transaction object, typed `any` since it only implements the three
  * chained call shapes `SyncHandlers.ts`'s `applyOp` actually uses - not the full
  * `NodePgDatabase` surface (same "dynamic dispatch, untyped at this one boundary"
@@ -37,17 +42,19 @@ type RecordedCall =
 const makeFakeTx = (calls: Array<RecordedCall>) => {
   const fakeTx: any = {
     insert: (table: any) => ({
-      values: (row: unknown) => ({
+      values: (row: WrittenRow) => ({
         onConflictDoUpdate: () => {
           calls.push({ kind: "insert", table: getTableName(table), row });
+
           return Promise.resolve();
         },
       }),
     }),
     update: (table: any) => ({
-      set: (row: unknown) => ({
+      set: (row: WrittenRow) => ({
         where: () => {
           calls.push({ kind: "update", table: getTableName(table), row });
+
           return Promise.resolve();
         },
       }),
@@ -55,10 +62,12 @@ const makeFakeTx = (calls: Array<RecordedCall>) => {
     delete: (table: any) => ({
       where: () => {
         calls.push({ kind: "delete", table: getTableName(table) });
+
         return Promise.resolve();
       },
     }),
   };
+
   return fakeTx;
 };
 
@@ -71,6 +80,7 @@ const makeFakeLayers = (calls: Array<RecordedCall>) =>
       query: (fn) =>
         Effect.gen(function* () {
           yield* CurrentHost;
+
           return yield* Effect.tryPromise({
             try: () => fn(makeFakeTx(calls)),
             catch: () => new DbError(),
@@ -84,6 +94,7 @@ describe("syncUpload", () => {
   it.effect("rejects an op against a table not in the write allowlist", () =>
     Effect.gen(function* () {
       const calls: Array<RecordedCall> = [];
+
       const result = yield* syncUpload({
         operations: [{ id: HOST_ID, op: "PUT", table: "lead_stage_templates", opData: {} }],
       }).pipe(Effect.provide(makeFakeLayers(calls)));
@@ -97,6 +108,7 @@ describe("syncUpload", () => {
   it.effect("applies a PUT as an insert-or-update on the matching table", () =>
     Effect.gen(function* () {
       const calls: Array<RecordedCall> = [];
+
       const result = yield* syncUpload({
         operations: [{ id: HOST_ID, op: "PUT", table: "hosts", opData: validHostRow }],
       }).pipe(Effect.provide(makeFakeLayers(calls)));
@@ -117,6 +129,7 @@ describe("syncUpload", () => {
   it.effect("applies a PATCH as an update with only the changed fields decoded", () =>
     Effect.gen(function* () {
       const calls: Array<RecordedCall> = [];
+
       const result = yield* syncUpload({
         operations: [{ id: HOST_ID, op: "PATCH", table: "hosts", opData: { name: "Renamed Gym" } }],
       }).pipe(Effect.provide(makeFakeLayers(calls)));
@@ -129,6 +142,7 @@ describe("syncUpload", () => {
   it.effect("applies a DELETE", () =>
     Effect.gen(function* () {
       const calls: Array<RecordedCall> = [];
+
       const result = yield* syncUpload({
         operations: [{ id: HOST_ID, op: "DELETE", table: "hosts" }],
       }).pipe(Effect.provide(makeFakeLayers(calls)));
@@ -143,6 +157,7 @@ describe("syncUpload", () => {
     () =>
       Effect.gen(function* () {
         const calls: Array<RecordedCall> = [];
+
         // Missing every required Host field - `Schema.decodeUnknownPromise` should reject.
         const result = yield* syncUpload({
           operations: [{ id: HOST_ID, op: "PUT", table: "hosts", opData: {} }],
@@ -157,6 +172,7 @@ describe("syncUpload", () => {
   it.effect("rejects an unknown field on a PATCH instead of writing it through", () =>
     Effect.gen(function* () {
       const calls: Array<RecordedCall> = [];
+
       const result = yield* syncUpload({
         operations: [{ id: HOST_ID, op: "PATCH", table: "hosts", opData: { notAField: "x" } }],
       }).pipe(Effect.provide(makeFakeLayers(calls)));
@@ -170,6 +186,7 @@ describe("syncUpload", () => {
   it.effect("coerces a PowerSync 0/1 into a real boolean for isEnabled", () =>
     Effect.gen(function* () {
       const calls: Array<RecordedCall> = [];
+
       const result = yield* syncUpload({
         operations: [
           {
@@ -191,6 +208,10 @@ describe("syncUpload", () => {
       expect(result.errors).toHaveLength(0);
       const inserted = calls[0];
       expect(inserted?.kind).toBe("insert");
+      // SAFETY: the PUT above targets `marketing_sequences`, so `calls[0]` is the
+      // recorded insert whose row is the decoded sequence with `isEnabled` coerced
+      // 1 -> `true` by `preprocessOpData` - the cast only names that known row
+      // shape for the boolean check below.
       expect((inserted as { row: { isEnabled: unknown } }).row.isEnabled).toBe(true);
     }),
   );

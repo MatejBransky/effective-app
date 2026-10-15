@@ -33,6 +33,16 @@ const stubPlatform = (platform: string) => {
   vi.stubGlobal("navigator", { platform, userAgent: platform });
 };
 
+/** Dispatches a synthetic keypress built from `event(...)` - `dispatchKeydown` takes a real
+ * `KeyboardEvent`, but vitest runs in plain Node with no DOM constructor to build one with. */
+const dispatchTestEvent = (overrides: Partial<KeyboardEventLike>): void => {
+  // SAFETY: dispatchKeydown only reads the five KeyboardEventLike fields (via
+  // matchesKeybinding) and forwards the event to the registered handler; the fixture supplies
+  // all five, and every handler registered in these tests is a vi.fn() that ignores its
+  // argument, so no other KeyboardEvent member is ever touched.
+  run(dispatchKeydown(event(overrides) as KeyboardEvent));
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -96,7 +106,7 @@ describe("registerKeybinding/dispatchKeydown", () => {
     const handler = vi.fn();
     const unregister = run(registerKeybinding({ keys: "mod+k", handler }));
 
-    run(dispatchKeydown(event({ key: "k", ctrlKey: true }) as KeyboardEvent));
+    dispatchTestEvent({ key: "k", ctrlKey: true });
 
     expect(handler).toHaveBeenCalledOnce();
     unregister();
@@ -107,7 +117,7 @@ describe("registerKeybinding/dispatchKeydown", () => {
     const handler = vi.fn();
     const unregister = run(registerKeybinding({ keys: "mod+k", handler }));
 
-    run(dispatchKeydown(event({ key: "j", ctrlKey: true }) as KeyboardEvent));
+    dispatchTestEvent({ key: "j", ctrlKey: true });
 
     expect(handler).not.toHaveBeenCalled();
     unregister();
@@ -119,7 +129,7 @@ describe("registerKeybinding/dispatchKeydown", () => {
     const unregister = run(registerKeybinding({ keys: "mod+k", handler }));
     unregister();
 
-    run(dispatchKeydown(event({ key: "k", ctrlKey: true }) as KeyboardEvent));
+    dispatchTestEvent({ key: "k", ctrlKey: true });
 
     expect(handler).not.toHaveBeenCalled();
   });
@@ -135,7 +145,7 @@ describe("registerKeybinding/dispatchKeydown", () => {
     const unregister = run(registerKeybinding({ keys: "mod+k", handler }));
 
     await new Promise((resolve) => setTimeout(resolve, 0));
-    run(dispatchKeydown(event({ key: "k", ctrlKey: true }) as KeyboardEvent));
+    dispatchTestEvent({ key: "k", ctrlKey: true });
 
     expect(handler).toHaveBeenCalledOnce();
     unregister();

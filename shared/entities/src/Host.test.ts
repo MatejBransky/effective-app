@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("Host", () => {
   it("round-trips decode/encode", async () => {
     const asserts = new TestSchema.Asserts(Host);
+
     const encoded = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       name: "Acme Gym",
@@ -18,6 +19,7 @@ describe("Host", () => {
       businessType: "gym",
       createdAt: "2024-01-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<HostId>(encoded.id),

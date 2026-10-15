@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("MemberHost", () => {
   it("round-trips decode/encode for a lead", async () => {
     const asserts = new TestSchema.Asserts(MemberHost);
+
     const encoded = {
       id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       memberId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -17,6 +18,7 @@ describe("MemberHost", () => {
       leadStageId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       createdAt: "2024-03-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<MemberHostId>(encoded.id),
@@ -32,6 +34,7 @@ describe("MemberHost", () => {
 
   it("round-trips decode/encode for an enrolled member", async () => {
     const asserts = new TestSchema.Asserts(MemberHost);
+
     const encoded = {
       id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       memberId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -41,6 +44,7 @@ describe("MemberHost", () => {
       leadStageId: null,
       createdAt: "2024-03-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<MemberHostId>(encoded.id),

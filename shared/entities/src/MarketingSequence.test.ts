@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("MarketingSequence", () => {
   it("round-trips decode/encode with a filterSetId", async () => {
     const asserts = new TestSchema.Asserts(MarketingSequence);
+
     const encoded = {
       id: "11111111-1111-4111-8111-111111111111",
       hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -17,6 +18,7 @@ describe("MarketingSequence", () => {
       isEnabled: true,
       createdAt: "2024-05-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<MarketingSequenceId>(encoded.id),
@@ -31,6 +33,7 @@ describe("MarketingSequence", () => {
 
   it("round-trips decode/encode with a null filterSetId (targets everyone)", async () => {
     const asserts = new TestSchema.Asserts(MarketingSequence);
+
     const encoded = {
       id: "11111111-1111-4111-8111-111111111111",
       hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -40,6 +43,7 @@ describe("MarketingSequence", () => {
       isEnabled: true,
       createdAt: "2024-05-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<MarketingSequenceId>(encoded.id),

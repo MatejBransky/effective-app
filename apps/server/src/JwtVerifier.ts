@@ -16,6 +16,13 @@ export interface VerifiedToken {
   readonly subject: string;
 }
 
+/** The claims our domain extracts from a verified JWT - extra standard claims
+ * (`exp`, `iat`, ...) are ignored on decode. */
+const TokenClaims = Schema.Struct({
+  host_id: Schema.String,
+  sub: Schema.String,
+});
+
 /**
  * Verifies a Bearer JWT and extracts the claims our domain cares about. Swappable via
  * `Layer` (see `layer`/`layerWithJwks` below) so tests never make a real network call to
@@ -37,14 +44,15 @@ const make = (options: { readonly issuer: string; readonly getKey: JWTVerifyGetK
         const { payload } = await jose.jwtVerify(Redacted.value(token), options.getKey, {
           issuer: options.issuer,
         });
+
         // host_id comes from a Keycloak user-attribute mapper (see
         // keycloak/realm-export.json) - not a standard OIDC claim, so it isn't
         // guaranteed present just because the signature/issuer checked out.
-        const hostId = payload["host_id"];
-        if (typeof hostId !== "string" || typeof payload.sub !== "string") {
-          throw new Error("token missing required host_id/sub claim");
-        }
-        return { hostId, subject: payload.sub };
+        // Decoded with Effect Schema (not `typeof` narrowing): a missing or
+        // non-string claim throws here and becomes `InvalidToken` below.
+        const claims = Schema.decodeUnknownSync(TokenClaims)(payload);
+
+        return { hostId: claims.host_id, subject: claims.sub };
       },
       catch: () => new InvalidToken(),
     }),

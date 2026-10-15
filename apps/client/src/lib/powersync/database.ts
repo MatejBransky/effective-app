@@ -1,5 +1,6 @@
 import { wrapPowerSyncWithDrizzle } from "@powersync/drizzle-driver";
 import { PowerSyncDatabase } from "@powersync/web";
+import { getAccessToken } from "../auth.ts";
 import { Connector } from "./connector.ts";
 import { AppSchema, drizzleSchema } from "./schema.ts";
 
@@ -23,7 +24,7 @@ export const db = new PowerSyncDatabase({
  */
 export const drizzleDb = wrapPowerSyncWithDrizzle(db, { schema: drizzleSchema });
 
-const connector = new Connector();
+const connector = new Connector({ getAccessToken });
 
 // `connect()` is fire-and-forget - it starts the sync stream and uploadData loop in the
 // background, and retries `fetchCredentials`/`uploadData` automatically (with backoff)

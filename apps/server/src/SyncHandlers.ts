@@ -6,34 +6,33 @@ import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { HostScopedDb } from "./HostScopedDb.ts";
 import { entities, preprocessOpData } from "./SyncEntities.ts";
-import type { EntityDescriptor } from "./SyncEntities.ts";
+import type { EntityDescriptor, OpData } from "./SyncEntities.ts";
 
 export interface CrudEntry {
   readonly id: string;
   readonly op: "PUT" | "PATCH" | "DELETE";
   readonly table: string;
-  readonly opData?: Record<string, unknown> | undefined;
+  readonly opData?: OpData | undefined;
 }
 
 type OpOutcome = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
 /**
- * Thin wrappers around Drizzle's insert/update, parameters intentionally typed `any` -
+ * Thin wrappers around Drizzle's insert/update. `tx`/`table` stay `any` on purpose -
  * `EntityDescriptor.table` is a heterogeneous, runtime-dispatched value (see
  * SyncEntities.ts), so there's no single concrete `PgTable` subtype these calls could be
  * typed against without narrowing to one specific entity. Kept to two tiny functions
  * (rather than inlining `any` at each call site) so the untyped boundary is explicit and
- * contained to exactly the two Drizzle calls that need it.
+ * contained to exactly the two Drizzle calls that need it. `row` is the schema-derived
+ * `OpData` (full decoded rows on PUT, validated field subsets on PATCH - see
+ * `applyOp`), and both return `Promise<void>` because callers only await completion,
+ * never a result value.
  */
-const insertOrUpdateRow = (tx: any, table: any, row: Record<string, unknown>): Promise<unknown> =>
+const insertOrUpdateRow = (tx: any, table: any, row: OpData): Promise<void> =>
   tx.insert(table).values(row).onConflictDoUpdate({ target: table.id, set: row });
 
-const updateRow = (
-  tx: any,
-  table: any,
-  id: string,
-  row: Record<string, unknown>,
-): Promise<unknown> => tx.update(table).set(row).where(eq(table.id, id));
+const updateRow = (tx: any, table: any, id: string, row: OpData): Promise<void> =>
+  tx.update(table).set(row).where(eq(table.id, id));
 
 /**
  * Applies one PowerSync `CrudEntry` to Postgres via Drizzle. Runs inside its own
@@ -57,29 +56,38 @@ const applyOp = async (
         const raw = preprocessOpData({ id: op.id, ...op.opData }, descriptor);
         const decoded = await Schema.decodeUnknownPromise(descriptor.fullSchema)(raw);
         await insertOrUpdateRow(tx, descriptor.table, decoded);
+
         return { ok: true };
       }
+
       case "PATCH": {
         const raw = preprocessOpData(op.opData ?? {}, descriptor);
-        const decoded: Record<string, unknown> = {};
+        const entries: Array<[string, unknown]> = [];
+
         for (const [key, value] of Object.entries(raw)) {
           // `config`/`rules`/`snapshot`/`payload` (this entity's `jsonFields`) have no
           // single per-field schema to validate a partial update against - see
           // SyncEntities.ts's comment on `sequenceActionScalarFields`. Already
           // JSON-parsed by `preprocessOpData`; pass through as-is.
           if (descriptor.jsonFields?.includes(key)) {
-            decoded[key] = value;
+            entries.push([key, value]);
             continue;
           }
+
           const fieldSchema = descriptor.fields[key];
+
           if (!fieldSchema) return { ok: false, reason: `unknown field: ${key}` };
-          decoded[key] = await Schema.decodeUnknownPromise(fieldSchema)(value);
+          entries.push([key, await Schema.decodeUnknownPromise(fieldSchema)(value)]);
         }
-        await updateRow(tx, descriptor.table, op.id, decoded);
+
+        await updateRow(tx, descriptor.table, op.id, Object.fromEntries(entries));
+
         return { ok: true };
       }
+
       case "DELETE": {
         await tx.delete(descriptor.table).where(eq(descriptor.table.id, op.id));
+
         return { ok: true };
       }
     }
@@ -98,6 +106,7 @@ export const syncUpload = (payload: { readonly operations: ReadonlyArray<CrudEnt
 
     for (const op of payload.operations) {
       const descriptor = entities[op.table];
+
       if (!descriptor) {
         errors.push({ id: op.id, reason: `table not writable: ${op.table}` });
         continue;
@@ -111,6 +120,7 @@ export const syncUpload = (payload: { readonly operations: ReadonlyArray<CrudEnt
           // that can still reach `DbError`. Same "always 2xx" contract applies.
           Effect.orElseSucceed((): OpOutcome => ({ ok: false, reason: "write failed" })),
         );
+
       if (!outcome.ok) {
         errors.push({ id: op.id, reason: outcome.reason });
       }

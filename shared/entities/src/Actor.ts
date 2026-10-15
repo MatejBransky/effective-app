@@ -5,4 +5,5 @@ import { Schema } from "effect";
  * AI-agent-triggered changes can be told apart from host-user and system actions.
  */
 export const ActorType = Schema.Literals(["host_user", "ai_agent", "system"]);
+
 export type ActorType = typeof ActorType.Type;

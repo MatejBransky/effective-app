@@ -12,6 +12,7 @@ const tagId = "88888888-8888-4888-8888-888888888888";
 describe("SequenceAction", () => {
   it("round-trips an EMAIL action", async () => {
     const asserts = new TestSchema.Asserts(SequenceAction);
+
     const value = {
       id: actionId,
       sequenceId,
@@ -26,6 +27,7 @@ describe("SequenceAction", () => {
 
   it("round-trips an SMS action", async () => {
     const asserts = new TestSchema.Asserts(SequenceAction);
+
     const value = {
       id: actionId,
       sequenceId,
@@ -40,6 +42,7 @@ describe("SequenceAction", () => {
 
   it("round-trips a CONDITION action with a nested FilterRule", async () => {
     const asserts = new TestSchema.Asserts(SequenceAction);
+
     const value = {
       id: actionId,
       sequenceId,
@@ -61,6 +64,7 @@ describe("SequenceAction", () => {
 
   it("round-trips a TAG_ADD action", async () => {
     const asserts = new TestSchema.Asserts(SequenceAction);
+
     const value = {
       id: actionId,
       sequenceId,
@@ -75,6 +79,7 @@ describe("SequenceAction", () => {
 
   it("round-trips a TAG_REMOVE action", async () => {
     const asserts = new TestSchema.Asserts(SequenceAction);
+
     const value = {
       id: actionId,
       sequenceId,

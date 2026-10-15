@@ -11,6 +11,7 @@ export const SequenceActionType = Schema.Literals([
   "TAG_ADD",
   "TAG_REMOVE",
 ]);
+
 export type SequenceActionType = typeof SequenceActionType.Type;
 
 const TagId = Schema.String.check(Schema.isUUID());
@@ -83,5 +84,7 @@ export const SequenceAction = Schema.Union([
   TagAddAction,
   TagRemoveAction,
 ]).pipe(Schema.toTaggedUnion("type"));
+
 export type SequenceAction = typeof SequenceAction.Type;
+
 export type SequenceActionEncoded = typeof SequenceAction.Encoded;

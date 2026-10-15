@@ -39,6 +39,7 @@ export default Alchemy.Stack(
     // PR that triggered this deploy - a no-op outside GitHub Actions or on a
     // non-PR run (github.pr is undefined on pushes to main).
     const github = yield* GitHub.GitHubEnv;
+
     if (github?.pr) {
       yield* GitHub.Comment("preview-comment", {
         owner: "MatejBransky",

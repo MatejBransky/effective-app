@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("Member", () => {
   it("round-trips decode/encode", async () => {
     const asserts = new TestSchema.Asserts(Member);
+
     const encoded = {
       id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       email: "alice@example.test",
@@ -16,6 +17,7 @@ describe("Member", () => {
       phoneNumber: null,
       createdAt: "2024-02-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<MemberId>(encoded.id),

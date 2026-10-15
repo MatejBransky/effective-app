@@ -1349,6 +1349,64 @@ Also, while pushing this work: GitHub flagged 20 Dependabot vulnerabilities
 (7 high, 9 moderate, 4 low) on this repo's dependency tree - not yet
 triaged, tracked separately from this task.
 
+## Life-coaching example slice
+
+A complete vertical example (see `tasks/life-coaching-example.md` for
+requirements/plan and `tasks/life-coaching-glossary.md` for canonical terms):
+roles (`admin`/`coach`/`client`), daily unlock schedule (Daily Focus + two
+recharges at +2h/+4h absolute), push on unlock, verified listening + submit,
+coach dashboard, client settings, `cs`/`en` UI via Paraglide JS.
+
+- **Domain** (`shared/entities`: `Coaching.ts`, `CoachingStore.ts`,
+  `CoachingSchedule.ts`): unlock instants are computed, never stored, with
+  `effect/DateTime` - wall-clock focus time interpreted in the client's IANA
+  zone (`adjustForTimeZone`, DST handled by `Intl`), recharges as absolute
+  +2h/+4h. Slot status (`locked`/`unlocked`/`listened`/`missed`) is a pure
+  function of unlock instant, completion row, and program date. Covered by
+  `CoachingSchedule.test.ts`, including Prague spring-forward/fall-back days.
+- **Storage** (`shared/entities/src/db/schema/Coaching.ts`, migrations
+  `0002`-`0004`): `coaching_users`, `client_profiles`, `daily_contents`,
+  `slot_completions`, `listening_progress`, `push_subscriptions`,
+  `push_deliveries`. Row isolation keys on JWT `sub` (`app.user_id`, set
+  per-request by `apps/server`'s `UserScopedDb`), NOT on `app.host_id` - a
+  coach and their clients span tenants. Two RLS lessons, both fixed and
+  migrated: no self-referencing policies (infinite recursion - first on
+  `coaching_users.admin_all`, then on every `coach_read` `exists` subquery);
+  coach reads go through a `SECURITY DEFINER` `coaching_coach_of()` function
+  instead. Drift-checked like every other table.
+- **API** (`apps/server`: `CoachingApi.ts`, `CoachingHandlers.ts`):
+  `HttpApiGroup "Coaching"` - me/settings/today/day/progress/submit/audio,
+  coach clients + client day, push subscribe/unsubscribe/check-due. Submit
+  re-validates listening proof server-side (`playedRatio >= 90%` +
+  `reachedEnd`); progress heartbeats merge monotonically so a late heartbeat
+  can never un-reach the end. Audio fixtures (`fixtures/audio/*.wav`) stand
+  in for the media bucket; `check-due` is the scheduler core as an
+  admin-triggered endpoint (idempotent per user/date/slot via
+  `push_deliveries`). Handler logic is unit-tested against an in-memory
+  Drizzle stand-in (`CoachingHandlers.test.ts`), including the frozen-`TestClock`
+  caveat (`it.effect` runs at Unix epoch 0 - today-dependent tests seed
+  1970-01-01 explicitly).
+- **Client** (`apps/client`: `lib/coaching/`, `components/coaching/`,
+  routes `/coaching`, `/coaching/settings`, `/coach`, `/coach/$userId`):
+  Effect Atom query atoms with explicit refresh, `<audio>` playback with
+  seek-proof progress tracking (only linearly-played seconds accumulate),
+  blob-URL audio (the element cannot send Authorization headers), Paraglide
+  `cs`/`en` strings, VAPID subscribe UI, and an `injectManifest` service
+  worker rendering unlock pushes.
+- **E2E** (`apps/client/e2e/`): `coaching.spec.ts` (Chromium - settings,
+  real 4s playback of all three slots, submit gating, history replay, coach
+  review, locale switch) and `push.spec.ts` (Firefox only - headless
+  Chromium pins `Notification.permission` to `denied` and the Push API is
+  unavailable in its incognito contexts, microsoft/playwright#23954).
+  Seed: `pnpm --filter @repo/server run seed:coaching` (Keycloak
+  admin/coach/client users + DB rows, idempotent; also the Playwright
+  `globalSetup`).
+
+Deliberately out of the slice (see `tasks/life-coaching-example.md`
+section 10): `@yielded/auth` (kept Keycloak behind the existing auth seam),
+PowerSync sync for coaching tables (direct HttpApi reads), S3 presigned URLs
+(API-served fixtures instead), cron scheduler (admin endpoint instead).
+
 ## Deferred / out of scope for this PoC
 
 These exist in legacy and are consciously not modeled yet:

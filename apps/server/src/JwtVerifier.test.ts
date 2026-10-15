@@ -12,12 +12,13 @@ const HOST_ID = "11111111-1111-4111-8111-111111111111";
 const generateTestKey = async () => {
   const { privateKey, publicKey } = await jose.generateKeyPair("RS256");
   const jwk = { ...(await jose.exportJWK(publicKey)), kid: "test", alg: "RS256" };
+
   return { privateKey, jwk };
 };
 
 type PrivateKey = Awaited<ReturnType<typeof jose.generateKeyPair>>["privateKey"];
 
-const sign = (privateKey: PrivateKey, claims: Record<string, unknown>) =>
+const sign = (privateKey: PrivateKey, claims: jose.JWTPayload) =>
   new jose.SignJWT(claims)
     .setProtectedHeader({ alg: "RS256" })
     .setIssuer(ISSUER)
@@ -29,6 +30,7 @@ describe("JwtVerifier", () => {
   it.effect("extracts hostId and subject from a valid token", () =>
     Effect.gen(function* () {
       const { privateKey, jwk } = yield* Effect.promise(generateTestKey);
+
       const token = yield* Effect.promise(() =>
         sign(privateKey, { sub: "user-1", host_id: HOST_ID }),
       );
@@ -61,6 +63,7 @@ describe("JwtVerifier", () => {
     Effect.gen(function* () {
       const { privateKey: signingKey } = yield* Effect.promise(generateTestKey);
       const { jwk: unrelatedJwk } = yield* Effect.promise(generateTestKey);
+
       const token = yield* Effect.promise(() =>
         sign(signingKey, { sub: "user-1", host_id: HOST_ID }),
       );

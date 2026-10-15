@@ -8,6 +8,7 @@ import { asId } from "./testHelpers.ts";
 describe("HostFilterSet", () => {
   it("round-trips decode/encode with a nested FilterRule tree", async () => {
     const asserts = new TestSchema.Asserts(HostFilterSet);
+
     const encoded = {
       id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
       hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -26,6 +27,7 @@ describe("HostFilterSet", () => {
       },
       createdAt: "2024-04-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<HostFilterSetId>(encoded.id),

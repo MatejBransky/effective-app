@@ -154,4 +154,5 @@ export const drizzleSchema = {
 };
 
 export const AppSchema = new DrizzleAppSchema(drizzleSchema);
+
 export type Database = (typeof AppSchema)["types"];

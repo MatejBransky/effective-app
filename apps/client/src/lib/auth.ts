@@ -3,6 +3,7 @@ import { InMemoryWebStorage, User, UserManager, WebStorageStateStore } from "oid
 const KEYCLOAK_URL = import.meta.env["VITE_KEYCLOAK_URL"];
 const KEYCLOAK_REALM = import.meta.env["VITE_KEYCLOAK_REALM"];
 const KEYCLOAK_CLIENT_ID = import.meta.env["VITE_KEYCLOAK_CLIENT_ID"];
+
 if (!KEYCLOAK_URL || !KEYCLOAK_REALM || !KEYCLOAK_CLIENT_ID) {
   throw new Error(
     "VITE_KEYCLOAK_URL/VITE_KEYCLOAK_REALM/VITE_KEYCLOAK_CLIENT_ID must be set - see .env.example",
@@ -78,6 +79,7 @@ export const getUser = (): Promise<User | null> => userManager.getUser();
 
 export const getAccessToken = async (): Promise<string | null> => {
   const user = await getUser();
+
   return user && !user.expired ? user.access_token : null;
 };
 
@@ -85,6 +87,7 @@ export const getAccessToken = async (): Promise<string | null> => {
  * call `completeLogin` to finish the exchange. */
 export const isLoginCallback = (): boolean => {
   const params = new URLSearchParams(window.location.search);
+
   return params.has("code") && params.has("state");
 };
 
@@ -93,6 +96,7 @@ export const isLoginCallback = (): boolean => {
 export const completeLogin = async (): Promise<User> => {
   const user = await userManager.signinRedirectCallback();
   window.history.replaceState({}, "", window.location.pathname);
+
   return user;
 };
 
@@ -100,7 +104,9 @@ export const completeLogin = async (): Promise<User> => {
  * without ever having persisted the token - see the module-level comment above. */
 export const restoreSession = async (): Promise<User | null> => {
   const existing = await getUser();
+
   if (existing && !existing.expired) return existing;
+
   try {
     return await userManager.signinSilent();
   } catch {

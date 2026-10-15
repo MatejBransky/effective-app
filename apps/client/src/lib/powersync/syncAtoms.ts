@@ -34,6 +34,7 @@ export const pendingWritesCountAtom: Atom.Atom<number> = Atom.make((get) => {
     { signal: controller.signal },
   );
   get.addFinalizer(() => controller.abort());
+
   return 0;
 });
 
@@ -50,9 +51,11 @@ export const retryGenerationAtom: Atom.Writable<number> = Atom.make(0);
  */
 export const stuckAtom: Atom.Atom<boolean> = Atom.make((get) => {
   get(retryGenerationAtom);
+
   if (get(pendingWritesCountAtom) === 0) return false;
   const timeout = setTimeout(() => get.setSelf(true), STUCK_AFTER_MS);
   get.addFinalizer(() => clearTimeout(timeout));
+
   return false;
 });
 
@@ -97,7 +100,9 @@ export const syncSnapshotAtom: Atom.Atom<SyncSnapshot> = Atom.make((get) => {
   const dispose = db.registerListener({
     statusChanged: (status) => get.setSelf(toSnapshot(status)),
   });
+
   get.addFinalizer(dispose);
+
   return toSnapshot(db.currentStatus);
 });
 
@@ -115,9 +120,11 @@ const syncErrorMessageAtom: Atom.Atom<string | undefined> = Atom.map(
  * change + finalizer-clears-the-previous-timer pattern as `stuckAtom`. */
 export const syncErrorAtom: Atom.Atom<string | undefined> = Atom.make((get) => {
   const message = get(syncErrorMessageAtom);
+
   if (!message) return undefined;
   const timeout = setTimeout(() => get.setSelf(message), SYNC_ERROR_GRACE_MS);
   get.addFinalizer(() => clearTimeout(timeout));
+
   return undefined;
 });
 
@@ -133,5 +140,6 @@ export const browserOnlineAtom: Atom.Atom<boolean> = Atom.make((get) => {
     window.removeEventListener("online", update);
     window.removeEventListener("offline", update);
   });
+
   return navigator.onLine;
 });

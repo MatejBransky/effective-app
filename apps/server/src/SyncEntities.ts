@@ -25,7 +25,30 @@ import {
   SequenceVersion,
 } from "@repo/entities";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
+
+/**
+ * Wire shape of one PowerSync op's `opData` - mirrors the Sync upload contract
+ * (`Api.ts`'s `SyncOp.opData`: string keys, JSON values). Values stay unparsed
+ * at this level on purpose: `preprocessOpData` below normalizes the PowerSync
+ * encodings (JSON-stringified `jsonFields`, 0/1 `booleanFields`) and
+ * `SyncHandlers.applyOp` validates every value against the owning entity's
+ * Effect Schema (`fields` for PATCH, `fullSchema` for PUT) before anything
+ * reaches Drizzle - nothing unvalidated is ever inserted.
+ */
+const OpDataSchema = Schema.Record(Schema.String, Schema.Unknown);
+
+export type OpData = typeof OpDataSchema.Type;
+
+/**
+ * Table-name → descriptor map for the PowerSync upload allowlist. A named
+ * owner contract (rather than an anonymous open dictionary): lookups are keyed
+ * by runtime `op.table` strings, so the key set cannot be known statically -
+ * unknown tables resolve to `undefined` and are rejected per-op by the caller.
+ */
+export interface EntityMap {
+  readonly [table: string]: EntityDescriptor;
+}
 
 /**
  * One entry per table the PowerSync upload queue (`POST /sync/upload`) is allowed to
@@ -69,10 +92,11 @@ export interface EntityDescriptor {
 // part of a PUT's whole-row decode, where `type` is always present.
 const sequenceActionScalarFields = (() => {
   const { config: _config, ...scalarFields } = SequenceAction.cases.EMAIL.fields;
+
   return scalarFields;
 })();
 
-export const entities: Record<string, EntityDescriptor> = {
+export const entities: EntityMap = {
   hosts: { table: hosts, fields: Host.fields, fullSchema: Host },
   members: { table: members, fields: Member.fields, fullSchema: Member },
   member_hosts: { table: memberHosts, fields: MemberHost.fields, fullSchema: MemberHost },
@@ -115,24 +139,30 @@ export const entities: Record<string, EntityDescriptor> = {
   },
 };
 
+/** Decodes a JSON-stringified `jsonFields` value: `Some` when the wire value is
+ * still a string (needs `JSON.parse`), `None` when it already arrived
+ * structured and can pass through as-is. */
+const decodeJsonString = Schema.decodeUnknownOption(Schema.String);
+
 /** JSON-parses `jsonFields` and coerces `booleanFields` (0/1 -> boolean) before either a
  * whole-row (PUT) or per-field (PATCH) Effect Schema decode - both need to see real
  * objects/booleans, not the wire-friendly string/0-1 encoding PowerSync's SQLite-backed
  * client schema is limited to. Throws on malformed JSON - caught by the caller as a
  * per-op validation error, same as a schema decode failure. */
-export const preprocessOpData = (
-  opData: Record<string, unknown>,
-  descriptor: EntityDescriptor,
-): Record<string, unknown> => {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(opData)) {
-    if (descriptor.jsonFields?.includes(key) && typeof value === "string") {
-      result[key] = JSON.parse(value);
-    } else if (descriptor.booleanFields?.includes(key)) {
-      result[key] = value === 1 || value === true;
-    } else {
-      result[key] = value;
+export const preprocessOpData = (opData: OpData, descriptor: EntityDescriptor): OpData => {
+  const entries = Object.entries(opData).map(([key, value]): [string, unknown] => {
+    const asString = decodeJsonString(value);
+
+    if (descriptor.jsonFields?.includes(key) && Option.isSome(asString)) {
+      return [key, JSON.parse(asString.value)];
     }
-  }
-  return result;
+
+    if (descriptor.booleanFields?.includes(key)) {
+      return [key, value === 1 || value === true];
+    }
+
+    return [key, value];
+  });
+
+  return Object.fromEntries(entries);
 };

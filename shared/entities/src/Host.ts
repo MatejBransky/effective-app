@@ -17,5 +17,7 @@ export const Host = Schema.Struct({
   businessType: Schema.String,
   createdAt: Schema.DateFromString,
 });
+
 export type Host = typeof Host.Type;
+
 export type HostEncoded = typeof Host.Encoded;

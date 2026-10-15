@@ -15,5 +15,7 @@ export const HostFilterSet = Schema.Struct({
   rules: FilterRule,
   createdAt: Schema.DateFromString,
 });
+
 export type HostFilterSet = typeof HostFilterSet.Type;
+
 export type HostFilterSetEncoded = typeof HostFilterSet.Encoded;

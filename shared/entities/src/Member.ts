@@ -10,5 +10,7 @@ export const Member = Schema.Struct({
   phoneNumber: Schema.NullOr(Schema.String),
   createdAt: Schema.DateFromString,
 });
+
 export type Member = typeof Member.Type;
+
 export type MemberEncoded = typeof Member.Encoded;

@@ -15,6 +15,7 @@ const aggregateId = "55555555-5555-4555-8555-555555555555";
 describe("DomainEvent", () => {
   it("round-trips a generic event with an arbitrary payload", async () => {
     const asserts = new TestSchema.Asserts(DomainEvent);
+
     const encoded = {
       id: "99999999-9999-4999-8999-999999999999",
       hostId,
@@ -26,6 +27,7 @@ describe("DomainEvent", () => {
       actorId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       occurredAt: "2024-08-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<DomainEventId>(encoded.id),
@@ -39,6 +41,7 @@ describe("DomainEvent", () => {
 
   it("round-trips a DomainEvent whose payload is a SequenceActionExecutedPayload", async () => {
     const asserts = new TestSchema.Asserts(DomainEvent);
+
     const payload = {
       actionId: "33333333-3333-4333-8333-333333333333",
       actionType: "EMAIL" as const,
@@ -49,6 +52,7 @@ describe("DomainEvent", () => {
         provider: "mailpit",
       },
     };
+
     const encoded = {
       id: "99999999-9999-4999-8999-999999999999",
       hostId,
@@ -60,6 +64,7 @@ describe("DomainEvent", () => {
       actorId: null,
       occurredAt: "2024-08-01T00:00:00.000Z",
     };
+
     const decoded = {
       ...encoded,
       id: asId<DomainEventId>(encoded.id),
@@ -76,6 +81,7 @@ describe("DomainEvent", () => {
 describe("SequenceActionExecutedPayload", () => {
   it("round-trips an EMAIL/SMS result", async () => {
     const asserts = new TestSchema.Asserts(SequenceActionExecutedPayload);
+
     const encoded = {
       actionId: "33333333-3333-4333-8333-333333333333",
       actionType: "SMS" as const,
@@ -86,6 +92,7 @@ describe("SequenceActionExecutedPayload", () => {
         provider: "twilio",
       },
     };
+
     const decoded = {
       ...encoded,
       actionId: asId<SequenceActionId>(encoded.actionId),
@@ -98,6 +105,7 @@ describe("SequenceActionExecutedPayload", () => {
 
   it("round-trips a CONDITION result", async () => {
     const asserts = new TestSchema.Asserts(SequenceActionExecutedPayload);
+
     const value = {
       actionId: "33333333-3333-4333-8333-333333333333",
       actionType: "CONDITION" as const,
@@ -110,6 +118,7 @@ describe("SequenceActionExecutedPayload", () => {
 
   it("round-trips a TAG_ADD/TAG_REMOVE result", async () => {
     const asserts = new TestSchema.Asserts(SequenceActionExecutedPayload);
+
     const value = {
       actionId: "33333333-3333-4333-8333-333333333333",
       actionType: "TAG_REMOVE" as const,

@@ -25,6 +25,12 @@ beforeEach(() => {
  * `onConfirm`'s own `modalHandle.close()` call silently do nothing. */
 const getModalCallbacks = (): { onConfirm: () => void; onCancel: () => void } => {
   const [entry] = registry.get(modalStackAtom);
+
+  // SAFETY: each test opens exactly one modal via confirm() before reading the stack, so the
+  // entry exists; its render is confirm's own openModal callback returning a `<ConfirmDialog
+  // onConfirm={...} onCancel={...} />` element, and React.createElement preserves those exact
+  // props on element.props, so narrowing ReactNode to ReactElement with those callbacks
+  // discards nothing.
   const element = entry!.render({
     id: entry!.id,
     close: () =>
@@ -33,6 +39,7 @@ const getModalCallbacks = (): { onConfirm: () => void; onCancel: () => void } =>
     onConfirm: () => void;
     onCancel: () => void;
   }>;
+
   return element.props;
 };
 
@@ -78,6 +85,7 @@ describe("confirm", () => {
     const fiber = Effect.runFork(
       confirm({ title: "t", message: "m" }).pipe(Effect.provide(TestLive)),
     );
+
     // Let the fiber actually start (registering the modal) before interrupting it.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(registry.get(modalStackAtom)).toHaveLength(1);

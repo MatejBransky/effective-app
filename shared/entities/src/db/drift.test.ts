@@ -1,21 +1,31 @@
 import {
+  ClientProfile,
+  CoachingUser,
+  DailyContent,
   DomainEvent,
   Host,
   HostFilterSet,
   LeadStage,
   LeadStageTemplate,
+  ListeningProgress,
   MarketingSequence,
   Member,
   MemberHost,
+  PushDelivery,
+  PushSubscription,
   SequenceAction,
   SequenceEdge,
   SequenceEnrollment,
   SequenceVersion,
+  SlotCompletion,
 } from "../index.ts";
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import {
+  clientProfiles,
+  coachingUsers,
+  dailyContents,
   domainEvents,
   hostFilterSets,
   hosts,
@@ -28,6 +38,10 @@ import {
   sequenceEdges,
   sequenceEnrollments,
   sequenceVersions,
+  slotCompletions,
+  listeningProgress,
+  pushDeliveries,
+  pushSubscriptions,
 } from "./schema/index.ts";
 
 /**
@@ -68,6 +82,25 @@ const entities = [
   },
   { name: "SequenceVersion", fields: Object.keys(SequenceVersion.fields), table: sequenceVersions },
   { name: "DomainEvent", fields: Object.keys(DomainEvent.fields), table: domainEvents },
+  { name: "CoachingUser", fields: Object.keys(CoachingUser.fields), table: coachingUsers },
+  { name: "ClientProfile", fields: Object.keys(ClientProfile.fields), table: clientProfiles },
+  { name: "DailyContent", fields: Object.keys(DailyContent.fields), table: dailyContents },
+  {
+    name: "SlotCompletion",
+    fields: Object.keys(SlotCompletion.fields),
+    table: slotCompletions,
+  },
+  {
+    name: "ListeningProgress",
+    fields: Object.keys(ListeningProgress.fields),
+    table: listeningProgress,
+  },
+  {
+    name: "PushSubscription",
+    fields: Object.keys(PushSubscription.fields),
+    table: pushSubscriptions,
+  },
+  { name: "PushDelivery", fields: Object.keys(PushDelivery.fields), table: pushDeliveries },
 ];
 
 describe("Effect Schema <-> Drizzle drift", () => {

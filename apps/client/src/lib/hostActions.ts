@@ -29,6 +29,7 @@ export const resetHostName = defineAction<{ id: string; name: string }, ResetHos
         title: "Reset host name?",
         message: `This will rename "${host.name}" back to "${DEFAULT_HOST_NAME}".`,
       });
+
       if (!confirmed) return;
 
       yield* Effect.tryPromise({

@@ -29,6 +29,7 @@ export const confirm = (
 ): Effect.Effect<boolean, never, AtomRegistryService> =>
   Effect.gen(function* () {
     const registryService = yield* AtomRegistryService;
+
     return yield* Effect.callback<boolean>((resume) => {
       const handle = Effect.runSync(
         Effect.provideService(
@@ -49,6 +50,7 @@ export const confirm = (
           registryService,
         ),
       );
+
       return Effect.sync(() => handle.close());
     });
   });

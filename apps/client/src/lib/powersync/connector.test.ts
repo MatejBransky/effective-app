@@ -1,15 +1,20 @@
+import { UpdateType, type CrudEntry } from "@powersync/web";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Connector } from "./connector.ts";
 
 const getAccessTokenMock = vi.fn<() => Promise<string | null>>();
-vi.mock("../auth.ts", () => ({ getAccessToken: getAccessTokenMock }));
-
-const { Connector } = await import("./connector.ts");
 
 // Explicit, not import.meta.env - CI has no .env (gitignored), and this class's logic
 // shouldn't need real app config just to construct one for a test.
-const TEST_URLS = { powersyncUrl: "http://localhost:8080", serverUrl: "http://localhost:4000" };
+const TEST_URLS = {
+  powersyncUrl: "http://localhost:8080",
+  serverUrl: "http://localhost:4000",
+  getAccessToken: getAccessTokenMock,
+};
 
-const fakeTransaction = (crud: ReadonlyArray<Record<string, unknown>>) => ({
+const fakeTransaction = (
+  crud: ReadonlyArray<Pick<CrudEntry, "id" | "op" | "table" | "opData">>,
+) => ({
   crud,
   complete: vi.fn().mockResolvedValue(undefined),
 });
@@ -59,9 +64,11 @@ describe("Connector.uploadData", () => {
 
   it("still calls transaction.complete() when the server reports per-op errors (2xx contract)", async () => {
     getAccessTokenMock.mockResolvedValue("token");
+
     const transaction = fakeTransaction([
-      { id: "1", op: "PUT", table: "hosts", opData: { name: "Test" } },
+      { id: "1", op: UpdateType.PUT, table: "hosts", opData: { name: "Test" } },
     ]);
+
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -78,9 +85,11 @@ describe("Connector.uploadData", () => {
 
   it("throws without completing the transaction on a non-2xx response", async () => {
     getAccessTokenMock.mockResolvedValue("token");
+
     const transaction = fakeTransaction([
-      { id: "1", op: "PUT", table: "hosts", opData: { name: "Test" } },
+      { id: "1", op: UpdateType.PUT, table: "hosts", opData: { name: "Test" } },
     ]);
+
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
     const connector = new Connector(TEST_URLS);
 
@@ -90,9 +99,11 @@ describe("Connector.uploadData", () => {
 
   it("throws without calling fetch when there is no authenticated session", async () => {
     getAccessTokenMock.mockResolvedValue(null);
+
     const transaction = fakeTransaction([
-      { id: "1", op: "PUT", table: "hosts", opData: { name: "Test" } },
+      { id: "1", op: UpdateType.PUT, table: "hosts", opData: { name: "Test" } },
     ]);
+
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const connector = new Connector(TEST_URLS);

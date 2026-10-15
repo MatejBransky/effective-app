@@ -5,28 +5,41 @@ import { HttpRouter } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { AuthLive } from "./Auth.ts";
+import { AudioStoreLive, CoachingGroupLive, PushSenderLive } from "./CoachingHandlers.ts";
 import * as Db from "./Db.ts";
 import { HealthGroupLive, HostsGroupLive, MeGroupLive } from "./Handlers.ts";
 import * as HostScopedDb from "./HostScopedDb.ts";
 import * as JwtVerifier from "./JwtVerifier.ts";
 import { SyncGroupLive } from "./SyncHandlers.ts";
+import * as UserScopedDb from "./UserScopedDb.ts";
 
 // Default off the standard 3000 to avoid colliding with other local dev servers.
 const PORT = Number(process.env["PORT"] ?? 4000);
+
 // Fail fast on missing config rather than starting a server that would 500 on every
 // protected request - see .env.example for where these come from.
 const ISSUER = process.env["KEYCLOAK_ISSUER"];
 const JWKS_URI = process.env["KEYCLOAK_JWKS_URI"];
 const APP_DATABASE_URL = process.env["APP_DATABASE_URL"];
 const CLIENT_ORIGIN = process.env["CLIENT_ORIGIN"];
+const VAPID_SUBJECT = process.env["VAPID_SUBJECT"];
+const VAPID_PUBLIC_KEY = process.env["VAPID_PUBLIC_KEY"];
+const VAPID_PRIVATE_KEY = process.env["VAPID_PRIVATE_KEY"];
+
 if (!ISSUER || !JWKS_URI) {
   throw new Error("KEYCLOAK_ISSUER and KEYCLOAK_JWKS_URI must be set - see .env.example");
 }
+
 if (!APP_DATABASE_URL) {
   throw new Error("APP_DATABASE_URL must be set - see .env.example");
 }
+
 if (!CLIENT_ORIGIN) {
   throw new Error("CLIENT_ORIGIN must be set - see .env.example");
+}
+
+if (!VAPID_SUBJECT || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  throw new Error("VAPID_SUBJECT/PUBLIC_KEY/PRIVATE_KEY must be set - see .env.example");
 }
 
 const AuthLayer = AuthLive.pipe(
@@ -34,6 +47,8 @@ const AuthLayer = AuthLive.pipe(
 );
 
 const HostScopedDbLayer = HostScopedDb.layer.pipe(Layer.provide(Db.layer(APP_DATABASE_URL)));
+
+const UserScopedDbLayer = UserScopedDb.layer.pipe(Layer.provide(Db.layer(APP_DATABASE_URL)));
 
 // `apps/client` calls this API cross-origin (localhost:5173 -> localhost:4000). Bearer
 // tokens go in the Authorization header, not cookies, so `credentials: true` isn't
@@ -49,6 +64,7 @@ const ApiLive = HttpApiBuilder.layer(Api).pipe(
   Layer.provide(MeGroupLive),
   Layer.provide(HostsGroupLive),
   Layer.provide(SyncGroupLive),
+  Layer.provide(CoachingGroupLive),
   Layer.provide(AuthLayer),
   // Unlike HostScopedDbLayer below, CORS is global router middleware - it needs the
   // `HttpRouter` service itself (to register a global middleware against it), which is
@@ -61,6 +77,15 @@ const ApiLive = HttpApiBuilder.layer(Api).pipe(
   // HostScopedDbLayer before `serve` silently fails to satisfy it (different types).
   HttpRouter.serve,
   Layer.provide(HostScopedDbLayer),
+  Layer.provide(UserScopedDbLayer),
+  Layer.provide(AudioStoreLive),
+  Layer.provide(
+    PushSenderLive({
+      subject: VAPID_SUBJECT,
+      publicKey: VAPID_PUBLIC_KEY,
+      privateKey: VAPID_PRIVATE_KEY,
+    }),
+  ),
   Layer.provide(NodeHttpServer.layer(createServer, { port: PORT })),
 );
 

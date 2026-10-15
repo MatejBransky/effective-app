@@ -1326,9 +1326,12 @@ actually running the workflow) - both fixed and re-verified:
 - **`deploy`/`destroy` unconditionally tried to `. ../../.env`** - fine
   locally, but `.env` is (correctly) gitignored and doesn't exist in CI,
   where credentials come from the workflow's real environment variables
-  instead. The very first `main` push after adding CI failed immediately
-  with `cannot open ../../.env: No such file`. Fixed by guarding the source
-  with `[ -f ../../.env ] &&` so it's skipped, not fatal, when absent.
+  instead. First fixed by guarding the source with `[ -f ../../.env ] &&`;
+  later removed entirely - the `package.json` scripts are now bare
+  (`alchemy deploy --yes`, no `sh -c` wrapper, no `CI=1` hardcoding) and
+  assume the environment is already set. Locally export `.env` explicitly
+  (`set -a; source .env; set +a`); CI injects GitHub secrets via `env:`.
+  Committed code must never depend on a gitignored file.
 - **`destroy` silently no-op'd in CI without `--yes`.** The cleanup job
   reported success on every run, but the `pr-1` Workers were never actually
   deleted - `alchemy destroy` printed the deletion plan, hit "Non-interactive

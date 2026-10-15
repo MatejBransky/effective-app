@@ -1,3 +1,4 @@
+import layerBoundariesRule from "./rules/layer-boundaries.ts";
 import noTypeAssertionRule from "./rules/no-type-assertion.ts";
 
 const plugin = {
@@ -6,6 +7,7 @@ const plugin = {
   },
   rules: {
     "no-type-assertion": noTypeAssertionRule,
+    "layer-boundaries": layerBoundariesRule,
   },
 };
 

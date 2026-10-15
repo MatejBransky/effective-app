@@ -9,6 +9,7 @@ const ADMIN = { username: "coach-admin", password: PASSWORD };
 // network layer (unresolvable mock host), exercising the graceful path.
 const MOCK_P256DH =
   "BNkOaRQVMlHYOVEvCRo3SYIyFqGAzaPWNUAongExu00ZlQl6PopBN43zMwT2CoRrUHJfm7yxuEcdxxI-JEIli_I";
+
 const MOCK_AUTH = "zCh1jZ7h-Y7PoAMJEyn4HQ";
 const MOCK_ENDPOINT = "https://push.example.test/sub-e2e";
 
@@ -29,14 +30,16 @@ test("push subscribe + scheduler wiring works end to end", async ({ browser }) =
     await context.addInitScript(
       ({ endpoint, p256dh, auth }) => {
         window.PushManager.prototype.subscribe = async function () {
-          const subscription = {
+          const subscription: PushSubscription = {
             endpoint,
             expirationTime: null,
-            options: { userVisibleOnly: true, applicationServerKey: new Uint8Array(65) },
+            options: { userVisibleOnly: true, applicationServerKey: new Uint8Array(65).buffer },
+            getKey: () => null,
             toJSON: () => ({ endpoint, keys: { p256dh, auth } }),
             unsubscribe: async () => true,
           };
-          return subscription as unknown as PushSubscription;
+
+          return subscription;
         };
       },
       { endpoint: MOCK_ENDPOINT, p256dh: MOCK_P256DH, auth: MOCK_AUTH },
@@ -48,6 +51,7 @@ test("push subscribe + scheduler wiring works end to end", async ({ browser }) =
     await page.locator("#password").fill(credentials.password);
     await page.locator("#kc-login").click();
     await page.waitForURL("http://localhost:5173/");
+
     return { context, page };
   };
 
@@ -68,19 +72,26 @@ test("push subscribe + scheduler wiring works end to end", async ({ browser }) =
   await expect(client.page.getByText("(on)")).toBeVisible({ timeout: 30_000 });
 
   const api = await request.newContext();
+
+  // SAFETY: the OIDC password-grant token endpoint returns JSON with `access_token` on
+  // success; the test fails on the subsequent 401 if the shape is wrong.
   const token = await api
     .post("http://localhost:8180/realms/effective-app/protocol/openid-connect/token", {
       form: { grant_type: "password", client_id: "effective-app-client", ...ADMIN },
     })
     .then((res) => res.json())
     .then((json) => (json as { access_token: string }).access_token);
+
   const headers = { Authorization: `Bearer ${token}` };
   const first = await api.post("http://localhost:4000/coaching/push/check-due", { headers });
   expect(first.ok()).toBe(true);
   // The mock endpoint cannot resolve, so every send fails gracefully: nothing
   // is recorded as delivered, and the scheduler reports zero.
+  // SAFETY: `/coaching/push/check-due` returns `{ sent: number }` by contract (CoachingApi);
+  // a shape change fails the toEqual below, not silently.
   expect((await first.json()) as { sent: number }).toEqual({ sent: 0 });
   const second = await api.post("http://localhost:4000/coaching/push/check-due", { headers });
+  // SAFETY: same contract as above.
   expect((await second.json()) as { sent: number }).toEqual({ sent: 0 });
   await api.dispose();
   await client.context.close();
